@@ -27,11 +27,11 @@ import { MessageMarkdown } from "./message-markdown"
 const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  "gpt-3.5-turbo": "GPT 3.5",
-  "gpt-4": "GPT 4",
-  "gpt-4-turbo-preview": "GPT 4 Turbo ⚡️",
-  "mixtral-8x7b": "Mixtral 8x7B",
-  "llama3": "LLaMA 3"
+  "gpt-3.5-turbo": "Rhyno v1",
+  "gpt-4": "Rhyno v2",
+  "gpt-4-turbo-preview": "Rhyno v3",
+  "mixtral-8x7b": "Rhyno test",
+  "llama3": "Rhyno "
 }
 
 interface MessageProps {
