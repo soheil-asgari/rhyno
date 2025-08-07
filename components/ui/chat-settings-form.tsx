@@ -6,7 +6,6 @@ import { ChatSettings } from "@/types"
 import { IconInfoCircle } from "@tabler/icons-react"
 import { FC, useContext } from "react"
 import { ModelSelect } from "../models/model-select"
-import { AdvancedSettings } from "./advanced-settings"
 import { Checkbox } from "./checkbox"
 import { Label } from "./label"
 import {
@@ -23,17 +22,15 @@ import { WithTooltip } from "./with-tooltip"
 interface ChatSettingsFormProps {
   chatSettings: ChatSettings
   onChangeChatSettings: (value: ChatSettings) => void
-  useAdvancedDropdown?: boolean
   showTooltip?: boolean
 }
 
 export const ChatSettingsForm: FC<ChatSettingsFormProps> = ({
   chatSettings,
   onChangeChatSettings,
-  useAdvancedDropdown = true,
   showTooltip = true
 }) => {
-  const { profile, models } = useContext(ChatbotUIContext)
+  const { profile } = useContext(ChatbotUIContext)
 
   if (!profile) return null
 
@@ -51,37 +48,10 @@ export const ChatSettingsForm: FC<ChatSettingsFormProps> = ({
       </div>
 
       <div className="space-y-1">
-        <Label>Prompt</Label>
-
-        <TextareaAutosize
-          className="bg-background border-input border-2"
-          placeholder="You are a helpful AI assistant."
-          onValueChange={prompt => {
-            onChangeChatSettings({ ...chatSettings, prompt })
-          }}
-          value={chatSettings.prompt}
-          minRows={3}
-          maxRows={6}
-        />
+       
       </div>
 
-      {useAdvancedDropdown ? (
-        <AdvancedSettings>
-          <AdvancedContent
-            chatSettings={chatSettings}
-            onChangeChatSettings={onChangeChatSettings}
-            showTooltip={showTooltip}
-          />
-        </AdvancedSettings>
-      ) : (
-        <div>
-          <AdvancedContent
-            chatSettings={chatSettings}
-            onChangeChatSettings={onChangeChatSettings}
-            showTooltip={showTooltip}
-          />
-        </div>
-      )}
+      
     </div>
   )
 }
@@ -120,7 +90,6 @@ const AdvancedContent: FC<AdvancedContentProps> = ({
       <div className="space-y-3">
         <Label className="flex items-center space-x-1">
           <div>Temperature:</div>
-
           <div>{chatSettings.temperature}</div>
         </Label>
 
@@ -141,7 +110,6 @@ const AdvancedContent: FC<AdvancedContentProps> = ({
       <div className="mt-6 space-y-3">
         <Label className="flex items-center space-x-1">
           <div>Context Length:</div>
-
           <div>{chatSettings.contextLength}</div>
         </Label>
 

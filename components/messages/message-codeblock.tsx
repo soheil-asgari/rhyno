@@ -112,21 +112,24 @@ export const MessageCodeBlock: FC<MessageCodeBlockProps> = memo(
         <SyntaxHighlighter
           language={language}
           style={oneDark}
-          // showLineNumbers
           customStyle={{
             margin: 0,
-            width: "100%",
-            background: "transparent"
+            padding: "1rem",
+            background: "transparent",
+            fontSize: "14px",
+            fontFamily: '"Fira Code", monospace'
           }}
+          wrapLines
+          wrapLongLines
           codeTagProps={{
             style: {
-              fontSize: "14px",
-              fontFamily: "var(--font-mono)"
+              fontFamily: '"Fira Code", monospace'
             }
           }}
         >
           {value}
         </SyntaxHighlighter>
+
       </div>
     )
   }

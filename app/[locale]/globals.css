@@ -1,32 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "@fontsource/fira-code"; /* وزن‌های پیش‌فرض */
 
-::-webkit-scrollbar-track {
-  background-color: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #ccc;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: #aaa;
-}
-
-::-webkit-scrollbar-track:hover {
-  background-color: #f2f2f2;
-}
-
-::-webkit-scrollbar-corner {
-  background-color: transparent;
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+@import "@fontsource/vazirmatn/400.css";
 
 @layer base {
   :root {
@@ -58,7 +35,6 @@
     --destructive-foreground: 0 0% 98%;
 
     --ring: 0 0% 63.9%;
-
     --radius: 0.5rem;
   }
 
@@ -92,13 +68,17 @@
 
     --ring: 0 0% 14.9%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#121212] text-white font-vazir leading-relaxed antialiased;
+  }
+
+  .font-vazir {
+    font-family: "Vazirmatn", sans-serif;
   }
 }
+

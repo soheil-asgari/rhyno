@@ -21,9 +21,9 @@ import { useChatHistoryHandler } from "./chat-hooks/use-chat-history"
 import { usePromptAndCommand } from "./chat-hooks/use-prompt-and-command"
 import { useSelectFileHandler } from "./chat-hooks/use-select-file-handler"
 
-interface ChatInputProps {}
+interface ChatInputProps { }
 
-export const ChatInput: FC<ChatInputProps> = ({}) => {
+export const ChatInput: FC<ChatInputProps> = ({ }) => {
   const { t } = useTranslation()
 
   useHotkey("l", () => {
@@ -151,7 +151,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       if (item.type.indexOf("image") === 0) {
         if (!imagesAllowed) {
           toast.error(
-            `Images are not supported for this model. Use models like GPT-4 Vision instead.`
+            `Images are not supported for this model. Use models like Rhyno V3 instead.`
           )
           return
         }
@@ -238,11 +238,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent px-14 py-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder={t(
-            // `Ask anything. Type "@" for assistants, "/" for prompts, "#" for files, and "!" for tools.`
-            `Ask anything. Type @  /  #  !`
-          )}
+          className="w-full resize-none rounded-xl border border-[#2c2c2c] bg-[#1e1e1e] px-5 py-3 pr-16 pl-12 text-[15px] font-vazir text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3a3a3a] shadow-sm transition-all duration-150"
+          placeholder={t("Ask anything")}
           onValueChange={handleInputChange}
           value={userInput}
           minRows={1}
@@ -253,29 +250,31 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           onCompositionEnd={() => setIsTyping(false)}
         />
 
-        <div className="absolute bottom-[14px] right-3 cursor-pointer hover:opacity-50">
+
+        {/* دکمه ارسال یا توقف تولید */}
+        <div className="absolute bottom-2.5 right-3 cursor-pointer">
           {isGenerating ? (
             <IconPlayerStopFilled
-              className="hover:bg-background animate-pulse rounded bg-transparent p-1"
+              className="animate-pulse rounded p-1 text-white hover:bg-[#333]"
               onClick={handleStopMessage}
-              size={30}
+              size={28}
             />
           ) : (
             <IconSend
               className={cn(
-                "bg-primary text-secondary rounded p-1",
+                "rounded bg-[#333] p-1 text-white hover:bg-[#444]",
                 !userInput && "cursor-not-allowed opacity-50"
               )}
               onClick={() => {
                 if (!userInput) return
-
                 handleSendMessage(userInput, chatMessages, false)
               }}
-              size={30}
+              size={28}
             />
           )}
         </div>
       </div>
+
     </>
   )
 }

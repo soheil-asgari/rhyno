@@ -26,6 +26,14 @@ import { MessageMarkdown } from "./message-markdown"
 
 const ICON_SIZE = 32
 
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "gpt-3.5-turbo": "GPT 3.5",
+  "gpt-4": "GPT 4",
+  "gpt-4-turbo-preview": "GPT 4 Turbo ⚡️",
+  "mixtral-8x7b": "Mixtral 8x7B",
+  "llama3": "LLaMA 3"
+}
+
 interface MessageProps {
   message: Tables<"messages">
   fileItems: Tables<"file_items">[]
@@ -182,14 +190,25 @@ export const Message: FC<MessageProps> = ({
   return (
     <div
       className={cn(
-        "flex w-full justify-center",
-        message.role === "user" ? "" : "bg-secondary"
+        "flex w-full justify-center px-4 py-3 transition-colors duration-200",
+        message.role === "user" ? "bg-[#0f0f0f]" : "bg-[#1a1a1a]"
       )}
+
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       onKeyDown={handleKeyDown}
     >
-      <div className="relative flex w-full flex-col p-6 sm:w-[550px] sm:px-0 md:w-[650px] lg:w-[650px] xl:w-[700px]">
+      <div
+        className={cn(
+          "relative w-full max-w-2xl px-6 py-5 transition-all duration-200",
+          message.role === "user"
+            ? "bg-[#1a1a1a] border border-[#2d2d2d] rounded-xl"
+            : "bg-transparent border-none px-0 py-2"
+        )}
+      >
+
+
+
         <div className="absolute right-5 top-7 sm:right-0">
           <MessageActions
             onCopy={handleCopy}
@@ -230,13 +249,16 @@ export const Message: FC<MessageProps> = ({
                   <WithTooltip
                     display={<div>{MODEL_DATA?.modelName}</div>}
                     trigger={
-                      <ModelIcon
-                        provider={modelDetails?.provider || "custom"}
-                        height={ICON_SIZE}
+                      <Image
+                        src="/rhyno.jpg"
                         width={ICON_SIZE}
+                        height={ICON_SIZE}
+                        alt="Model Icon"
+                        className="rounded object-cover"
                       />
                     }
                   />
+
                 )
               ) : profile?.image_url ? (
                 <Image
@@ -253,23 +275,26 @@ export const Message: FC<MessageProps> = ({
                 />
               )}
 
-              <div className="font-semibold">
+              <div className="text-sm font-semibold text-[#aaa] font-vazir">
+
+
                 {message.role === "assistant"
                   ? message.assistant_id
                     ? assistants.find(
-                        assistant => assistant.id === message.assistant_id
-                      )?.name
+                      assistant => assistant.id === message.assistant_id
+                    )?.name
                     : selectedAssistant
                       ? selectedAssistant?.name
-                      : MODEL_DATA?.modelName
+                      : MODEL_DISPLAY_NAMES[MODEL_DATA?.modelId] || MODEL_DATA?.modelName
+
                   : profile?.display_name ?? profile?.username}
               </div>
             </div>
           )}
           {!firstTokenReceived &&
-          isGenerating &&
-          isLast &&
-          message.role === "assistant" ? (
+            isGenerating &&
+            isLast &&
+            message.role === "assistant" ? (
             <>
               {(() => {
                 switch (toolInUse) {
@@ -299,13 +324,24 @@ export const Message: FC<MessageProps> = ({
           ) : isEditing ? (
             <TextareaAutosize
               textareaRef={editInputRef}
-              className="text-md"
+              className="text-md font-vazir text-[15px] leading-relaxed text-right"
+              dir="rtl"
               value={editedMessage}
               onValueChange={setEditedMessage}
               maxRows={20}
             />
+
           ) : (
-            <MessageMarkdown content={message.content} />
+            <MessageMarkdown
+              content={message.content}
+              className="text-[15.5px] leading-[1.9] tracking-normal text-white whitespace-pre-wrap text-right"
+              dir="rtl"
+            />
+
+
+
+
+
           )}
         </div>
 
