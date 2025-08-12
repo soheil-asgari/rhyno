@@ -9,7 +9,7 @@ import {
   IconSend
 } from "@tabler/icons-react"
 import Image from "next/image"
-import { FC, useContext, useEffect, useRef, useState } from "react"
+import { FC, useContext, useEffect, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Input } from "../ui/input"
@@ -81,65 +81,56 @@ export const ChatInput: FC<ChatInputProps> = ({ }) => {
     }, 200) // FIX: hacky
   }, [selectedPreset, selectedAssistant])
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (!isTyping && event.key === "Enter" && !event.shiftKey) {
       event.preventDefault()
       setIsPromptPickerOpen(false)
       handleSendMessage(userInput, chatMessages, false)
+      return
     }
 
-    // Consolidate conditions to avoid TypeScript error
-    if (
-      isPromptPickerOpen ||
-      isFilePickerOpen ||
-      isToolPickerOpen ||
-      isAssistantPickerOpen
-    ) {
-      if (
-        event.key === "Tab" ||
-        event.key === "ArrowUp" ||
-        event.key === "ArrowDown"
-      ) {
+    const isPickerOpen = isPromptPickerOpen || isFilePickerOpen || isToolPickerOpen || isAssistantPickerOpen
+    if (isPickerOpen) {
+      if (["Tab", "ArrowUp", "ArrowDown"].includes(event.key)) {
         event.preventDefault()
-        // Toggle focus based on picker type
-        if (isPromptPickerOpen) setFocusPrompt(!focusPrompt)
-        if (isFilePickerOpen) setFocusFile(!focusFile)
-        if (isToolPickerOpen) setFocusTool(!focusTool)
-        if (isAssistantPickerOpen) setFocusAssistant(!focusAssistant)
+        if (isPromptPickerOpen) setFocusPrompt(prev => !prev)
+        if (isFilePickerOpen) setFocusFile(prev => !prev)
+        if (isToolPickerOpen) setFocusTool(prev => !prev)
+        if (isAssistantPickerOpen) setFocusAssistant(prev => !prev)
+        return
       }
     }
 
-    if (event.key === "ArrowUp" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToPreviousUserMessage()
+    if (event.shiftKey && event.ctrlKey) {
+      if (event.key === "ArrowUp") {
+        event.preventDefault()
+        setNewMessageContentToPreviousUserMessage()
+        return
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault()
+        setNewMessageContentToNextUserMessage()
+        return
+      }
     }
+  }, [
+    isTyping,
+    isPromptPickerOpen,
+    isFilePickerOpen,
+    isToolPickerOpen,
+    isAssistantPickerOpen,
+    userInput,
+    chatMessages,
+    setIsPromptPickerOpen,
+    setFocusPrompt,
+    setFocusFile,
+    setFocusTool,
+    setFocusAssistant,
+    setNewMessageContentToPreviousUserMessage,
+    setNewMessageContentToNextUserMessage,
+    handleSendMessage
+  ])
 
-    if (event.key === "ArrowDown" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToNextUserMessage()
-    }
-
-    //use shift+ctrl+up and shift+ctrl+down to navigate through chat history
-    if (event.key === "ArrowUp" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToPreviousUserMessage()
-    }
-
-    if (event.key === "ArrowDown" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToNextUserMessage()
-    }
-
-    if (
-      isAssistantPickerOpen &&
-      (event.key === "Tab" ||
-        event.key === "ArrowUp" ||
-        event.key === "ArrowDown")
-    ) {
-      event.preventDefault()
-      setFocusAssistant(!focusAssistant)
-    }
-  }
 
   const handlePaste = (event: React.ClipboardEvent) => {
     const imagesAllowed = LLM_LIST.find(
@@ -238,7 +229,10 @@ export const ChatInput: FC<ChatInputProps> = ({ }) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="w-full resize-none rounded-xl border border-[#2c2c2c] bg-[#1e1e1e] px-5 py-3 pr-16 pl-12 text-[15px] font-vazir text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3a3a3a] shadow-sm transition-all duration-150"
+          className="w-full resize-none rounded-xl border px-5 py-3 pr-16 pl-12 text-[15px] font-vazir placeholder:text-gray-400 focus:outline-none focus:ring-2 shadow-sm transition-all duration-150
+border-border bg-background text-foreground
+dark:border-border dark:bg-muted dark:text-foreground"
+
           placeholder={t("Ask anything")}
           onValueChange={handleInputChange}
           value={userInput}

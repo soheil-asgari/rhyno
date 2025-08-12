@@ -1,19 +1,27 @@
-import { IconMoon, IconSun } from "@tabler/icons-react"
-import { useTheme } from "next-themes"
-import { FC } from "react"
-import { SIDEBAR_ICON_SIZE } from "../sidebar/sidebar-switcher"
-import { Button } from "../ui/button"
+import { IconMoon, IconSun } from "@tabler/icons-react";
+import { useTheme } from "next-themes";
+import { FC, useEffect } from "react";
+import { SIDEBAR_ICON_SIZE } from "../sidebar/sidebar-switcher";
+import { Button } from "../ui/button";
 
-interface ThemeSwitcherProps {}
+interface ThemeSwitcherProps { }
 
 export const ThemeSwitcher: FC<ThemeSwitcherProps> = () => {
-  const { setTheme, theme } = useTheme()
+  const { setTheme, theme } = useTheme();
+
+  // بارگذاری تم از localStorage هنگام بارگذاری صفحه
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      setTheme(savedTheme as "light" | "dark");
+    }
+  }, [setTheme]);
 
   const handleChange = (theme: "dark" | "light") => {
-    localStorage.setItem("theme", theme)
-
-    setTheme(theme)
-  }
+    // ذخیره تم در localStorage و تغییر آن
+    localStorage.setItem("theme", theme);
+    setTheme(theme);
+  };
 
   return (
     <Button
@@ -28,5 +36,5 @@ export const ThemeSwitcher: FC<ThemeSwitcherProps> = () => {
         <IconSun size={SIDEBAR_ICON_SIZE} />
       )}
     </Button>
-  )
-}
+  );
+};

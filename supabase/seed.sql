@@ -3,7 +3,7 @@ INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, e
 
 -- Start data for workspaces 
 INSERT INTO workspaces (user_id, name, description, default_context_length, default_model, default_prompt, default_temperature, include_profile_context, include_workspace_instructions, instructions, is_home, sharing, embeddings_provider) VALUES 
-('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', 'Workspace 1', 'This is for testing.', 4000, 'gpt-4-turbo-preview', 'You are an assistant.', 0.5, true, true, 'These are the instructions.', false, 'private', 'openai');
+('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', 'Workspace 1', 'This is for testing.', 4000, 'gpt-4-turbo-preview', '"You are a friendly, helpful AI assistant. your name is Rhyno"', 0.5, true, true, 'These are the instructions.', false, 'private', 'openai');
 
 -- Get workspace ids
 DO $$
@@ -72,7 +72,7 @@ BEGIN
 
   -- Start data for chats 
   INSERT INTO chats (user_id, workspace_id, name, model, prompt, temperature, context_length, include_profile_context, include_workspace_instructions, embeddings_provider) VALUES 
-  ('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', workspace1_id, 'Chat 1', 'gpt-4-turbo-preview', 'You are an assistant.', 0.5, 4000, TRUE, TRUE, 'openai');
+  ('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', workspace1_id, 'Chat 1', 'gpt-4-turbo-preview', '"You are a friendly, helpful AI assistant. your name is Rhyno"', 0.5, 4000, TRUE, TRUE, 'openai');
 
   DECLARE
     folder1_id UUID;
@@ -80,7 +80,7 @@ BEGIN
     SELECT id INTO folder1_id FROM folders WHERE name='Chat Folder 1';
 
     INSERT INTO chats (user_id, workspace_id, name, model, prompt, temperature, context_length, include_profile_context, include_workspace_instructions, folder_id, embeddings_provider) VALUES 
-    ('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', workspace1_id, 'Chat 4', 'gpt-4-turbo-preview', 'You are an assistant.', 0.5, 4000, TRUE, TRUE, folder1_id, 'openai');
+    ('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', workspace1_id, 'Chat 4', 'gpt-4-turbo-preview', '"You are a friendly, helpful AI assistant. your name is Rhyno"', 0.5, 4000, TRUE, TRUE, folder1_id, 'openai');
   END;
 
   -- Start data for messages 

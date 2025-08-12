@@ -80,10 +80,10 @@ export const SidebarCreateButtons: FC<SidebarCreateButtonsProps> = ({
           setIsCreatingAssistant(true)
         }
 
-      case "tools":
-        return async () => {
-          setIsCreatingTool(true)
-        }
+      // case "tools":
+      //   return async () => {
+      //     setIsCreatingTool(true)
+      //   }
 
       case "models":
         return async () => {

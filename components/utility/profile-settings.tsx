@@ -43,9 +43,9 @@ import { TextareaAutosize } from "../ui/textarea-autosize"
 import { WithTooltip } from "../ui/with-tooltip"
 import { ThemeSwitcher } from "./theme-switcher"
 
-interface ProfileSettingsProps {}
+interface ProfileSettingsProps { }
 
-export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
+export const ProfileSettings: FC<ProfileSettingsProps> = ({ }) => {
   const {
     profile,
     setProfile,
@@ -336,7 +336,7 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
           <Tabs defaultValue="profile">
             <TabsList className="mt-4 grid w-full grid-cols-2">
               <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="keys">API Keys</TabsTrigger>
+              {/* <TabsTrigger value="keys">API Keys</TabsTrigger> */}
             </TabsList>
 
             <TabsContent className="mt-4 space-y-4" value="profile">

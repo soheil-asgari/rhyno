@@ -82,8 +82,8 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
           />
         )
 
-      case "tools":
-        return <ToolItem key={item.id} tool={item as Tables<"tools">} />
+      // case "tools":
+      //   return <ToolItem key={item.id} tool={item as Tables<"tools">} />
 
       case "models":
         return <ModelItem key={item.id} model={item as Tables<"models">} />
@@ -234,9 +234,8 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
 
         {(dataWithFolders.length > 0 || dataWithoutFolders.length > 0) && (
           <div
-            className={`h-full ${
-              isOverflowing ? "w-[calc(100%-8px)]" : "w-full"
-            } space-y-2 pt-2 ${isOverflowing ? "mr-2" : ""}`}
+            className={`h-full ${isOverflowing ? "w-[calc(100%-8px)]" : "w-full"
+              } space-y-2 pt-2 ${isOverflowing ? "mr-2" : ""}`}
           >
             {folders.map(folder => (
               <Folder
@@ -268,10 +267,10 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
                     const sortedData = getSortedData(
                       dataWithoutFolders,
                       dateCategory as
-                        | "Today"
-                        | "Yesterday"
-                        | "Previous Week"
-                        | "Older"
+                      | "Today"
+                      | "Yesterday"
+                      | "Previous Week"
+                      | "Older"
                     )
 
                     return (

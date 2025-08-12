@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: ['class'],
+  darkMode: ['class'], // استفاده از کلاس dark برای فعال کردن تم تاریک
   content: [
     './pages/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',

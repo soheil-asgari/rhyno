@@ -202,9 +202,10 @@ export const handleHostedChat = async (
   setToolInUse: React.Dispatch<React.SetStateAction<string>>
 ) => {
   const provider =
-    modelData.provider === "openai" && profile.use_azure_openai
-      ? "azure"
-      : modelData.provider
+  modelData.provider === "openai" && profile.use_azure_openai
+    ? "openai"  // یا مقدار دیگری که Azure نباشه
+    : modelData.provider
+
 
   let draftMessages = await buildFinalMessages(payload, profile, chatImages)
 

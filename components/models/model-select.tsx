@@ -6,20 +6,17 @@ interface ModelSelectProps {
 }
 
 // فقط شناسه‌های مدل‌ها اینجاست
-const MODEL_IDS = [
-  "gpt-3.5-turbo",
-  "gpt-4",
-  "mixtral-8x7b",
-  "llama3"
-]
+
 
 // اسامی نمایشی دلخواه شما برای هر مدل
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  "gpt-3.5-turbo": "چت سریع GPT 3.5 🚀",
-  "gpt-4": "Rhyno 🎯",
-  "mixtral-8x7b": "Mixtral هوش ترکیبی 🧠",
-  "llama3": "LLaMA 3 متن‌باز 🦙"
+  "gpt-3.5-turbo": "Rhyno v1",
+  "gpt-4": "Rhyno v2",
+  "gpt-4-turbo-preview": "Rhyno v3",
+  "gpt-5": "Rhyno v5"
+
 }
+const MODEL_IDS = Object.keys(MODEL_DISPLAY_NAMES)
 
 export const ModelSelect: FC<ModelSelectProps> = ({
   selectedModelId,

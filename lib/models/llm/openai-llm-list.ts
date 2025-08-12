@@ -34,6 +34,22 @@ const GPT4Turbo: LLM = {
   }
 }
 
+const GPT5: LLM = {
+  modelId: "gpt-5",
+  modelName: "GPT-5",
+  provider: "openai",
+  hostedId: "gpt-5",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 1.25,
+    outputCost: 10.00
+  }
+}
+
+
 // GPT-4 Vision (UPDATED 12/18/23)
 const GPT4Vision: LLM = {
   modelId: "gpt-4-vision-preview",
@@ -86,5 +102,6 @@ export const OPENAI_LLM_LIST: LLM[] = [
   GPT4Turbo,
   GPT4Vision,
   GPT4,
-  GPT3_5Turbo
+  GPT3_5Turbo,
+  GPT5
 ]
