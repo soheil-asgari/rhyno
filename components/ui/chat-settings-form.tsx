@@ -18,17 +18,21 @@ import {
 import { Slider } from "./slider"
 import { TextareaAutosize } from "./textarea-autosize"
 import { WithTooltip } from "./with-tooltip"
+import type { LLMID } from "@/types"
 
 interface ChatSettingsFormProps {
   chatSettings: ChatSettings
   onChangeChatSettings: (value: ChatSettings) => void
   showTooltip?: boolean
+  useAdvancedDropdown?: boolean // این رو اضافه کن
 }
+
 
 export const ChatSettingsForm: FC<ChatSettingsFormProps> = ({
   chatSettings,
   onChangeChatSettings,
-  showTooltip = true
+  showTooltip = true,
+  useAdvancedDropdown = false,
 }) => {
   const { profile } = useContext(ChatbotUIContext)
 
@@ -42,16 +46,18 @@ export const ChatSettingsForm: FC<ChatSettingsFormProps> = ({
         <ModelSelect
           selectedModelId={chatSettings.model}
           onSelectModel={model => {
-            onChangeChatSettings({ ...chatSettings, model })
+            onChangeChatSettings({ ...chatSettings, model: model as LLMID })
           }}
         />
       </div>
 
-      <div className="space-y-1">
-       
-      </div>
-
-      
+      {useAdvancedDropdown && (
+        <AdvancedContent
+          chatSettings={chatSettings}
+          onChangeChatSettings={onChangeChatSettings}
+          showTooltip={showTooltip}
+        />
+      )}
     </div>
   )
 }
@@ -125,7 +131,7 @@ const AdvancedContent: FC<AdvancedContentProps> = ({
           max={
             isCustomModel
               ? models.find(model => model.model_id === chatSettings.model)
-                  ?.context_length
+                ?.context_length
               : MODEL_LIMITS.MAX_CONTEXT_LENGTH
           }
           step={1}
