@@ -127,6 +127,8 @@
     "tailwindcss": "^3.3.5",
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@fontsource/vazirmatn": "^5.2.6",
+    "@fontsource/fira-code": "^5.0.0"
   }
 }
