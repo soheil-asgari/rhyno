@@ -28,11 +28,10 @@ export async function POST(request: Request) {
 
     const organizationVerified = false // وقتی سازمان تایید شد این مقدار رو true بکنید
 
-    // اگر سازمان تایید نشده، استریم رو غیرفعال کنید
     const enableStream = organizationVerified
 
     if (enableStream) {
-      // حالت استریم
+      // حالت استریم واقعی
       const requestPayload: ChatCompletionCreateParamsStreaming = {
         model: chatSettings.model as ChatCompletionCreateParamsStreaming["model"],
         messages: messages as ChatCompletionCreateParamsStreaming["messages"],
@@ -46,24 +45,43 @@ export async function POST(request: Request) {
       const stream = OpenAIStream(response)
       return new StreamingTextResponse(stream)
     } else {
-      // حالت غیر استریم
-      const requestPayload: ChatCompletionCreateParamsNonStreaming = {
-        model: chatSettings.model as ChatCompletionCreateParamsNonStreaming["model"],
-        messages: messages as ChatCompletionCreateParamsNonStreaming["messages"],
-        stream: false,
-        temperature: modelsWithFixedTemperature.includes(chatSettings.model)
-          ? 1
-          : chatSettings.temperature
-      }
+      // حالت غیر استریم با استریم اولیه (fake stream) برای جلوگیری از تایم‌اوت
 
-      const response = await openai.chat.completions.create(requestPayload)
+      const encoder = new TextEncoder()
 
-      // فقط متن پاسخ رو برمیگردونیم:
-      return new Response(response.choices[0].message?.content || "", {
-        headers: { "Content-Type": "text/plain" }
+      // شروع استریم: ابتدا پیام کوتاه "در حال پردازش..." ارسال می‌شود
+      const stream = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(encoder.encode("در حال پردازش... \n"))
+
+          try {
+            const requestPayload: ChatCompletionCreateParamsNonStreaming = {
+              model: chatSettings.model as ChatCompletionCreateParamsNonStreaming["model"],
+              messages: messages as ChatCompletionCreateParamsNonStreaming["messages"],
+              stream: false,
+              temperature: modelsWithFixedTemperature.includes(chatSettings.model)
+                ? 1
+                : chatSettings.temperature
+            }
+
+            const response = await openai.chat.completions.create(requestPayload)
+            const content = response.choices[0].message?.content || ""
+
+            controller.enqueue(encoder.encode(content))
+            controller.close()
+          } catch (error: any) {
+            const errorMessage = error.message || "خطای غیرمنتظره"
+            controller.enqueue(encoder.encode(`Error: ${errorMessage}`))
+            controller.close()
+          }
+        }
       })
 
-
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      })
     }
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
@@ -78,7 +96,10 @@ export async function POST(request: Request) {
     }
 
     return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode
+      status: errorCode,
+      headers: {
+        "Content-Type": "application/json"
+      }
     })
   }
 }
