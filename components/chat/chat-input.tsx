@@ -21,9 +21,9 @@ import { useChatHistoryHandler } from "./chat-hooks/use-chat-history"
 import { usePromptAndCommand } from "./chat-hooks/use-prompt-and-command"
 import { useSelectFileHandler } from "./chat-hooks/use-select-file-handler"
 
-interface ChatInputProps { }
+interface ChatInputProps {}
 
-export const ChatInput: FC<ChatInputProps> = ({ }) => {
+export const ChatInput: FC<ChatInputProps> = ({}) => {
   const { t } = useTranslation()
 
   useHotkey("l", () => {
@@ -81,56 +81,62 @@ export const ChatInput: FC<ChatInputProps> = ({ }) => {
     }, 200) // FIX: hacky
   }, [selectedPreset, selectedAssistant])
 
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (!isTyping && event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      setIsPromptPickerOpen(false)
-      handleSendMessage(userInput, chatMessages, false)
-      return
-    }
-
-    const isPickerOpen = isPromptPickerOpen || isFilePickerOpen || isToolPickerOpen || isAssistantPickerOpen
-    if (isPickerOpen) {
-      if (["Tab", "ArrowUp", "ArrowDown"].includes(event.key)) {
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!isTyping && event.key === "Enter" && !event.shiftKey) {
         event.preventDefault()
-        if (isPromptPickerOpen) setFocusPrompt(prev => !prev)
-        if (isFilePickerOpen) setFocusFile(prev => !prev)
-        if (isToolPickerOpen) setFocusTool(prev => !prev)
-        if (isAssistantPickerOpen) setFocusAssistant(prev => !prev)
+        setIsPromptPickerOpen(false)
+        handleSendMessage(userInput, chatMessages, false)
         return
       }
-    }
 
-    if (event.shiftKey && event.ctrlKey) {
-      if (event.key === "ArrowUp") {
-        event.preventDefault()
-        setNewMessageContentToPreviousUserMessage()
-        return
+      const isPickerOpen =
+        isPromptPickerOpen ||
+        isFilePickerOpen ||
+        isToolPickerOpen ||
+        isAssistantPickerOpen
+      if (isPickerOpen) {
+        if (["Tab", "ArrowUp", "ArrowDown"].includes(event.key)) {
+          event.preventDefault()
+          if (isPromptPickerOpen) setFocusPrompt(prev => !prev)
+          if (isFilePickerOpen) setFocusFile(prev => !prev)
+          if (isToolPickerOpen) setFocusTool(prev => !prev)
+          if (isAssistantPickerOpen) setFocusAssistant(prev => !prev)
+          return
+        }
       }
-      if (event.key === "ArrowDown") {
-        event.preventDefault()
-        setNewMessageContentToNextUserMessage()
-        return
-      }
-    }
-  }, [
-    isTyping,
-    isPromptPickerOpen,
-    isFilePickerOpen,
-    isToolPickerOpen,
-    isAssistantPickerOpen,
-    userInput,
-    chatMessages,
-    setIsPromptPickerOpen,
-    setFocusPrompt,
-    setFocusFile,
-    setFocusTool,
-    setFocusAssistant,
-    setNewMessageContentToPreviousUserMessage,
-    setNewMessageContentToNextUserMessage,
-    handleSendMessage
-  ])
 
+      if (event.shiftKey && event.ctrlKey) {
+        if (event.key === "ArrowUp") {
+          event.preventDefault()
+          setNewMessageContentToPreviousUserMessage()
+          return
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault()
+          setNewMessageContentToNextUserMessage()
+          return
+        }
+      }
+    },
+    [
+      isTyping,
+      isPromptPickerOpen,
+      isFilePickerOpen,
+      isToolPickerOpen,
+      isAssistantPickerOpen,
+      userInput,
+      chatMessages,
+      setIsPromptPickerOpen,
+      setFocusPrompt,
+      setFocusFile,
+      setFocusTool,
+      setFocusAssistant,
+      setNewMessageContentToPreviousUserMessage,
+      setNewMessageContentToNextUserMessage,
+      handleSendMessage
+    ]
+  )
 
   const handlePaste = (event: React.ClipboardEvent) => {
     const imagesAllowed = LLM_LIST.find(
@@ -142,7 +148,7 @@ export const ChatInput: FC<ChatInputProps> = ({ }) => {
       if (item.type.indexOf("image") === 0) {
         if (!imagesAllowed) {
           toast.error(
-            `Images are not supported for this model. Use models like Rhyno V3 instead.`
+            `Images are not supported for this model. Use models like Rhyno V5 instead.`
           )
           return
         }
@@ -229,10 +235,9 @@ export const ChatInput: FC<ChatInputProps> = ({ }) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="w-full resize-none rounded-xl border px-5 py-3 pr-16 pl-12 text-[15px] font-vazir placeholder:text-gray-400 focus:outline-none focus:ring-2 shadow-sm transition-all duration-150
-border-border bg-background text-foreground
-dark:border-border dark:bg-muted dark:text-foreground"
-
+          className="font-vazir border-border bg-background text-foreground dark:border-border dark:bg-muted dark:text-foreground w-full resize-none rounded-xl border px-5 py-3 pl-12 pr-16 text-[15px]
+shadow-sm transition-all duration-150
+placeholder:text-gray-400 focus:outline-none focus:ring-2"
           placeholder={t("Ask anything")}
           onValueChange={handleInputChange}
           value={userInput}
@@ -243,7 +248,6 @@ dark:border-border dark:bg-muted dark:text-foreground"
           onCompositionStart={() => setIsTyping(true)}
           onCompositionEnd={() => setIsTyping(false)}
         />
-
 
         {/* دکمه ارسال یا توقف تولید */}
         <div className="absolute bottom-2.5 right-3 cursor-pointer">
@@ -268,7 +272,6 @@ dark:border-border dark:bg-muted dark:text-foreground"
           )}
         </div>
       </div>
-
     </>
   )
 }

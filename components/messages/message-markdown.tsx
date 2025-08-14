@@ -11,12 +11,16 @@ interface MessageMarkdownProps {
   dir?: "rtl" | "ltr"
 }
 
-export const MessageMarkdown: FC<MessageMarkdownProps> = ({ content, className = "", dir = "ltr" }) => {
+export const MessageMarkdown: FC<MessageMarkdownProps> = ({
+  content,
+  className = "",
+  dir = "ltr"
+}) => {
   return (
     <div dir={dir} className={cn("w-full", className)}>
       <MessageMarkdownMemoized
         className={cn(
-          "prose dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 min-w-full space-y-6 break-words font-vazir"
+          "prose dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-vazir min-w-full space-y-6 break-words"
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
@@ -34,7 +38,9 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({ content, className =
               : firstChild
 
             if (firstChildAsString === "▍") {
-              return <span className="mt-1 animate-pulse cursor-default">▍</span>
+              return (
+                <span className="mt-1 animate-pulse cursor-default">▍</span>
+              )
             }
 
             if (typeof firstChildAsString === "string") {

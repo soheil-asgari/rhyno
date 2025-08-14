@@ -8,20 +8,19 @@ import { Button } from "../ui/button"
 import { ChatSettingsForm } from "../ui/chat-settings-form"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 
-interface ChatSettingsProps { }
-
-
-
+interface ChatSettingsProps {}
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-3.5-turbo": "Rhyno v1",
   "gpt-4": "Rhyno v2",
   "gpt-4-turbo-preview": "Rhyno v3",
-  "gpt-5": "Rhyno v5"
-
+  "gpt-5": "Rhyno v5",
+  "gpt-5-mini": "Rhyno v5 mini",
+  "gpt-4o": "Rhyno v4.1",
+  "gpt-4o-mini": "Rhyno v4 mini"
 }
 
-export const ChatSettings: FC<ChatSettingsProps> = ({ }) => {
+export const ChatSettings: FC<ChatSettingsProps> = ({}) => {
   useHotkey("i", () => handleClick())
 
   const {
@@ -84,8 +83,9 @@ export const ChatSettings: FC<ChatSettingsProps> = ({ }) => {
           variant="ghost"
         >
           <div className="max-w-[120px] truncate text-lg sm:max-w-[300px] lg:max-w-[500px]">
-            {MODEL_DISPLAY_NAMES[chatSettings.model] || fullModel?.modelName || chatSettings.model}
-
+            {MODEL_DISPLAY_NAMES[chatSettings.model] ||
+              fullModel?.modelName ||
+              chatSettings.model}
           </div>
 
           <IconAdjustmentsHorizontal size={28} />

@@ -53,7 +53,7 @@
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-separator": "^1.0.3",
     "@radix-ui/react-slider": "^1.1.2",
-    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
@@ -63,15 +63,18 @@
     "@supabase/ssr": "^0.0.10",
     "@supabase/supabase-js": "^2.38.4",
     "@tabler/icons-react": "^2.40.0",
+    "@tavily/core": "^0.5.10",
     "@vercel/analytics": "^1.1.1",
     "@vercel/edge-config": "^0.4.1",
     "@xenova/transformers": "^2.13.4",
-    "ai": "^2.2.31",
-    "class-variance-authority": "^0.7.0",
+    "ai": "^5.0.12",
+    "class-variance-authority": "^0.7.1",
     "cmdk": "^0.2.0",
     "d3-dsv": "^2.0.0",
     "date-fns": "^2.30.0",
+    "dotenv": "^17.2.1",
     "endent": "^2.1.0",
+    "googleapis": "^126.0.1",
     "gpt-tokenizer": "^2.1.2",
     "i18next": "^23.16.8",
     "i18next-http-backend": "^3.0.2",
@@ -83,7 +86,8 @@
     "next-i18n-router": "^5.2.0",
     "next-pwa": "5.6.0",
     "next-themes": "^0.2.1",
-    "openai": "^4.23.0",
+    "node-polyfill-webpack-plugin": "^4.1.0",
+    "openai": "^5.12.2",
     "pdf-parse": "^1.1.1",
     "react": "^18",
     "react-day-picker": "^8.9.1",
@@ -100,6 +104,8 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@fontsource/fira-code": "^5.0.0",
+    "@fontsource/vazirmatn": "^5.2.6",
     "@next/bundle-analyzer": "^14.0.2",
     "@tailwindcss/typography": "^0.5.10",
     "@testing-library/jest-dom": "^6.2.0",
@@ -127,8 +133,6 @@
     "tailwindcss": "^3.3.5",
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5",
-    "@fontsource/vazirmatn": "^5.2.6",
-    "@fontsource/fira-code": "^5.0.0"
+    "typescript": "^5"
   }
 }

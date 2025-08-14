@@ -45,10 +45,24 @@ const GPT5: LLM = {
     currency: "USD",
     unit: "1M tokens",
     inputCost: 1.25,
-    outputCost: 10.00
+    outputCost: 10.0
   }
 }
 
+const GPT5Mini: LLM = {
+  modelId: "gpt-5-mini",
+  modelName: "GPT-5 Mini",
+  provider: "openai",
+  hostedId: "gpt-5-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 1.25, // هزینه ورودی
+    outputCost: 10.0 // هزینه خروجی
+  }
+}
 
 // GPT-4 Vision (UPDATED 12/18/23)
 const GPT4Vision: LLM = {
@@ -96,12 +110,27 @@ const GPT3_5Turbo: LLM = {
     outputCost: 1.5
   }
 }
-
+const GPT4oMini: LLM = {
+  modelId: "gpt-4o-mini",
+  modelName: "GPT-4o Mini",
+  provider: "openai",
+  hostedId: "gpt-4o-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.15, // هزینه ورودی
+    outputCost: 0.6 // هزینه خروجی
+  }
+}
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT4o,
   GPT4Turbo,
   GPT4Vision,
   GPT4,
   GPT3_5Turbo,
-  GPT5
+  GPT5,
+  GPT5Mini,
+  GPT4oMini
 ]

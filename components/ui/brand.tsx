@@ -21,8 +21,7 @@ export const Brand: FC<BrandProps> = ({ theme = "dark" }) => {
           width={120}
           height={120}
           alt="Rhyno Logo"
-          className="rounded-full object-cover shadow-md hover:scale-105 transition-transform duration-200"
-
+          className="rounded-full object-cover shadow-md transition-transform duration-200 hover:scale-105"
         />
       </div>
 

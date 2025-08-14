@@ -1,9 +1,9 @@
-import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler";
-import { ChatbotUIContext } from "@/context/context";
-import { LLM_LIST } from "@/lib/models/llm/llm-list";
-import { cn } from "@/lib/utils";
-import { Tables } from "@/supabase/types";
-import { LLM, LLMID, MessageImage, ModelProvider } from "@/types";
+import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
+import { ChatbotUIContext } from "@/context/context"
+import { LLM_LIST } from "@/lib/models/llm/llm-list"
+import { cn } from "@/lib/utils"
+import { Tables } from "@/supabase/types"
+import { LLM, LLMID, MessageImage, ModelProvider } from "@/types"
 import {
   IconBolt,
   IconCaretDownFilled,
@@ -12,26 +12,36 @@ import {
   IconFileText,
   IconMoodSmile,
   IconPencil
-} from "@tabler/icons-react";
-import Image from "next/image";
-import { FC, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ModelIcon } from "../models/model-icon";
-import { Button } from "../ui/button";
-import { FileIcon } from "../ui/file-icon";
-import { FilePreview } from "../ui/file-preview";
-import { TextareaAutosize } from "../ui/textarea-autosize";
-import { WithTooltip } from "../ui/with-tooltip";
-import { MessageActions } from "./message-actions";
-import { MessageMarkdown } from "./message-markdown";
+} from "@tabler/icons-react"
+import Image from "next/image"
+import {
+  FC,
+  memo,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
+import { ModelIcon } from "../models/model-icon"
+import { Button } from "../ui/button"
+import { FileIcon } from "../ui/file-icon"
+import { FilePreview } from "../ui/file-preview"
+import { TextareaAutosize } from "../ui/textarea-autosize"
+import { WithTooltip } from "../ui/with-tooltip"
+import { MessageActions } from "./message-actions"
+import { MessageMarkdown } from "./message-markdown"
 
-const ICON_SIZE = 32;
+const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-3.5-turbo": "Rhyno v1",
   "gpt-4": "Rhyno v2",
   "gpt-4-turbo-preview": "Rhyno v3",
-  "gpt-5": "Rhyno v5"
-
+  "gpt-5": "Rhyno v5",
+  "gpt-5-mini": "Rhyno v5 mini",
+  "gpt-4o": "Rhyno v4.1",
+  "gpt-4o-mini": "Rhyno v4 mini"
 }
 
 // =================================================================
@@ -39,25 +49,34 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
 // =================================================================
 
 const MessageHeader: FC<{
-  message: Tables<"messages">;
-  profile: Tables<"profiles"> | null;
-  assistantImage?: string;
-  modelData?: LLM;
-  assistantName: string;
+  message: Tables<"messages">
+  profile: Tables<"profiles"> | null
+  assistantImage?: string
+  modelData?: LLM
+  assistantName: string
 }> = memo(({ message, profile, assistantImage, modelData, assistantName }) => {
   if (message.role === "system") {
     return (
       <div className="flex items-center space-x-4">
-        <IconPencil size={ICON_SIZE} className="border-primary bg-primary text-secondary rounded border-DEFAULT p-1" />
+        <IconPencil
+          size={ICON_SIZE}
+          className="border-primary bg-primary text-secondary rounded border-DEFAULT p-1"
+        />
         <div className="text-lg font-semibold">Prompt</div>
       </div>
-    );
+    )
   }
 
   const renderAvatar = () => {
     if (message.role === "assistant") {
       return assistantImage ? (
-        <Image src={assistantImage} alt="assistant image" height={ICON_SIZE} width={ICON_SIZE} className="rounded" />
+        <Image
+          src={assistantImage}
+          alt="assistant image"
+          height={ICON_SIZE}
+          width={ICON_SIZE}
+          className="rounded"
+        />
       ) : (
         <WithTooltip
           display={
@@ -77,84 +96,134 @@ const MessageHeader: FC<{
             />
           }
         />
-      );
+      )
     }
     return profile?.image_url ? (
-      <Image className="size-[32px] rounded" src={profile.image_url} height={32} width={32} alt="user image" />
+      <Image
+        className="size-[32px] rounded"
+        src={profile.image_url}
+        height={32}
+        width={32}
+        alt="user image"
+      />
     ) : (
-      <IconMoodSmile size={ICON_SIZE} className="bg-primary text-secondary border-primary rounded border-DEFAULT p-1" />
-    );
-  };
+      <IconMoodSmile
+        size={ICON_SIZE}
+        className="bg-primary text-secondary border-primary rounded border-DEFAULT p-1"
+      />
+    )
+  }
 
   return (
     <div className="flex items-center space-x-3">
       {renderAvatar()}
-      <div className="text-sm font-semibold text-[#aaa] font-vazir">
-        {message.role === "assistant" ? assistantName : (profile?.display_name ?? profile?.username)}
+      <div className="font-vazir text-sm font-semibold text-[#aaa]">
+        {message.role === "assistant"
+          ? assistantName
+          : (profile?.display_name ?? profile?.username)}
       </div>
     </div>
-  );
-});
-MessageHeader.displayName = "MessageHeader";
-
+  )
+})
+MessageHeader.displayName = "MessageHeader"
 
 const MessageBody: FC<{
-  message: Tables<"messages">;
-  isEditing: boolean;
-  isGenerating: boolean;
-  isLast: boolean;
-  firstTokenReceived: boolean;
-  toolInUse: string;
-  editedMessage: string;
-  setEditedMessage: (value: string) => void;
-  editInputRef: React.RefObject<HTMLTextAreaElement>;
-}> = memo(({ message, isEditing, isGenerating, isLast, firstTokenReceived, toolInUse, editedMessage, setEditedMessage, editInputRef }) => {
-  if (!firstTokenReceived && isGenerating && isLast && message.role === "assistant") {
-    switch (toolInUse) {
-      case "retrieval":
-        return <div className="flex animate-pulse items-center space-x-2"><IconFileText size={20} /><div>Searching files...</div></div>;
-      case "none":
-        return <IconCircleFilled className="animate-pulse" size={20} />;
-      default:
-        return <div className="flex animate-pulse items-center space-x-2"><IconBolt size={20} /><div>Using {toolInUse}...</div></div>;
+  message: Tables<"messages">
+  isEditing: boolean
+  isGenerating: boolean
+  isLast: boolean
+  firstTokenReceived: boolean
+  toolInUse: string
+  editedMessage: string
+  setEditedMessage: (value: string) => void
+  editInputRef: React.RefObject<HTMLTextAreaElement>
+}> = memo(
+  ({
+    message,
+    isEditing,
+    isGenerating,
+    isLast,
+    firstTokenReceived,
+    toolInUse,
+    editedMessage,
+    setEditedMessage,
+    editInputRef
+  }) => {
+    if (
+      !firstTokenReceived &&
+      isGenerating &&
+      isLast &&
+      message.role === "assistant"
+    ) {
+      switch (toolInUse) {
+        case "retrieval":
+          return (
+            <div className="flex animate-pulse items-center space-x-2">
+              <IconFileText size={20} />
+              <div>Searching files...</div>
+            </div>
+          )
+        case "none":
+          return <IconCircleFilled className="animate-pulse" size={20} />
+        default:
+          return (
+            <div className="flex animate-pulse items-center space-x-2">
+              <IconBolt size={20} />
+              <div>Using {toolInUse}...</div>
+            </div>
+          )
+      }
     }
-  }
 
-  if (isEditing) {
+    if (isEditing) {
+      return (
+        <TextareaAutosize
+          textareaRef={editInputRef}
+          className="text-md font-vazir text-right text-[15px] leading-relaxed"
+          dir="rtl"
+          value={editedMessage}
+          onValueChange={setEditedMessage}
+          maxRows={20}
+        />
+      )
+    }
+
     return (
-      <TextareaAutosize
-        textareaRef={editInputRef}
-        className="text-md font-vazir text-[15px] leading-relaxed text-right"
+      <MessageMarkdown
+        content={message.content}
+        className="whitespace-pre-wrap text-right text-[15.5px] leading-[1.9] tracking-normal text-white"
         dir="rtl"
-        value={editedMessage}
-        onValueChange={setEditedMessage}
-        maxRows={20}
       />
-    );
+    )
   }
-
-  return <MessageMarkdown content={message.content} className="text-[15.5px] leading-[1.9] tracking-normal text-white whitespace-pre-wrap text-right" dir="rtl" />;
-});
-MessageBody.displayName = "MessageBody";
-
+)
+MessageBody.displayName = "MessageBody"
 
 const MessageSources: FC<{
-  fileItems: Tables<"file_items">[];
-  fileSummary: Record<string, any>;
-  onFileItemClick: (fileItem: Tables<"file_items">) => void;
+  fileItems: Tables<"file_items">[]
+  fileSummary: Record<string, any>
+  onFileItemClick: (fileItem: Tables<"file_items">) => void
 }> = memo(({ fileItems, fileSummary, onFileItemClick }) => {
-  const [viewSources, setViewSources] = useState(false);
+  const [viewSources, setViewSources] = useState(false)
 
-  const sourceCount = fileItems.length;
-  const fileCount = Object.keys(fileSummary).length;
+  const sourceCount = fileItems.length
+  const fileCount = Object.keys(fileSummary).length
 
-  if (sourceCount === 0) return null;
+  if (sourceCount === 0) return null
 
   return (
     <div className="border-primary mt-6 border-t pt-4 font-bold">
-      <div className="flex cursor-pointer items-center text-lg hover:opacity-50" onClick={() => setViewSources(v => !v)}>
-        {sourceCount} {sourceCount > 1 ? "Sources" : "Source"} from {fileCount} {fileCount > 1 ? "Files" : "File"}
-        {viewSources ? <IconCaretDownFilled className="ml-1" /> : <IconCaretRightFilled className="ml-1" />}
+      <div
+        className="flex cursor-pointer items-center text-lg hover:opacity-50"
+        onClick={() => setViewSources(v => !v)}
+      >
+        {sourceCount} {sourceCount > 1 ? "Sources" : "Source"} from {fileCount}{" "}
+        {fileCount > 1 ? "Files" : "File"}
+        {viewSources ? (
+          <IconCaretDownFilled className="ml-1" />
+        ) : (
+          <IconCaretRightFilled className="ml-1" />
+        )}
       </div>
 
       {viewSources && (
@@ -174,7 +243,8 @@ const MessageSources: FC<{
                     onClick={() => onFileItemClick(item)}
                   >
                     <div className="text-sm font-normal">
-                      <span className="mr-1 text-lg font-bold">-</span> {item.content.substring(0, 200)}...
+                      <span className="mr-1 text-lg font-bold">-</span>{" "}
+                      {item.content.substring(0, 200)}...
                     </div>
                   </div>
                 ))}
@@ -183,23 +253,22 @@ const MessageSources: FC<{
         </div>
       )}
     </div>
-  );
-});
-MessageSources.displayName = "MessageSources";
-
+  )
+})
+MessageSources.displayName = "MessageSources"
 
 const MessageImages: FC<{
-  message: Tables<"messages">;
-  chatImages: MessageImage[];
-  onImageClick: (image: MessageImage) => void;
+  message: Tables<"messages">
+  chatImages: MessageImage[]
+  onImageClick: (image: MessageImage) => void
 }> = memo(({ message, chatImages, onImageClick }) => {
-  if (message.image_paths.length === 0) return null;
+  if (message.image_paths.length === 0) return null
 
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {message.image_paths.map((path, index) => {
-        const item = chatImages.find(image => image.path === path);
-        const src = path.startsWith("data") ? path : item?.base64 || "";
+        const item = chatImages.find(image => image.path === path)
+        const src = path.startsWith("data") ? path : item?.base64 || ""
         return (
           <Image
             key={index}
@@ -209,117 +278,163 @@ const MessageImages: FC<{
             width={300}
             height={300}
             loading="lazy"
-            onClick={() => onImageClick({
-              messageId: message.id,
-              path,
-              base64: src,
-              url: path.startsWith("data") ? "" : item?.url || "",
-              file: null
-            })}
+            onClick={() =>
+              onImageClick({
+                messageId: message.id,
+                path,
+                base64: src,
+                url: path.startsWith("data") ? "" : item?.url || "",
+                file: null
+              })
+            }
           />
-        );
+        )
       })}
     </div>
-  );
-});
-MessageImages.displayName = "MessageImages";
+  )
+})
+MessageImages.displayName = "MessageImages"
 
 // =================================================================
 // 2. Main Component (کامپوننت اصلی)
 // =================================================================
 
 interface MessageProps {
-  message: Tables<"messages">;
-  fileItems: Tables<"file_items">[];
-  isEditing: boolean;
-  isLast: boolean;
-  onStartEdit: (message: Tables<"messages">) => void;
-  onCancelEdit: () => void;
-  onSubmitEdit: (value: string, sequenceNumber: number) => void;
+  message: Tables<"messages">
+  fileItems: Tables<"file_items">[]
+  isEditing: boolean
+  isLast: boolean
+  onStartEdit: (message: Tables<"messages">) => void
+  onCancelEdit: () => void
+  onSubmitEdit: (value: string, sequenceNumber: number) => void
 }
 
-export const Message: FC<MessageProps> = ({ message, fileItems, isEditing, isLast, onStartEdit, onCancelEdit, onSubmitEdit }) => {
+export const Message: FC<MessageProps> = ({
+  message,
+  fileItems,
+  isEditing,
+  isLast,
+  onStartEdit,
+  onCancelEdit,
+  onSubmitEdit
+}) => {
   const {
-    assistants, profile, isGenerating, setIsGenerating, firstTokenReceived, availableLocalModels,
-    availableOpenRouterModels, chatMessages, selectedAssistant, chatImages, assistantImages, toolInUse, files, models
-  } = useContext(ChatbotUIContext);
+    assistants,
+    profile,
+    isGenerating,
+    setIsGenerating,
+    firstTokenReceived,
+    availableLocalModels,
+    availableOpenRouterModels,
+    chatMessages,
+    selectedAssistant,
+    chatImages,
+    assistantImages,
+    toolInUse,
+    files,
+    models
+  } = useContext(ChatbotUIContext)
 
-  const { handleSendMessage } = useChatHandler();
-  const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const { handleSendMessage } = useChatHandler()
+  const editInputRef = useRef<HTMLTextAreaElement>(null)
 
-  const [isHovering, setIsHovering] = useState(false);
-  const [editedMessage, setEditedMessage] = useState(message.content);
-  const [showImagePreview, setShowImagePreview] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<MessageImage | null>(null);
-  const [showFileItemPreview, setShowFileItemPreview] = useState(false);
-  const [selectedFileItem, setSelectedFileItem] = useState<Tables<"file_items"> | null>(null);
+  const [isHovering, setIsHovering] = useState(false)
+  const [editedMessage, setEditedMessage] = useState(message.content)
+  const [showImagePreview, setShowImagePreview] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<MessageImage | null>(null)
+  const [showFileItemPreview, setShowFileItemPreview] = useState(false)
+  const [selectedFileItem, setSelectedFileItem] =
+    useState<Tables<"file_items"> | null>(null)
 
   // Memoized values for performance (مقادیر بهینه‌سازی شده)
-  const modelData = useMemo(() =>
-    [
-      ...models.map(model => ({ modelId: model.model_id as LLMID, modelName: model.name, provider: "custom" as ModelProvider, hostedId: model.id, platformLink: "", imageInput: false })),
-      ...LLM_LIST, ...availableLocalModels, ...availableOpenRouterModels
-    ].find(llm => llm.modelId === message.model) as LLM,
+  const modelData = useMemo(
+    () =>
+      [
+        ...models.map(model => ({
+          modelId: model.model_id as LLMID,
+          modelName: model.name,
+          provider: "custom" as ModelProvider,
+          hostedId: model.id,
+          platformLink: "",
+          imageInput: false
+        })),
+        ...LLM_LIST,
+        ...availableLocalModels,
+        ...availableOpenRouterModels
+      ].find(llm => llm.modelId === message.model) as LLM,
     [models, availableLocalModels, availableOpenRouterModels, message.model]
-  );
+  )
 
   const assistantName = useMemo(() => {
-    const assistant = assistants.find(a => a.id === message.assistant_id);
-    if (assistant) return assistant.name;
-    if (selectedAssistant) return selectedAssistant.name;
-    return MODEL_DISPLAY_NAMES[modelData?.modelId] || modelData?.modelName;
-  }, [assistants, selectedAssistant, modelData, message.assistant_id]);
+    const assistant = assistants.find(a => a.id === message.assistant_id)
+    if (assistant) return assistant.name
+    if (selectedAssistant) return selectedAssistant.name
+    return MODEL_DISPLAY_NAMES[modelData?.modelId] || modelData?.modelName
+  }, [assistants, selectedAssistant, modelData, message.assistant_id])
 
-  const messageAssistantImage = useMemo(() =>
-    assistantImages.find(image => image.assistantId === message.assistant_id)?.base64,
+  const messageAssistantImage = useMemo(
+    () =>
+      assistantImages.find(image => image.assistantId === message.assistant_id)
+        ?.base64,
     [assistantImages, message.assistant_id]
-  );
+  )
 
-  const fileSummary = useMemo(() =>
-    fileItems.reduce<Record<string, any>>((acc, fileItem) => {
-      const parentFile = files.find(file => file.id === fileItem.file_id);
-      if (parentFile) {
-        if (!acc[parentFile.id]) {
-          acc[parentFile.id] = { id: parentFile.id, name: parentFile.name, count: 1, type: parentFile.type, description: parentFile.description };
-        } else {
-          acc[parentFile.id].count++;
+  const fileSummary = useMemo(
+    () =>
+      fileItems.reduce<Record<string, any>>((acc, fileItem) => {
+        const parentFile = files.find(file => file.id === fileItem.file_id)
+        if (parentFile) {
+          if (!acc[parentFile.id]) {
+            acc[parentFile.id] = {
+              id: parentFile.id,
+              name: parentFile.name,
+              count: 1,
+              type: parentFile.type,
+              description: parentFile.description
+            }
+          } else {
+            acc[parentFile.id].count++
+          }
         }
-      }
-      return acc;
-    }, {}),
+        return acc
+      }, {}),
     [fileItems, files]
-  );
+  )
 
   // Handlers (توابع مدیریت رویداد)
-  const handleCopy = () => navigator.clipboard.writeText(message.content);
+  const handleCopy = () => navigator.clipboard.writeText(message.content)
   const handleSendEdit = () => {
-    onSubmitEdit(editedMessage, message.sequence_number);
-    onCancelEdit();
-  };
+    onSubmitEdit(editedMessage, message.sequence_number)
+    onCancelEdit()
+  }
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (isEditing && event.key === "Enter" && event.metaKey) handleSendEdit();
-  };
+    if (isEditing && event.key === "Enter" && event.metaKey) handleSendEdit()
+  }
   const handleRegenerate = async () => {
-    setIsGenerating(true);
-    await handleSendMessage(editedMessage || chatMessages[chatMessages.length - 2].message.content, chatMessages, true);
-  };
+    setIsGenerating(true)
+    await handleSendMessage(
+      editedMessage || chatMessages[chatMessages.length - 2].message.content,
+      chatMessages,
+      true
+    )
+  }
   const handleImageClick = (image: MessageImage) => {
-    setSelectedImage(image);
-    setShowImagePreview(true);
-  };
+    setSelectedImage(image)
+    setShowImagePreview(true)
+  }
   const handleFileItemClick = (fileItem: Tables<"file_items">) => {
-    setSelectedFileItem(fileItem);
-    setShowFileItemPreview(true);
-  };
+    setSelectedFileItem(fileItem)
+    setShowFileItemPreview(true)
+  }
 
   useEffect(() => {
-    setEditedMessage(message.content);
+    setEditedMessage(message.content)
     if (isEditing && editInputRef.current) {
-      const input = editInputRef.current;
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+      const input = editInputRef.current
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
     }
-  }, [isEditing, message.content]);
+  }, [isEditing, message.content])
 
   return (
     <div
@@ -332,8 +447,8 @@ export const Message: FC<MessageProps> = ({ message, fileItems, isEditing, isLas
         className={cn(
           "relative w-full max-w-2xl transition-all duration-200",
           message.role === "user"
-            ? "px-6 py-5 rounded-xl border border-border bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]" // کاربر داخل کادر
-            : "px-0 py-2 bg-transparent border-none" // مدل بدون کادر
+            ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]" // کاربر داخل کادر
+            : "border-none bg-transparent px-0 py-2" // مدل بدون کادر
         )}
       >
         <div className="absolute right-5 top-7 sm:right-0">
@@ -383,8 +498,12 @@ export const Message: FC<MessageProps> = ({ message, fileItems, isEditing, isLas
 
         {isEditing && (
           <div className="mt-4 flex justify-center space-x-2">
-            <Button size="sm" onClick={handleSendEdit}>Save & Send</Button>
-            <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancel</Button>
+            <Button size="sm" onClick={handleSendEdit}>
+              Save & Send
+            </Button>
+            <Button size="sm" variant="outline" onClick={onCancelEdit}>
+              Cancel
+            </Button>
           </div>
         )}
       </div>
@@ -394,7 +513,9 @@ export const Message: FC<MessageProps> = ({ message, fileItems, isEditing, isLas
           type="image"
           item={selectedImage}
           isOpen={showImagePreview}
-          onOpenChange={isOpen => !isOpen && (setShowImagePreview(false), setSelectedImage(null))}
+          onOpenChange={isOpen =>
+            !isOpen && (setShowImagePreview(false), setSelectedImage(null))
+          }
         />
       )}
 
@@ -403,9 +524,12 @@ export const Message: FC<MessageProps> = ({ message, fileItems, isEditing, isLas
           type="file_item"
           item={selectedFileItem}
           isOpen={showFileItemPreview}
-          onOpenChange={isOpen => !isOpen && (setShowFileItemPreview(false), setSelectedFileItem(null))}
+          onOpenChange={isOpen =>
+            !isOpen &&
+            (setShowFileItemPreview(false), setSelectedFileItem(null))
+          }
         />
       )}
     </div>
-  );
-};
+  )
+}

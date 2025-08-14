@@ -27,12 +27,11 @@ interface ChatSettingsFormProps {
   useAdvancedDropdown?: boolean // این رو اضافه کن
 }
 
-
 export const ChatSettingsForm: FC<ChatSettingsFormProps> = ({
   chatSettings,
   onChangeChatSettings,
   showTooltip = true,
-  useAdvancedDropdown = false,
+  useAdvancedDropdown = false
 }) => {
   const { profile } = useContext(ChatbotUIContext)
 
@@ -131,7 +130,7 @@ const AdvancedContent: FC<AdvancedContentProps> = ({
           max={
             isCustomModel
               ? models.find(model => model.model_id === chatSettings.model)
-                ?.context_length
+                  ?.context_length
               : MODEL_LIMITS.MAX_CONTEXT_LENGTH
           }
           step={1}

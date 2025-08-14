@@ -57,6 +57,26 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
   const [loading, setLoading] = useState(true)
 
+  // حالت دکمه وب‌سرچ
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [statusMessage, setStatusMessage] = useState("")
+
+  const toggleWebSearch = () => {
+    setWebSearchEnabled(prev => {
+      const newState = !prev
+      setStatusMessage(newState ? "جستجو فعال شد" : "جستجو غیرفعال شد")
+      setTimeout(() => setStatusMessage(""), 2000)
+
+      // به روز رسانی تنظیمات چت با وضعیت جدید وب‌سرچ
+      setChatSettings(prev => ({
+        ...prev,
+        enableWebSearch: newState // ارسال وضعیت جدید وب‌سرچ
+      }))
+
+      return newState
+    })
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       await fetchMessages()
@@ -177,7 +197,8 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
       contextLength: chat.context_length,
       includeProfileContext: chat.include_profile_context,
       includeWorkspaceInstructions: chat.include_workspace_instructions,
-      embeddingsProvider: chat.embeddings_provider as "openai" | "local"
+      embeddingsProvider: chat.embeddings_provider as "openai" | "local",
+      enableWebSearch: webSearchEnabled // اینجا می‌فرستیم
     })
   }
 
@@ -199,6 +220,19 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
       <div className="absolute right-4 top-1 flex h-[40px] items-center space-x-2">
         <ChatSecondaryButtons />
+
+        {/* دکمه وب سرچ */}
+        <button
+          onClick={toggleWebSearch}
+          className="font-vazir flex items-center space-x-2 rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm transition hover:bg-gray-100"
+        >
+          <span
+            className={`size-3 rounded-full ${
+              webSearchEnabled ? "bg-green-500" : "bg-gray-400"
+            }`}
+          ></span>
+          <span>وب‌سرچ</span>
+        </button>
       </div>
 
       <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full items-center justify-center border-b-2 font-bold">
@@ -206,6 +240,12 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
           {selectedChat?.name || "Chat"}
         </div>
       </div>
+
+      {statusMessage && (
+        <div className="absolute right-4 top-14 rounded bg-black px-3 py-1 text-xs text-white shadow-lg">
+          {statusMessage}
+        </div>
+      )}
 
       <div
         className="flex size-full flex-col overflow-auto border-b"

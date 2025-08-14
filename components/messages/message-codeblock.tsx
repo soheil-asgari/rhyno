@@ -129,7 +129,6 @@ export const MessageCodeBlock: FC<MessageCodeBlockProps> = memo(
         >
           {value}
         </SyntaxHighlighter>
-
       </div>
     )
   }

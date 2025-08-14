@@ -30,10 +30,10 @@ export const TextareaAutosize: FC<TextareaAutosizeProps> = ({
   minRows = 1,
   maxRows = 6,
   maxLength,
-  onKeyDown = () => { },
-  onPaste = () => { },
-  onCompositionStart = () => { },
-  onCompositionEnd = () => { }
+  onKeyDown = () => {},
+  onPaste = () => {},
+  onCompositionStart = () => {},
+  onCompositionEnd = () => {}
 }) => {
   return (
     <ReactTextareaAutosize

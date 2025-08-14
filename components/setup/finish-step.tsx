@@ -8,7 +8,7 @@ export const FinishStep: FC<FinishStepProps> = ({ displayName }) => {
   return (
     <div className="space-y-4">
       <div>
-        Welcome to Rhyno 
+        Welcome to Rhyno
         {displayName.length > 0 ? `, ${displayName.split(" ")[0]}` : null}!
       </div>
 

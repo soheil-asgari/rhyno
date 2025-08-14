@@ -13,6 +13,15 @@ const config: Config = {
   // Add more setup options before each test is run
   // setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 }
+// next.config.js
+module.exports = {
+  env: {
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY, // تعریف متغیر محیطی
+  },
+  experimental: {
+    runtime: 'edge', // مشخص کردن استفاده از Edge Functions
+  },
+};
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
 export default createJestConfig(config)
