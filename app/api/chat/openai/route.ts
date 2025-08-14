@@ -22,8 +22,8 @@ type WebResult = {
 
 async function webSearch(
   queries: string[],
-  lastUserMessage?: string,
-  enableWebSearch: boolean
+  enableWebSearch: boolean,
+  lastUserMessage?: string
 ): Promise<WebResult[]> {
   console.log("🌐 Tavily Search - queries:", queries)
 
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
         }
 
         // Step 2: Perform Web Search
-        const webResults = await webSearch(queries)
+        const webResults = await webSearch(queries, enableWebSearch)
         if (webResults.length) {
           const ctx = webResults
             .map((it, i) => `[${i + 1}] ${it.title}\n${it.url}\n${it.snippet}`)
