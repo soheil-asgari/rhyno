@@ -1,50 +1,54 @@
-import { openapiToFunctions } from "@/lib/openapi-conversion"
-import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
-import { Tables } from "@/supabase/types"
-import { ChatSettings } from "@/types"
-import { OpenAIStream, StreamingTextResponse } from "ai"
-import OpenAI from "openai"
-import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions.mjs"
+import { openapiToFunctions } from "@/lib/openapi-conversion";
+import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers";
+import { Tables } from "@/supabase/types";
+import { ChatSettings } from "@/types";
+import { openai } from "@ai-sdk/openai";
+import { streamText } from "ai";
+import { NextRequest } from "next/server";
 
-export async function POST(request: Request) {
-  const json = await request.json()
+export const runtime = "edge";
+
+export async function POST(request: NextRequest) {
+  const json = await request.json();
   const { chatSettings, messages, selectedTools } = json as {
-    chatSettings: ChatSettings
-    messages: any[]
-    selectedTools: Tables<"tools">[]
-  }
+    chatSettings: ChatSettings;
+    messages: any[];
+    selectedTools: Tables<"tools">[];
+  };
 
   try {
-    const profile = await getServerProfile()
+    const profile = await getServerProfile();
 
-    checkApiKey(profile.openai_api_key, "OpenAI")
+    checkApiKey(profile.openai_api_key, "OpenAI");
 
-    const openai = new OpenAI({
+    // ایجاد کلاینت OpenAI با Vercel AI SDK
+    const openaiClient = openai({
       apiKey: profile.openai_api_key || "",
-      organization: profile.openai_organization_id
-    })
+      organization: profile.openai_organization_id,
+    });
 
-    let allTools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
-    let allRouteMaps = {}
-    let schemaDetails = []
+    let allTools: any[] = [];
+    let allRouteMaps = {};
+    let schemaDetails: any[] = [];
 
+    // پردازش ابزارها و تبدیل schema
     for (const selectedTool of selectedTools) {
       try {
         const convertedSchema = await openapiToFunctions(
           JSON.parse(selectedTool.schema as string)
-        )
-        const tools = convertedSchema.functions || []
-        allTools = allTools.concat(tools)
+        );
+        const tools = convertedSchema.functions || [];
+        allTools = allTools.concat(tools);
 
         const routeMap = convertedSchema.routes.reduce(
-          (map: Record<string, string>, route) => {
-            map[route.path.replace(/{(\w+)}/g, ":$1")] = route.operationId
-            return map
+          (map: Record<string, string>, route: any) => {
+            map[route.path.replace(/{(\w+)}/g, ":$1")] = route.operationId;
+            return map;
           },
           {}
-        )
+        );
 
-        allRouteMaps = { ...allRouteMaps, ...routeMap }
+        allRouteMaps = { ...allRouteMaps, ...routeMap };
 
         schemaDetails.push({
           title: convertedSchema.info.title,
@@ -52,140 +56,123 @@ export async function POST(request: Request) {
           url: convertedSchema.info.server,
           headers: selectedTool.custom_headers,
           routeMap,
-          requestInBody: convertedSchema.routes[0].requestInBody
-        })
+          requestInBody: convertedSchema.routes[0].requestInBody,
+        });
       } catch (error: any) {
-        console.error("Error converting schema", error)
+        console.error("Error converting schema", error);
       }
     }
 
-    const firstResponse = await openai.chat.completions.create({
-      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
+    // اولین فراخوانی برای بررسی ابزارها
+    const firstResponse = await streamText({
+      model: openaiClient(chatSettings.model),
       messages,
-      tools: allTools.length > 0 ? allTools : undefined
-    })
+      tools: allTools.length > 0 ? allTools : undefined,
+    });
 
-    const message = firstResponse.choices[0].message
-    messages.push(message)
-    const toolCalls = message.tool_calls || []
+    const result = await firstResponse.toDataStreamResponse();
+    const message = (await result.json()).choices[0].message;
+    messages.push(message);
+    const toolCalls = message.tool_calls || [];
 
     if (toolCalls.length === 0) {
-      return new Response(message.content, {
-        headers: {
-          "Content-Type": "application/json"
-        }
-      })
+      return new Response(JSON.stringify({ content: message.content }), {
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (toolCalls.length > 0) {
       for (const toolCall of toolCalls) {
-        const functionCall = toolCall.function
-        const functionName = functionCall.name
-        const argumentsString = toolCall.function.arguments.trim()
-        const parsedArgs = JSON.parse(argumentsString)
+        const functionCall = toolCall.function;
+        const functionName = functionCall.name;
+        const argumentsString = toolCall.function.arguments.trim();
+        const parsedArgs = JSON.parse(argumentsString);
 
-        // Find the schema detail that contains the function name
-        const schemaDetail = schemaDetails.find(detail =>
+        // پیدا کردن schema مرتبط با ابزار
+        const schemaDetail = schemaDetails.find((detail) =>
           Object.values(detail.routeMap).includes(functionName)
-        )
+        );
 
         if (!schemaDetail) {
-          throw new Error(`Function ${functionName} not found in any schema`)
+          throw new Error(`Function ${functionName} not found in any schema`);
         }
 
         const pathTemplate = Object.keys(schemaDetail.routeMap).find(
-          key => schemaDetail.routeMap[key] === functionName
-        )
+          (key) => schemaDetail.routeMap[key] === functionName
+        );
 
         if (!pathTemplate) {
-          throw new Error(`Path for function ${functionName} not found`)
+          throw new Error(`Path for function ${functionName} not found`);
         }
 
         const path = pathTemplate.replace(/:(\w+)/g, (_, paramName) => {
-          const value = parsedArgs.parameters[paramName]
+          const value = parsedArgs.parameters[paramName];
           if (!value) {
             throw new Error(
               `Parameter ${paramName} not found for function ${functionName}`
-            )
+            );
           }
-          return encodeURIComponent(value)
-        })
+          return encodeURIComponent(value);
+        });
 
         if (!path) {
-          throw new Error(`Path for function ${functionName} not found`)
+          throw new Error(`Path for function ${functionName} not found`);
         }
 
-        // Determine if the request should be in the body or as a query
-        const isRequestInBody = schemaDetail.requestInBody
-        let data = {}
+        // تعیین نوع درخواست (body یا query)
+        const isRequestInBody = schemaDetail.requestInBody;
+        let data = {};
 
         if (isRequestInBody) {
-          // If the type is set to body
           let headers = {
-            "Content-Type": "application/json"
-          }
+            "Content-Type": "application/json",
+          };
 
-          // Check if custom headers are set
-          const customHeaders = schemaDetail.headers // Moved this line up to the loop
-          // Check if custom headers are set and are of type string
+          const customHeaders = schemaDetail.headers;
           if (customHeaders && typeof customHeaders === "string") {
-            let parsedCustomHeaders = JSON.parse(customHeaders) as Record<
+            const parsedCustomHeaders = JSON.parse(customHeaders) as Record<
               string,
               string
-            >
-
-            headers = {
-              ...headers,
-              ...parsedCustomHeaders
-            }
+            >;
+            headers = { ...headers, ...parsedCustomHeaders };
           }
 
-          const fullUrl = schemaDetail.url + path
+          const fullUrl = schemaDetail.url + path;
+          const bodyContent = parsedArgs.requestBody || parsedArgs;
 
-          const bodyContent = parsedArgs.requestBody || parsedArgs
-
-          const requestInit = {
+          const response = await fetch(fullUrl, {
             method: "POST",
             headers,
-            body: JSON.stringify(bodyContent) // Use the extracted requestBody or the entire parsedArgs
-          }
-
-          const response = await fetch(fullUrl, requestInit)
+            body: JSON.stringify(bodyContent),
+          });
 
           if (!response.ok) {
-            data = {
-              error: response.statusText
-            }
+            data = { error: response.statusText };
           } else {
-            data = await response.json()
+            data = await response.json();
           }
         } else {
-          // If the type is set to query
           const queryParams = new URLSearchParams(
             parsedArgs.parameters
-          ).toString()
+          ).toString();
           const fullUrl =
-            schemaDetail.url + path + (queryParams ? "?" + queryParams : "")
+            schemaDetail.url + path + (queryParams ? "?" + queryParams : "");
 
-          let headers = {}
-
-          // Check if custom headers are set
-          const customHeaders = schemaDetail.headers
+          let headers = {};
+          const customHeaders = schemaDetail.headers;
           if (customHeaders && typeof customHeaders === "string") {
-            headers = JSON.parse(customHeaders)
+            headers = JSON.parse(customHeaders);
           }
 
           const response = await fetch(fullUrl, {
             method: "GET",
-            headers: headers
-          })
+            headers,
+          });
 
           if (!response.ok) {
-            data = {
-              error: response.statusText
-            }
+            data = { error: response.statusText };
           } else {
-            data = await response.json()
+            data = await response.json();
           }
         }
 
@@ -193,26 +180,26 @@ export async function POST(request: Request) {
           tool_call_id: toolCall.id,
           role: "tool",
           name: functionName,
-          content: JSON.stringify(data)
-        })
+          content: JSON.stringify(data),
+        });
       }
     }
 
-    const secondResponse = await openai.chat.completions.create({
-      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
+    // دومین فراخوانی برای استریم پاسخ نهایی
+    const secondResponse = await streamText({
+      model: openaiClient(chatSettings.model),
       messages,
-      stream: true
-    })
+      maxTokens: CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TOKEN_OUTPUT_LENGTH || 4096,
+    });
 
-    const stream = OpenAIStream(secondResponse)
-
-    return new StreamingTextResponse(stream)
+    return secondResponse.toTextStreamResponse();
   } catch (error: any) {
-    console.error(error)
-    const errorMessage = error.error?.message || "An unexpected error occurred"
-    const errorCode = error.status || 500
+    console.error(error);
+    const errorMessage = error.message || "An unexpected error occurred";
+    const errorCode = error.status || 500;
     return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode
-    })
+      status: errorCode,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
