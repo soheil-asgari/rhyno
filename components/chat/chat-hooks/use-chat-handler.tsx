@@ -265,7 +265,11 @@ export const useChatHandler = () => {
         chatMessages: isRegeneration
           ? [...chatMessages]
           : [...chatMessages, tempUserChatMessage],
-        assistant: selectedChat?.assistant_id ? selectedAssistant : null,
+        assistant:
+          selectedChat?.assistant_id && selectedAssistant
+            ? selectedAssistant
+            : null,
+
         messageFileItems: retrievedFileItems,
         chatFileItems: chatFileItems
       }
@@ -280,8 +284,13 @@ export const useChatHandler = () => {
           profile!,
           chatImages
         )
+        console.log(
+          "Sending enableWebSearch:",
+          chatSettings?.enableWebSearch,
+          typeof chatSettings?.enableWebSearch
+        )
 
-        const response = await fetch("/api/chat/tools", {
+        const response = await fetch("/api/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -289,7 +298,7 @@ export const useChatHandler = () => {
           body: JSON.stringify({
             chatSettings: payload.chatSettings,
             messages: formattedMessages,
-            selectedTools
+            enableWebSearch: Boolean(chatSettings?.enableWebSearch) // 👈 اینجا
           })
         })
 
@@ -339,18 +348,20 @@ export const useChatHandler = () => {
       }
 
       if (!currentChat) {
+        // وقتی چتی هنوز وجود نداره → یه چت جدید می‌سازیم
         currentChat = await handleCreateChat(
           chatSettings!,
           profile!,
           selectedWorkspace!,
           messageContent,
-          selectedAssistant!,
+          selectedAssistant!, // اینجا مطمئنیم که assistant وجود داره
           newMessageFiles,
           setSelectedChat,
           setChats,
           setChatFiles
         )
       } else {
+        // وقتی چت وجود داره → فقط تاریخ آخرین آپدیت رو تغییر میدیم
         const updatedChat = await updateChat(currentChat.id, {
           updated_at: new Date().toISOString()
         })
@@ -359,14 +370,14 @@ export const useChatHandler = () => {
           const updatedChats = prevChats.map(prevChat =>
             prevChat.id === updatedChat.id ? updatedChat : prevChat
           )
-
           return updatedChats
         })
       }
 
+      // ✅ اینجا currentChat دیگه قطعاً null نیست
       await handleCreateMessages(
         chatMessages,
-        currentChat,
+        currentChat!, // non-null تضمین‌شده
         profile!,
         modelData!,
         messageContent,

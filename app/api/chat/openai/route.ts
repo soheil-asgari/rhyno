@@ -1,101 +1,11 @@
-// app/api/chat/route.ts
-
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
 import { ServerRuntime } from "next"
 import OpenAI from "openai"
-import { z } from "zod"
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/chat/completions"
 
-// ---------------------- تنظیمات ----------------------
 export const runtime: ServerRuntime = "edge"
 
-// ---------------------- وب‌سرچ (Tavily) ----------------------
-
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY // دریافت کلید API از متغیر محیطی
-
-type WebResult = {
-  title: string
-  url: string
-  snippet: string
-}
-
-async function webSearch(
-  queries: string[],
-  enableWebSearch: boolean,
-  lastUserMessage?: string
-): Promise<WebResult[]> {
-  console.log("🌐 Tavily Search - queries:", queries)
-
-  // اگر وب‌سرچ غیرفعال است، جستجو را انجام نده
-  if (!enableWebSearch) {
-    console.warn("⚠️ Web search is disabled.")
-    return []
-  }
-
-  // بررسی که آیا کلید API موجود است یا خیر
-  if (!TAVILY_API_KEY) {
-    console.warn("⚠️ Tavily API Key not set")
-    return []
-  }
-
-  // اگر کوئری خالی بود از پیام کاربر استفاده کن
-  if (!queries?.length && lastUserMessage) {
-    queries = [lastUserMessage]
-  }
-
-  const q = (queries ?? []).filter(Boolean).join(" | ").trim()
-  if (!q) {
-    console.warn("⚠️ Empty query after fallback, skipping Tavily search.")
-    return []
-  }
-
-  try {
-    const res = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": TAVILY_API_KEY // استفاده از کلید API از process.env
-      },
-      body: JSON.stringify({
-        query: q,
-        max_results: 5,
-        include_images: false,
-        include_answer: false,
-        include_raw_content: false,
-        search_depth: "basic"
-      })
-    })
-
-    if (!res.ok) {
-      const txt = await res.text()
-      console.error(
-        "❌ Tavily response error:",
-        res.status,
-        res.statusText,
-        txt
-      )
-      return []
-    }
-
-    const data: any = await res.json()
-    console.log("🔎 Tavily API response data:", data)
-
-    const out: WebResult[] = (data.results ?? []).map((r: any) => ({
-      title: String(r?.title ?? ""),
-      url: String(r?.url ?? ""),
-      snippet: String(r?.content ?? r?.snippet ?? "")
-    }))
-
-    console.log(`🔎 Tavily results: ${out.length}`)
-    return out
-  } catch (err) {
-    console.error("❌ Tavily search exception:", err)
-    return []
-  }
-}
-
-// ---------------------- ثابت‌ها/ابزارها ----------------------
 type ExtendedChatSettings = ChatSettings & {
   maxTokens?: number
   max_tokens?: number
@@ -107,29 +17,33 @@ const MODELS_NEED_MAX_COMPLETION = new Set([
   "gpt-5",
   "gpt-5-mini"
 ])
+
+// مدل‌هایی که «وب‌سرچ داخلی OpenAI» را پشتیبانی می‌کنند
+const MODELS_WITH_OPENAI_WEB_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
+
+// اگر کاربر سوییچ رو نگفته بود، برای این مدل‌ها وب‌سرچ را خودکار فعال کن
 const MODELS_WITH_AUTO_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
 
 function pickMaxTokens(cs: ExtendedChatSettings): number {
   return Math.min(cs.maxTokens ?? cs.max_tokens ?? 600, 1200)
 }
 
-// ---------------------- هندلر اصلی ----------------------
 export async function POST(request: Request) {
   const { chatSettings, messages, enableWebSearch } = await request.json()
 
-  // ✅ اگر مدل gpt-4o یا gpt-4o-mini انتخاب شد، وب‌سرچ را خودکار فعال کن
-  let enableSearch = enableWebSearch
-  if (
-    enableSearch === undefined &&
-    MODELS_WITH_AUTO_SEARCH.has(chatSettings?.model)
-  ) {
-    enableSearch = true
-  }
+  // تعیین وضعیت نهایی وب‌سرچ
+  // تعیین وضعیت نهایی وب‌سرچ
+  let enableSearch: boolean
 
-  console.log("📥 Incoming body:", {
-    chatSettings,
-    enableWebSearch: enableSearch
-  })
+  if (typeof enableWebSearch === "boolean") {
+    enableSearch = enableWebSearch // دقیقا boolean واقعی
+  } else if (enableWebSearch !== undefined) {
+    // اگر به صورت string "true"/"false" اومده باشه
+    enableSearch = String(enableWebSearch).toLowerCase() === "true"
+  } else {
+    // اگر اصلا نیومده بود
+    enableSearch = MODELS_WITH_AUTO_SEARCH.has(chatSettings?.model)
+  }
 
   try {
     // auth
@@ -157,74 +71,74 @@ export async function POST(request: Request) {
           ? 1
           : 0.7
 
-    console.log(
-      `🤖 Model: ${selectedModel} | maxTokens: ${maxTokens} | temp: ${temp}`
-    )
+    // اگر وب‌سرچ روشن است و مدل از ابزار web_search پشتیبانی می‌کند: مسیر Responses API + وب‌سرچ
+    const useOpenAIWebSearch =
+      !!enableSearch && MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel)
 
-    // ---------------------- مرحله وب‌سرچ ----------------------
-    const augmentedMessages = [...messages] // Clone messages to avoid mutation
-    const WebQuerySchema = z.object({
-      queries: z.array(z.string()).max(3) // حداکثر 3 کوئری مجاز
-    })
-    if (enableSearch) {
-      try {
-        console.log("🔍 Planning queries with gpt-4o-mini...")
+    if (useOpenAIWebSearch) {
+      const encoder = new TextEncoder()
 
-        const encoder = new TextEncoder()
-        // Step 1: Query Planning using GPT
-        const planning = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          stream: false,
-          temperature: 0,
-          max_tokens: 150,
-          messages: [
-            {
-              role: "system",
-              content: 'Return JSON {"queries": []} with max 3 items.'
-            },
-            {
-              role: "user",
-              content: messages?.[messages.length - 1]?.content || ""
+      const stream = new ReadableStream({
+        async start(controller) {
+          console.log("🔍 وب‌سرچ فعال است:", enableSearch) // لاگ وضعیت وب‌سرچ
+
+          try {
+            // به فرمت سادهٔ چند-پیامی برای Responses API
+            const input = (messages ?? []).map((m: any) => ({
+              role: m.role,
+              content: m.content
+            }))
+
+            // Streaming با ابزار داخلی وب‌سرچ
+            const oaiStream = await openai.responses.stream({
+              model: selectedModel, // gpt-4o-mini
+              input,
+              tools: [{ type: "web_search_preview" }],
+              temperature: temp,
+              max_output_tokens: maxTokens
+            })
+
+            let firstChunkSent = false
+
+            // رویدادهای Responses API
+            for await (const event of oaiStream as AsyncIterable<any>) {
+              if (event.type === "response.output_text.delta") {
+                // فقط اولین بار می‌تونی یه پیام موقت نشون بدی
+                if (!firstChunkSent) {
+                  // اینجا می‌تونی پیام موقت بفرستی بعدش پاک کنی
+                  // controller.enqueue(encoder.encode("⌛ در حال جست‌وجوی وب...\n"));
+                  // و بلافاصله بعدش اولین پاسخ واقعی میاد، جایگزین میشه
+                  firstChunkSent = true
+                }
+                controller.enqueue(encoder.encode(String(event.delta || "")))
+              } else if (event.type === "response.error" && "error" in event) {
+                const msg = String(event.error?.message || "خطای ناشناخته")
+                controller.enqueue(encoder.encode(`\n❌ ${msg}`))
+              }
             }
-          ]
-        })
-
-        const txt = planning.choices?.[0]?.message?.content ?? "{}"
-        let queries: string[] = []
-        try {
-          queries = WebQuerySchema.parse(JSON.parse(txt)).queries
-        } catch (err) {
-          console.warn(
-            "⚠️ Planning JSON parse failed, fallback to user text:",
-            err
-          )
-          queries = [messages?.[messages.length - 1]?.content ?? ""].filter(
-            Boolean
-          )
+          } catch (err: any) {
+            controller.enqueue(
+              encoder.encode(`❌ خطا: ${err?.message || "خطای ناشناخته"}`)
+            )
+          } finally {
+            controller.close()
+          }
         }
+      })
 
-        // Step 2: Perform Web Search
-        const webResults = await webSearch(queries, enableWebSearch)
-        if (webResults.length) {
-          const ctx = webResults
-            .map((it, i) => `[${i + 1}] ${it.title}\n${it.url}\n${it.snippet}`)
-            .join("\n\n")
-          augmentedMessages.unshift({
-            role: "system",
-            content: `Use the following web results as context. Cite with [1], [2], ... by index.\n\n${ctx}`
-          })
-        } else {
-          console.warn("⚠️ No web results, continuing without extra context.")
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no"
         }
-      } catch (err) {
-        console.error("❌ Web search step failed:", err)
-      }
+      })
     }
 
-    // ---------------------- ساخت payload استریم ----------------------
+    // در غیر این‌صورت: مسیر معمول Chat Completions (بدون وب‌سرچ)
     const basePayload: ChatCompletionCreateParamsStreaming = {
       model: selectedModel,
-      messages: augmentedMessages,
+      messages,
       stream: true,
       temperature: temp,
       presence_penalty: 0,
@@ -237,17 +151,12 @@ export async function POST(request: Request) {
       ;(basePayload as any).max_tokens = maxTokens
     }
 
-    console.log("💬 Final payload:", {
-      ...basePayload,
-      messagesCount: Array.isArray(messages) ? messages.length : 0
-    })
-
-    // ---------------------- ارسال و استریم ----------------------
     try {
       const encoder = new TextEncoder()
 
       const stream = new ReadableStream({
         async start(controller) {
+          // پیام "در حال پردازش پاسخ..." را فقط برای مدت کوتاهی نمایش می‌دهیم
           controller.enqueue(encoder.encode("⌛ در حال پردازش پاسخ...\n"))
 
           try {
@@ -256,11 +165,10 @@ export async function POST(request: Request) {
               stream: true
             })
 
+            // وقتی پردازش تمام شد، پیام "در حال پردازش" حذف می‌شود و محتوا به کاربر ارسال می‌شود
             for await (const chunk of response) {
               const content = chunk.choices[0]?.delta?.content
-              if (content) {
-                controller.enqueue(encoder.encode(content))
-              }
+              if (content) controller.enqueue(encoder.encode(content))
             }
           } catch (err: any) {
             controller.enqueue(
@@ -280,11 +188,10 @@ export async function POST(request: Request) {
         }
       })
     } catch (streamErr: any) {
-      console.error("❌ OpenAI streaming failed, falling back:", streamErr)
-
+      // fallback غیر استریم
       const nonStreamPayload: any = {
         model: selectedModel,
-        messages: augmentedMessages,
+        messages,
         temperature: temp,
         presence_penalty: 0,
         frequency_penalty: 0
@@ -322,7 +229,6 @@ export async function POST(request: Request) {
       })
     }
   } catch (error: any) {
-    console.error("❌ Fatal error:", error)
     return new Response(
       JSON.stringify({ message: error?.message || "Unexpected error" }),
       {

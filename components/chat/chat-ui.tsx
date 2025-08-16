@@ -18,6 +18,7 @@ import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
 import { ChatSecondaryButtons } from "./chat-secondary-buttons"
+import { Tables } from "@/supabase/types"
 
 interface ChatUIProps {}
 
@@ -100,9 +101,9 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)
 
     const imagePromises: Promise<MessageImage>[] = fetchedMessages.flatMap(
-      message =>
+      (message: Tables<"messages">) =>
         message.image_paths
-          ? message.image_paths.map(async imagePath => {
+          ? message.image_paths.map(async (imagePath: string) => {
               const url = await getMessageImageFromStorage(imagePath)
 
               if (url) {
@@ -134,18 +135,21 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     setChatImages(images)
 
     const messageFileItemPromises = fetchedMessages.map(
-      async message => await getMessageFileItemsByMessageId(message.id)
+      async (message: Tables<"messages">) =>
+        await getMessageFileItemsByMessageId(message.id)
     )
 
     const messageFileItems = await Promise.all(messageFileItemPromises)
 
-    const uniqueFileItems = messageFileItems.flatMap(item => item.file_items)
+    const uniqueFileItems = messageFileItems.flatMap(
+      (item: { file_items: Tables<"file_items">[] }) => item.file_items
+    )
     setChatFileItems(uniqueFileItems)
 
     const chatFiles = await getChatFilesByChatId(params.chatid as string)
 
     setChatFiles(
-      chatFiles.files.map(file => ({
+      chatFiles.files.map((file: Tables<"files">) => ({
         id: file.id,
         name: file.name,
         type: file.type,
@@ -156,16 +160,20 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     setUseRetrieval(true)
     setShowFilesDisplay(true)
 
-    const fetchedChatMessages = fetchedMessages.map(message => {
-      return {
-        message,
-        fileItems: messageFileItems
-          .filter(messageFileItem => messageFileItem.id === message.id)
-          .flatMap(messageFileItem =>
-            messageFileItem.file_items.map(fileItem => fileItem.id)
+    const fetchedChatMessages = fetchedMessages.map(
+      (message: Tables<"messages">) => {
+        const relatedFileItems = messageFileItems
+          .flatMap(
+            (mfi: { file_items: Tables<"file_items">[] }) => mfi.file_items
           )
+          .filter(fi => fi.id === message.id) // اینجا اگر واقعا باید match بشه
+
+        return {
+          message,
+          fileItems: relatedFileItems.map(fileItem => fileItem.id)
+        }
       }
-    })
+    )
 
     setChatMessages(fetchedChatMessages)
   }
@@ -222,17 +230,16 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
         <ChatSecondaryButtons />
 
         {/* دکمه وب سرچ */}
-        <button
+        {/* <button
           onClick={toggleWebSearch}
           className="font-vazir flex items-center space-x-2 rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm transition hover:bg-gray-100"
         >
           <span
-            className={`size-3 rounded-full ${
-              webSearchEnabled ? "bg-green-500" : "bg-gray-400"
-            }`}
+            className={`size-3 rounded-full ${webSearchEnabled ? "bg-green-500" : "bg-gray-400"
+              }`}
           ></span>
           <span>وب‌سرچ</span>
-        </button>
+        </button> */}
       </div>
 
       <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full items-center justify-center border-b-2 font-bold">

@@ -20,9 +20,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4o-mini": "Rhyno v4 mini"
 }
 
-export const ChatSettings: FC<ChatSettingsProps> = ({}) => {
-  useHotkey("i", () => handleClick())
-
+export const ChatSettings: FC<ChatSettingsProps> = () => {
   const {
     chatSettings,
     setChatSettings,
@@ -34,12 +32,10 @@ export const ChatSettings: FC<ChatSettingsProps> = ({}) => {
 
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  const handleClick = () => {
-    if (buttonRef.current) {
-      buttonRef.current.click()
-    }
-  }
+  // کلید میانبر برای باز کردن تنظیمات
+  useHotkey("i", () => buttonRef.current?.click())
 
+  // محدود کردن مقادیر temperature و contextLength بر اساس CHAT_SETTING_LIMITS
   useEffect(() => {
     if (!chatSettings) return
 
@@ -47,17 +43,18 @@ export const ChatSettings: FC<ChatSettingsProps> = ({}) => {
       ...chatSettings,
       temperature: Math.min(
         chatSettings.temperature,
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TEMPERATURE || 1
+        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TEMPERATURE ?? 1
       ),
       contextLength: Math.min(
         chatSettings.contextLength,
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_CONTEXT_LENGTH || 4096
+        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_CONTEXT_LENGTH ?? 4096
       )
     })
   }, [chatSettings?.model])
 
   if (!chatSettings) return null
 
+  // جمع‌آوری همه مدل‌های موجود (لوکال، هاست‌شده، کاستوم)
   const allModels = [
     ...models.map(model => ({
       modelId: model.model_id as LLMID,
@@ -76,11 +73,12 @@ export const ChatSettings: FC<ChatSettingsProps> = ({}) => {
 
   return (
     <Popover>
-      <PopoverTrigger>
+      <PopoverTrigger asChild>
         <Button
           ref={buttonRef}
           className="flex items-center space-x-2"
           variant="ghost"
+          size="default"
         >
           <div className="max-w-[120px] truncate text-lg sm:max-w-[300px] lg:max-w-[500px]">
             {MODEL_DISPLAY_NAMES[chatSettings.model] ||

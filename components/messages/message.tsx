@@ -55,18 +55,6 @@ const MessageHeader: FC<{
   modelData?: LLM
   assistantName: string
 }> = memo(({ message, profile, assistantImage, modelData, assistantName }) => {
-  if (message.role === "system") {
-    return (
-      <div className="flex items-center space-x-4">
-        <IconPencil
-          size={ICON_SIZE}
-          className="border-primary bg-primary text-secondary rounded border-DEFAULT p-1"
-        />
-        <div className="text-lg font-semibold">Prompt</div>
-      </div>
-    )
-  }
-
   const renderAvatar = () => {
     if (message.role === "assistant") {
       return assistantImage ? (
@@ -81,9 +69,7 @@ const MessageHeader: FC<{
         <WithTooltip
           display={
             <div>
-              {modelData?.modelId && MODEL_DISPLAY_NAMES[modelData.modelId]
-                ? MODEL_DISPLAY_NAMES[modelData.modelId]
-                : modelData?.modelName || "Unknown Model"}
+              {MODEL_DISPLAY_NAMES[modelData?.modelId || ""] || "Unknown Model"}
             </div>
           }
           trigger={
@@ -120,7 +106,7 @@ const MessageHeader: FC<{
       <div className="font-vazir text-sm font-semibold text-[#aaa]">
         {message.role === "assistant"
           ? assistantName
-          : (profile?.display_name ?? profile?.username)}
+          : profile?.display_name || profile?.username}
       </div>
     </div>
   )
@@ -346,7 +332,6 @@ export const Message: FC<MessageProps> = ({
   const [selectedFileItem, setSelectedFileItem] =
     useState<Tables<"file_items"> | null>(null)
 
-  // Memoized values for performance (مقادیر بهینه‌سازی شده)
   const modelData = useMemo(
     () =>
       [
@@ -367,9 +352,11 @@ export const Message: FC<MessageProps> = ({
 
   const assistantName = useMemo(() => {
     const assistant = assistants.find(a => a.id === message.assistant_id)
-    if (assistant) return assistant.name
-    if (selectedAssistant) return selectedAssistant.name
-    return MODEL_DISPLAY_NAMES[modelData?.modelId] || modelData?.modelName
+    return assistant
+      ? assistant.name
+      : selectedAssistant?.name ||
+          MODEL_DISPLAY_NAMES[modelData?.modelId] ||
+          modelData?.modelName
   }, [assistants, selectedAssistant, modelData, message.assistant_id])
 
   const messageAssistantImage = useMemo(
@@ -401,7 +388,6 @@ export const Message: FC<MessageProps> = ({
     [fileItems, files]
   )
 
-  // Handlers (توابع مدیریت رویداد)
   const handleCopy = () => navigator.clipboard.writeText(message.content)
   const handleSendEdit = () => {
     onSubmitEdit(editedMessage, message.sequence_number)
@@ -418,23 +404,17 @@ export const Message: FC<MessageProps> = ({
       true
     )
   }
-  const handleImageClick = (image: MessageImage) => {
-    setSelectedImage(image)
-    setShowImagePreview(true)
-  }
+
+  // Define the click handlers for file items and images
   const handleFileItemClick = (fileItem: Tables<"file_items">) => {
     setSelectedFileItem(fileItem)
     setShowFileItemPreview(true)
   }
 
-  useEffect(() => {
-    setEditedMessage(message.content)
-    if (isEditing && editInputRef.current) {
-      const input = editInputRef.current
-      input.focus()
-      input.setSelectionRange(input.value.length, input.value.length)
-    }
-  }, [isEditing, message.content])
+  const handleImageClick = (image: MessageImage) => {
+    setSelectedImage(image)
+    setShowImagePreview(true)
+  }
 
   return (
     <div
@@ -447,8 +427,8 @@ export const Message: FC<MessageProps> = ({
         className={cn(
           "relative w-full max-w-2xl transition-all duration-200",
           message.role === "user"
-            ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]" // کاربر داخل کادر
-            : "border-none bg-transparent px-0 py-2" // مدل بدون کادر
+            ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]"
+            : "border-none bg-transparent px-0 py-2"
         )}
       >
         <div className="absolute right-5 top-7 sm:right-0">
