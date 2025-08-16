@@ -79,9 +79,9 @@ export async function POST(request: Request) {
 
     if (toolCalls.length > 0) {
       for (const toolCall of toolCalls) {
-        const functionCall = toolCall.function
+        const functionCall = (toolCall as any).function // Type assertion
         const functionName = functionCall.name
-        const argumentsString = toolCall.function.arguments.trim()
+        const argumentsString = functionCall.arguments.trim()
         const parsedArgs = JSON.parse(argumentsString)
 
         // Find the schema detail that contains the function name
