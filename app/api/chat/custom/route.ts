@@ -2,7 +2,7 @@ import { Database } from "@/supabase/types"
 import { ChatSettings } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { createOpenAI } from "@ai-sdk/openai"
-import { streamText } from "ai"
+
 import { NextRequest } from "next/server"
 
 export const runtime = "edge"
@@ -38,14 +38,6 @@ export async function POST(request: NextRequest) {
     })
 
     // استریم پاسخ با Vercel AI SDK
-    const result = await streamText({
-      model: custom(chatSettings.model),
-      messages,
-      temperature: chatSettings.temperature,
-      maxTokens: chatSettings.maxTokens || 4096 // مقدار پیش‌فرض برای جلوگیری از خطا
-    })
-
-    return result.toTextStreamResponse()
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500

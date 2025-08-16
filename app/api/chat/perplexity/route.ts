@@ -1,13 +1,11 @@
-import { CHAT_SETTING_LIMITS } from "@/lib/chat-setting-limits"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
-import { createOpenAI } from "@ai-sdk/openai"
-import { streamText } from "ai"
-import { NextRequest } from "next/server"
+import { OpenAIStream, StreamingTextResponse } from "ai"
+import OpenAI from "openai"
 
 export const runtime = "edge"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const json = await request.json()
   const { chatSettings, messages } = json as {
     chatSettings: ChatSettings
@@ -19,22 +17,17 @@ export async function POST(request: NextRequest) {
 
     checkApiKey(profile.perplexity_api_key, "Perplexity")
 
-    // ایجاد کلاینت Perplexity با Vercel AI SDK
-    const perplexity = createOpenAI({
+    // Perplexity is compatible the OpenAI SDK
+    const perplexity = new OpenAI({
       apiKey: profile.perplexity_api_key || "",
       baseURL: "https://api.perplexity.ai/"
     })
 
-    // استریم پاسخ با Vercel AI SDK
-    const result = await streamText({
-      model: perplexity(chatSettings.model),
+    const response = await perplexity.chat.completions.create({
+      model: chatSettings.model,
       messages,
-      temperature: chatSettings.temperature,
-      maxTokens:
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TOKEN_OUTPUT_LENGTH || 4096 // مقدار پیش‌فرض برای جلوگیری از خطا
+      stream: true
     })
-
-    return result.toTextStreamResponse()
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500
@@ -48,8 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode,
-      headers: { "Content-Type": "application/json" }
+      status: errorCode
     })
   }
 }

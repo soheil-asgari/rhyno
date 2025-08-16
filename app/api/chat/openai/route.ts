@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       const stream = new ReadableStream({
         async start(controller) {
           // پیام "در حال پردازش پاسخ..." را فقط برای مدت کوتاهی نمایش می‌دهیم
-          controller.enqueue(encoder.encode("⌛ در حال پردازش پاسخ...\n"))
+          // controller.enqueue(encoder.encode("⌛ در حال پردازش پاسخ...\n"))
 
           try {
             const response = await openai.chat.completions.create({

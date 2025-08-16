@@ -2,7 +2,7 @@ import { CHAT_SETTING_LIMITS } from "@/lib/chat-setting-limits"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
 import { mistral } from "@ai-sdk/mistral"
-import { streamText } from "ai"
+import { OpenAIStream, StreamingTextResponse } from "ai"
 import { NextRequest } from "next/server"
 
 export const runtime = "edge"
@@ -20,16 +20,6 @@ export async function POST(request: NextRequest) {
     checkApiKey(profile.mistral_api_key, "Mistral")
 
     // استریم پاسخ با Vercel AI SDK
-    const result = await streamText({
-      model: mistral(chatSettings.model),
-      messages,
-      maxTokens:
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TOKEN_OUTPUT_LENGTH ||
-        4096,
-      temperature: chatSettings.temperature
-    })
-
-    return result.toTextStreamResponse()
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500

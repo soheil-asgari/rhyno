@@ -2,7 +2,7 @@ import { CHAT_SETTING_LIMITS } from "@/lib/chat-setting-limits"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
 import { groq } from "@ai-sdk/groq"
-import { streamText } from "ai"
+
 import { NextRequest } from "next/server"
 
 export const runtime = "edge"
@@ -20,16 +20,6 @@ export async function POST(request: NextRequest) {
     checkApiKey(profile.groq_api_key, "Groq")
 
     // استریم پاسخ با Vercel AI SDK
-    const result = await streamText({
-      model: groq(chatSettings.model),
-      messages,
-      maxTokens:
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TOKEN_OUTPUT_LENGTH ||
-        4096,
-      temperature: chatSettings.temperature
-    })
-
-    return result.toTextStreamResponse()
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500
