@@ -26,11 +26,11 @@
     "test": "jest"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "@latest",
-    "@ai-sdk/azure": "@latest",
-    "@ai-sdk/openai": "@latest",
-    "@ai-sdk/groq": "@latest",
-    "@ai-sdk/mistral": "@latest",
+    "@ai-sdk/anthropic": "^0.0.50",
+    "@ai-sdk/azure": "^0.0.10",
+    "@ai-sdk/openai": "^0.0.62",
+    "@ai-sdk/groq": "^0.0.13",
+    "@ai-sdk/mistral": "^0.0.18",
     "@fontsource/vazirmatn": "^5.2.6",
     "@apidevtools/json-schema-ref-parser": "^11.1.0",
     "@google/generative-ai": "^0.11.4",
