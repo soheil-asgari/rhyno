@@ -120,7 +120,7 @@
     "@types/uuid": "^9.0.7",
     "autoprefixer": "^10.4.16",
     "clsx": "^2.0.0",
-    "eslint": "^9.13.0",
+    "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.31",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-tailwindcss": "^3.13.0",
