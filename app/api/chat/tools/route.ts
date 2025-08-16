@@ -2,13 +2,11 @@ import { openapiToFunctions } from "@/lib/openapi-conversion"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Tables } from "@/supabase/types"
 import { ChatSettings } from "@/types"
-import { openai } from "@ai-sdk/openai"
-import { streamText } from "ai"
-import { NextRequest } from "next/server"
+import { OpenAIStream, StreamingTextResponse } from "ai"
+import OpenAI from "openai"
+import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions.mjs"
 
-export const runtime = "edge"
-
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const json = await request.json()
   const { chatSettings, messages, selectedTools } = json as {
     chatSettings: ChatSettings
@@ -21,17 +19,15 @@ export async function POST(request: NextRequest) {
 
     checkApiKey(profile.openai_api_key, "OpenAI")
 
-    // ایجاد کلاینت OpenAI با Vercel AI SDK
-    const openaiClient = openai({
+    const openai = new OpenAI({
       apiKey: profile.openai_api_key || "",
       organization: profile.openai_organization_id
     })
 
-    let allTools: any[] = []
+    let allTools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
     let allRouteMaps = {}
-    let schemaDetails: any[] = []
+    let schemaDetails = []
 
-    // پردازش ابزارها و تبدیل schema
     for (const selectedTool of selectedTools) {
       try {
         const convertedSchema = await openapiToFunctions(
@@ -41,7 +37,7 @@ export async function POST(request: NextRequest) {
         allTools = allTools.concat(tools)
 
         const routeMap = convertedSchema.routes.reduce(
-          (map: Record<string, string>, route: any) => {
+          (map: Record<string, string>, route) => {
             map[route.path.replace(/{(\w+)}/g, ":$1")] = route.operationId
             return map
           },
@@ -63,21 +59,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // اولین فراخوانی برای بررسی ابزارها
-    const firstResponse = await streamText({
-      model: openaiClient(chatSettings.model),
+    const firstResponse = await openai.chat.completions.create({
+      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
       messages,
       tools: allTools.length > 0 ? allTools : undefined
     })
 
-    const result = await firstResponse.toDataStreamResponse()
-    const message = (await result.json()).choices[0].message
+    const message = firstResponse.choices[0].message
     messages.push(message)
     const toolCalls = message.tool_calls || []
 
     if (toolCalls.length === 0) {
-      return new Response(JSON.stringify({ content: message.content }), {
-        headers: { "Content-Type": "application/json" }
+      return new Response(message.content, {
+        headers: {
+          "Content-Type": "application/json"
+        }
       })
     }
 
@@ -88,7 +84,7 @@ export async function POST(request: NextRequest) {
         const argumentsString = toolCall.function.arguments.trim()
         const parsedArgs = JSON.parse(argumentsString)
 
-        // پیدا کردن schema مرتبط با ابزار
+        // Find the schema detail that contains the function name
         const schemaDetail = schemaDetails.find(detail =>
           Object.values(detail.routeMap).includes(functionName)
         )
@@ -119,39 +115,52 @@ export async function POST(request: NextRequest) {
           throw new Error(`Path for function ${functionName} not found`)
         }
 
-        // تعیین نوع درخواست (body یا query)
+        // Determine if the request should be in the body or as a query
         const isRequestInBody = schemaDetail.requestInBody
         let data = {}
 
         if (isRequestInBody) {
+          // If the type is set to body
           let headers = {
             "Content-Type": "application/json"
           }
 
-          const customHeaders = schemaDetail.headers
+          // Check if custom headers are set
+          const customHeaders = schemaDetail.headers // Moved this line up to the loop
+          // Check if custom headers are set and are of type string
           if (customHeaders && typeof customHeaders === "string") {
-            const parsedCustomHeaders = JSON.parse(customHeaders) as Record<
+            let parsedCustomHeaders = JSON.parse(customHeaders) as Record<
               string,
               string
             >
-            headers = { ...headers, ...parsedCustomHeaders }
+
+            headers = {
+              ...headers,
+              ...parsedCustomHeaders
+            }
           }
 
           const fullUrl = schemaDetail.url + path
+
           const bodyContent = parsedArgs.requestBody || parsedArgs
 
-          const response = await fetch(fullUrl, {
+          const requestInit = {
             method: "POST",
             headers,
-            body: JSON.stringify(bodyContent)
-          })
+            body: JSON.stringify(bodyContent) // Use the extracted requestBody or the entire parsedArgs
+          }
+
+          const response = await fetch(fullUrl, requestInit)
 
           if (!response.ok) {
-            data = { error: response.statusText }
+            data = {
+              error: response.statusText
+            }
           } else {
             data = await response.json()
           }
         } else {
+          // If the type is set to query
           const queryParams = new URLSearchParams(
             parsedArgs.parameters
           ).toString()
@@ -159,6 +168,8 @@ export async function POST(request: NextRequest) {
             schemaDetail.url + path + (queryParams ? "?" + queryParams : "")
 
           let headers = {}
+
+          // Check if custom headers are set
           const customHeaders = schemaDetail.headers
           if (customHeaders && typeof customHeaders === "string") {
             headers = JSON.parse(customHeaders)
@@ -166,11 +177,13 @@ export async function POST(request: NextRequest) {
 
           const response = await fetch(fullUrl, {
             method: "GET",
-            headers
+            headers: headers
           })
 
           if (!response.ok) {
-            data = { error: response.statusText }
+            data = {
+              error: response.statusText
+            }
           } else {
             data = await response.json()
           }
@@ -185,22 +198,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // دومین فراخوانی برای استریم پاسخ نهایی
-    const secondResponse = await streamText({
-      model: openaiClient(chatSettings.model),
+    // فرض می‌کنیم که `OpenAIStream` برای مدیریت جریان داده‌ها به درستی تعریف شده است، باید نحوه‌ی پردازش `secondResponse` را تغییر دهیم:
+    const secondResponse = await openai.chat.completions.create({
+      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
       messages,
-      maxTokens:
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TOKEN_OUTPUT_LENGTH || 4096
+      stream: true
     })
 
-    return secondResponse.toTextStreamResponse()
+    // نوع بازگشتی را اینجا تغییر می‌دهیم تا با نوع مورد انتظار همخوانی داشته باشد.
+    const stream = OpenAIStream(secondResponse as any) // موقتا با استفاده از `any` برای رفع مشکل ناسازگاری نوع
+
+    return new StreamingTextResponse(stream)
   } catch (error: any) {
     console.error(error)
-    const errorMessage = error.message || "An unexpected error occurred"
+    const errorMessage = error.error?.message || "An unexpected error occurred"
     const errorCode = error.status || 500
     return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode,
-      headers: { "Content-Type": "application/json" }
+      status: errorCode
     })
   }
 }
