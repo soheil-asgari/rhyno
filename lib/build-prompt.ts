@@ -35,6 +35,7 @@ export async function buildFinalMessages(
   profile: Tables<"profiles">,
   chatImages: MessageImage[]
 ) {
+  console.log("Inside buildFinalMessages")
   const {
     chatSettings,
     workspaceInstructions,
@@ -127,7 +128,7 @@ export async function buildFinalMessages(
     if (message.image_paths.length > 0) {
       content = [
         {
-          type: "text",
+          type: "input_text",
           text: message.content
         },
         ...message.image_paths.map(path => {
@@ -142,12 +143,10 @@ export async function buildFinalMessages(
               formedUrl = chatImage.base64
             }
           }
-
+          console.log("Formed Image URL:", formedUrl) // اینجا اضافه کنید
           return {
-            type: "image_url",
-            image_url: {
-              url: formedUrl
-            }
+            type: "input_image",
+            image_url: formedUrl // اینجا دیگر نیازی به شیء نیست
           }
         })
       ]

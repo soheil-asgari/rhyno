@@ -58,10 +58,26 @@ export async function POST(request: Request) {
         console.error("Error converting schema", error)
       }
     }
-
+    // بررسی و تنظیم مقدار temperature برای مدل‌هایی که از 0.5 پشتیبانی نمی‌کنند
+    const temp =
+      typeof chatSettings.temperature === "number"
+        ? chatSettings.temperature // اگر دما از قبل مشخص شده باشد، همان مقدار استفاده می‌شود
+        : [
+              "gpt-4-vision-preview", // فقط دمای 1
+              "gpt-4o", // فقط دمای 1
+              "gpt-4o-mini", // فقط دمای 1
+              "gpt-5", // فقط دمای 1
+              "gpt-5-mini" // فقط دمای 1
+            ].includes(chatSettings.model)
+          ? 1 // فقط دمای 1 برای این مدل‌ها
+          : 0.7 // مدل‌های دیگر که دمای 0.7 را قبول می‌کنند
+    console.log("Final Temperature Before API Request:", temp)
+    console.log("Sending first request to OpenAI with messages:", messages)
+    console.log("Using tools:", allTools)
     const firstResponse = await openai.chat.completions.create({
       model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
       messages,
+      temperature: temp,
       tools: allTools.length > 0 ? allTools : undefined
     })
 
@@ -197,11 +213,12 @@ export async function POST(request: Request) {
         })
       }
     }
-
+    console.log("Final Temperature Before API Request:", temp)
     // فرض می‌کنیم که `OpenAIStream` برای مدیریت جریان داده‌ها به درستی تعریف شده است، باید نحوه‌ی پردازش `secondResponse` را تغییر دهیم:
     const secondResponse = await openai.chat.completions.create({
       model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
       messages,
+      temperature: temp,
       stream: true
     })
 

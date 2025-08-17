@@ -278,18 +278,15 @@ export const useChatHandler = () => {
 
       if (selectedTools.length > 0) {
         setToolInUse("Tools")
-
+        console.log("Before calling buildFinalMessages")
         const formattedMessages = await buildFinalMessages(
           payload,
           profile!,
           chatImages
         )
-        console.log(
-          "Sending enableWebSearch:",
-          chatSettings?.enableWebSearch,
-          typeof chatSettings?.enableWebSearch
-        )
-
+        console.log("Formatted Messages Before Sending:", formattedMessages)
+        console.log("Formatted Messages Before Sending:", formattedMessages)
+        console.log("starrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrt")
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: {

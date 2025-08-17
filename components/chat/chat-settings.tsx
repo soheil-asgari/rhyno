@@ -38,16 +38,33 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
   // محدود کردن مقادیر temperature و contextLength بر اساس CHAT_SETTING_LIMITS
   useEffect(() => {
     if (!chatSettings) return
+    console.log("Chat Settings:", chatSettings)
+
+    const selectedModel = chatSettings.model
+
+    // برای مدل‌هایی که فقط از دمای 1 پشتیبانی می‌کنند، آن را به 1 تنظیم می‌کنیم
+    const updatedTemperature = [
+      "gpt-4-vision-preview", // فقط دمای 1
+      "gpt-4o", // فقط دمای 1
+      "gpt-4o-mini", // فقط دمای 1
+      "gpt-5", // فقط دمای 1
+      "gpt-5-mini" // فقط دمای 1
+    ].includes(selectedModel)
+      ? 1 // فقط دمای 1 برای این مدل‌ها
+      : (chatSettings.temperature ?? 0.7) // اگر دما مشخص نباشد، به‌طور پیش‌فرض 0.7 می‌گذاریم
+
+    // لاگ کردن مقدار updatedTemperature
+    console.log("Updated Temperature:", updatedTemperature)
 
     setChatSettings({
       ...chatSettings,
       temperature: Math.min(
-        chatSettings.temperature,
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_TEMPERATURE ?? 1
+        updatedTemperature,
+        CHAT_SETTING_LIMITS[selectedModel]?.MAX_TEMPERATURE ?? 1
       ),
       contextLength: Math.min(
         chatSettings.contextLength,
-        CHAT_SETTING_LIMITS[chatSettings.model]?.MAX_CONTEXT_LENGTH ?? 4096
+        CHAT_SETTING_LIMITS[selectedModel]?.MAX_CONTEXT_LENGTH ?? 4096
       )
     })
   }, [chatSettings?.model])
@@ -62,7 +79,7 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
       provider: "custom" as ModelProvider,
       hostedId: model.id,
       platformLink: "",
-      imageInput: false
+      imageInput: true
     })),
     ...availableHostedModels,
     ...availableLocalModels,

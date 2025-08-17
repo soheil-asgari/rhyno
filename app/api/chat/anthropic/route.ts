@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
           ...message,
           content: messageContent.map((content: any) => {
             if (typeof content === "string") {
-              return { type: "text", text: content }
+              return { type: "input_text", text: content }
             } else if (
               content?.type === "image_url" &&
               content?.image_url?.url?.length
