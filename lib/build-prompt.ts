@@ -3,6 +3,18 @@ import { ChatPayload, MessageImage } from "@/types"
 import { encode } from "gpt-tokenizer"
 import { getBase64FromDataURL, getMediaTypeFromDataURL } from "@/lib/utils"
 
+const MODEL_PROMPTS: Record<string, string> = {
+  "gpt-3.5-turbo": "You are Rhyno v1, optimized for speed and efficiency.",
+  "gpt-4": "You are Rhyno v2, provide detailed and accurate answers.",
+  "gpt-4-turbo-preview":
+    "You are Rhyno v3, optimized for reasoning and analysis.",
+  "gpt-5": "You are Rhyno v5, the most advanced model with deep reasoning.",
+  "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
+  "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
+  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions.",
+  "dall-e-3": "You are Rhyno Image, generate high quality creative images."
+}
+
 const buildBasePrompt = (
   prompt: string,
   profileContext: string,
@@ -35,7 +47,9 @@ export async function buildFinalMessages(
   profile: Tables<"profiles">,
   chatImages: MessageImage[]
 ) {
-  console.log("Inside buildFinalMessages")
+  console.log("Inside buildFinalMessages", buildFinalMessages)
+  console.log("payload", JSON.stringify(payload, null, 2))
+  console.log("Inside buildFinalMessages", buildFinalMessages)
   const {
     chatSettings,
     workspaceInstructions,
@@ -44,21 +58,25 @@ export async function buildFinalMessages(
     messageFileItems,
     chatFileItems
   } = payload
+  console.log("payload", JSON.stringify(payload, null, 2))
+
+  const modelPrompt = MODEL_PROMPTS[chatSettings.model]
+  if (!modelPrompt) {
+    throw new Error(`No prompt found for model: ${chatSettings.model}`)
+  }
 
   const BUILT_PROMPT = buildBasePrompt(
-    chatSettings.prompt,
+    modelPrompt, // ← اینجا فقط رشته مربوط به مدل فعلی
     chatSettings.includeProfileContext ? profile.profile_context || "" : "",
     chatSettings.includeWorkspaceInstructions ? workspaceInstructions : "",
     assistant
   )
 
   const CHUNK_SIZE = chatSettings.contextLength
-  const PROMPT_TOKENS = encode(chatSettings.prompt).length
+  const BUILT_PROMPT_TOKENS = encode(BUILT_PROMPT).length
 
-  let remainingTokens = CHUNK_SIZE - PROMPT_TOKENS
-
-  let usedTokens = 0
-  usedTokens += PROMPT_TOKENS
+  let remainingTokens = CHUNK_SIZE - BUILT_PROMPT_TOKENS
+  let usedTokens = BUILT_PROMPT_TOKENS
 
   const processedChatMessages = chatMessages.map((chatMessage, index) => {
     const nextChatMessage = chatMessages[index + 1]

@@ -132,7 +132,7 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     )
 
     const images: MessageImage[] = await Promise.all(imagePromises.flat())
-    setChatImages(images)
+    setChatImages(images) // ذخیره تصاویر
 
     const messageFileItemPromises = fetchedMessages.map(
       async (message: Tables<"messages">) =>
@@ -228,18 +228,6 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
       <div className="absolute right-4 top-1 flex h-[40px] items-center space-x-2">
         <ChatSecondaryButtons />
-
-        {/* دکمه وب سرچ */}
-        {/* <button
-          onClick={toggleWebSearch}
-          className="font-vazir flex items-center space-x-2 rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm transition hover:bg-gray-100"
-        >
-          <span
-            className={`size-3 rounded-full ${webSearchEnabled ? "bg-green-500" : "bg-gray-400"
-              }`}
-          ></span>
-          <span>وب‌سرچ</span>
-        </button> */}
       </div>
 
       <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full items-center justify-center border-b-2 font-bold">

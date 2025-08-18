@@ -28,9 +28,31 @@ import { TextareaAutosize } from "../ui/textarea-autosize"
 import { WithTooltip } from "../ui/with-tooltip"
 import { DeleteWorkspace } from "./delete-workspace"
 
+type ChatSettingsState = {
+  model: LLMID
+  prompt: string
+  temperature: number
+  contextLength: number
+  includeProfileContext: boolean
+  includeWorkspaceInstructions: boolean
+  embeddingsProvider: "openai" | "local"
+}
+
 interface WorkspaceSettingsProps {}
 
-export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
+const MODEL_PROMPTS: Record<string, string> = {
+  "gpt-3.5-turbo": "You are Rhyno v1, optimized for speed and efficiency.",
+  "gpt-4": "You are Rhyno v2, provide detailed and accurate answers.",
+  "gpt-4-turbo-preview":
+    "You are Rhyno v3, optimized for reasoning and analysis.",
+  "gpt-5": "You are Rhyno v5, the most advanced model with deep reasoning.",
+  "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
+  "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
+  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions.",
+  "dall-e-3": "You are Rhyno Image, generate high quality creative images."
+}
+
+export const WorkspaceSettings: FC<WorkspaceSettingsProps> = () => {
   const {
     profile,
     selectedWorkspace,
@@ -42,7 +64,6 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
   } = useContext(ChatbotUIContext)
 
   const buttonRef = useRef<HTMLButtonElement>(null)
-
   const [isOpen, setIsOpen] = useState(false)
 
   const [name, setName] = useState(selectedWorkspace?.name || "")
@@ -55,25 +76,38 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
     selectedWorkspace?.instructions || ""
   )
 
-  const [defaultChatSettings, setDefaultChatSettings] = useState({
-    model: selectedWorkspace?.default_model,
-    prompt: selectedWorkspace?.default_prompt,
-    temperature: selectedWorkspace?.default_temperature,
-    contextLength: selectedWorkspace?.default_context_length,
-    includeProfileContext: selectedWorkspace?.include_profile_context,
-    includeWorkspaceInstructions:
-      selectedWorkspace?.include_workspace_instructions,
-    embeddingsProvider: selectedWorkspace?.embeddings_provider
-  })
+  const [defaultChatSettings, setDefaultChatSettings] =
+    useState<ChatSettingsState>({
+      model: (selectedWorkspace?.default_model ?? "gpt-4") as LLMID,
+      prompt:
+        selectedWorkspace?.default_prompt ??
+        MODEL_PROMPTS[selectedWorkspace?.default_model ?? "gpt-4"] ??
+        "",
+      temperature: selectedWorkspace?.default_temperature ?? 0.7,
+      contextLength: selectedWorkspace?.default_context_length ?? 4096,
+      includeProfileContext: selectedWorkspace?.include_profile_context ?? true,
+      includeWorkspaceInstructions:
+        selectedWorkspace?.include_workspace_instructions ?? true,
+      embeddingsProvider: (selectedWorkspace?.embeddings_provider ??
+        "openai") as "openai" | "local"
+    })
+
+  // 👇 تایپ prev به شکل دقیق
+  const handleModelChange = (model: LLMID) => {
+    setDefaultChatSettings((prev: ChatSettingsState) => ({
+      ...prev,
+      model,
+      prompt: MODEL_PROMPTS[model] || prev.prompt
+    }))
+  }
 
   useEffect(() => {
     const workspaceImage =
       workspaceImages.find(
         image => image.path === selectedWorkspace?.image_path
       )?.base64 || ""
-
     setImageLink(workspaceImage)
-  }, [workspaceImages])
+  }, [workspaceImages, selectedWorkspace?.image_path])
 
   const handleSave = async () => {
     if (!selectedWorkspace) return
@@ -82,14 +116,10 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
 
     if (selectedImage) {
       imagePath = await uploadWorkspaceImage(selectedWorkspace, selectedImage)
-
       const url = (await getWorkspaceImageFromStorage(imagePath)) || ""
-
       if (url) {
-        const response = await fetch(url)
-        const blob = await response.blob()
+        const blob = await (await fetch(url)).blob()
         const base64 = await convertBlobToBase64(blob)
-
         setWorkspaceImages(prev => [
           ...prev,
           {
@@ -102,6 +132,9 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
       }
     }
 
+    const updatedPrompt =
+      MODEL_PROMPTS[defaultChatSettings.model] || defaultChatSettings.prompt
+
     const updatedWorkspace = await updateWorkspace(selectedWorkspace.id, {
       ...selectedWorkspace,
       name,
@@ -109,7 +142,7 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
       image_path: imagePath,
       instructions,
       default_model: defaultChatSettings.model,
-      default_prompt: defaultChatSettings.prompt,
+      default_prompt: updatedPrompt, // ← حتماً پرامپت صحیح مدل را ارسال کنید
       default_temperature: defaultChatSettings.temperature,
       default_context_length: defaultChatSettings.contextLength,
       embeddings_provider: defaultChatSettings.embeddingsProvider,
@@ -118,48 +151,21 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
         defaultChatSettings.includeWorkspaceInstructions
     })
 
-    if (
-      defaultChatSettings.model &&
-      defaultChatSettings.prompt &&
-      defaultChatSettings.temperature &&
-      defaultChatSettings.contextLength &&
-      defaultChatSettings.includeProfileContext &&
-      defaultChatSettings.includeWorkspaceInstructions &&
-      defaultChatSettings.embeddingsProvider
-    ) {
-      setChatSettings({
-        model: defaultChatSettings.model as LLMID,
-        prompt: defaultChatSettings.prompt,
-        temperature: defaultChatSettings.temperature,
-        contextLength: defaultChatSettings.contextLength,
-        includeProfileContext: defaultChatSettings.includeProfileContext,
-        includeWorkspaceInstructions:
-          defaultChatSettings.includeWorkspaceInstructions,
-        embeddingsProvider: defaultChatSettings.embeddingsProvider as
-          | "openai"
-          | "local"
-      })
-    }
+    setChatSettings({ ...defaultChatSettings })
 
     setIsOpen(false)
     setSelectedWorkspace(updatedWorkspace)
-    setWorkspaces(workspaces => {
-      return workspaces.map(workspace => {
-        if (workspace.id === selectedWorkspace.id) {
-          return updatedWorkspace
-        }
-
-        return workspace
-      })
-    })
+    setWorkspaces(workspaces =>
+      workspaces.map(w =>
+        w.id === selectedWorkspace.id ? updatedWorkspace : w
+      )
+    )
 
     toast.success("Workspace updated!")
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      buttonRef.current?.click()
-    }
+    if (e.key === "Enter" && !e.shiftKey) buttonRef.current?.click()
   }
 
   if (!selectedWorkspace || !profile) return null
@@ -205,46 +211,31 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
             </TabsList>
 
             <TabsContent className="mt-4 space-y-4" value="main">
-              <>
-                <div className="space-y-1">
-                  <Label>Workspace Name</Label>
+              <div className="space-y-1">
+                <Label>Workspace Name</Label>
+                <Input
+                  placeholder="Name..."
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                />
+              </div>
 
-                  <Input
-                    placeholder="Name..."
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                  />
-                </div>
-
-                {/* <div className="space-y-1">
-                  <Label>Description</Label>
-
-                  <Input
-                    placeholder="Description... (optional)"
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                  />
-                </div> */}
-
-                <div className="space-y-1">
-                  <Label>Workspace Image</Label>
-
-                  <ImagePicker
-                    src={imageLink}
-                    image={selectedImage}
-                    onSrcChange={setImageLink}
-                    onImageChange={setSelectedImage}
-                    width={50}
-                    height={50}
-                  />
-                </div>
-              </>
+              <div className="space-y-1">
+                <Label>Workspace Image</Label>
+                <ImagePicker
+                  src={imageLink}
+                  image={selectedImage}
+                  onSrcChange={setImageLink}
+                  onImageChange={setSelectedImage}
+                  width={50}
+                  height={50}
+                />
+              </div>
 
               <div className="space-y-1">
                 <Label>
                   How would you like the AI to respond in this workspace?
                 </Label>
-
                 <TextareaAutosize
                   placeholder="Instructions... (optional)"
                   value={instructions}
@@ -253,7 +244,6 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
                   maxRows={10}
                   maxLength={1500}
                 />
-
                 <LimitDisplay
                   used={instructions.length}
                   limit={WORKSPACE_INSTRUCTIONS_MAX}
@@ -267,8 +257,14 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
               </div>
 
               <ChatSettingsForm
-                chatSettings={defaultChatSettings as any}
-                onChangeChatSettings={setDefaultChatSettings}
+                chatSettings={defaultChatSettings}
+                onChangeChatSettings={(newSettings: ChatSettingsState) => {
+                  if (newSettings.model !== defaultChatSettings.model) {
+                    handleModelChange(newSettings.model)
+                  } else {
+                    setDefaultChatSettings(newSettings)
+                  }
+                }}
               />
             </TabsContent>
           </Tabs>
@@ -288,7 +284,6 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
             <Button variant="ghost" onClick={() => setIsOpen(false)}>
               Cancel
             </Button>
-
             <Button ref={buttonRef} onClick={handleSave}>
               Save
             </Button>

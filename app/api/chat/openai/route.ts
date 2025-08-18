@@ -30,7 +30,7 @@ const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-4", "gpt-5"])
 const MODELS_WITH_AUTO_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
 
 function pickMaxTokens(cs: ExtendedChatSettings): number {
-  return Math.min(cs.maxTokens ?? cs.max_tokens ?? 600, 1200)
+  return Math.min(cs.maxTokens ?? cs.max_tokens ?? 10000, 12000)
 }
 
 export async function POST(request: Request) {
@@ -78,6 +78,50 @@ export async function POST(request: Request) {
     // --- منطق وب‌سرچ ---
     const useOpenAIWebSearch =
       !!enableSearch && MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel)
+    if (selectedModel === "dall-e-3") {
+      const inputText = messages[0].content // فرض بر این است که پیام ورودی متن توصیفی است
+      console.log("Input Text for DALL·E 3:", inputText) // لاگ ورودی
+
+      try {
+        const imageResponse = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: inputText,
+          n: 1, // تعداد تصاویر تولیدی
+          size: "1024x1024" // اندازه تصویر
+        })
+
+        console.log("Image Response:", imageResponse) // لاگ پاسخ تصویر
+
+        const imageUrl = imageResponse?.data?.[0]?.url // URL تصویر تولید شده
+
+        if (imageUrl) {
+          return new Response(JSON.stringify({ imageUrl }), {
+            headers: {
+              "Content-Type": "application/json"
+            }
+          })
+        } else {
+          throw new Error("Image URL not found in the response")
+        }
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          console.error("Error generating image:", error.message) // لاگ خطا
+          return new Response(JSON.stringify({ message: error.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+          })
+        } else {
+          console.error("Unexpected error:", error) // خطای غیرمنتظره
+          return new Response(
+            JSON.stringify({ message: "Unexpected error occurred" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+        }
+      }
+    }
 
     if (useOpenAIWebSearch) {
       // این بخش همیشه استریم است چون API مخصوص به خود را دارد
@@ -197,6 +241,7 @@ export async function POST(request: Request) {
       })
     }
   } catch (error: any) {
+    console.error("!!! FULL BACKEND ERROR CATCH !!!:", error)
     // مدیریت خطاهای کلی مانند JSON نامعتبر یا مشکلات احراز هویت
     const errorMessage = error.message || "یک خطای غیرمنتظره رخ داد"
     const status = error.status || 500

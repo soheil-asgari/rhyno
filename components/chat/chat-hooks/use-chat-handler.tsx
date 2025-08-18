@@ -21,7 +21,7 @@ import {
   processResponse,
   validateChatSettings
 } from "../chat-helpers"
-
+import { toast } from "sonner"
 export const useChatHandler = () => {
   const router = useRouter()
 
@@ -312,38 +312,93 @@ export const useChatHandler = () => {
           setChatMessages,
           setToolInUse
         )
+        // ...
+        // ...
+        // ...
       } else {
-        if (modelData!.provider === "ollama") {
-          generatedText = await handleLocalChat(
-            payload,
-            profile!,
-            chatSettings!,
-            tempAssistantChatMessage,
-            isRegeneration,
-            newAbortController,
-            setIsGenerating,
-            setFirstTokenReceived,
-            setChatMessages,
-            setToolInUse
-          )
-        } else {
-          generatedText = await handleHostedChat(
-            payload,
-            profile!,
-            modelData!,
-            tempAssistantChatMessage,
-            isRegeneration,
-            newAbortController,
-            newMessageImages,
-            chatImages,
-            setIsGenerating,
-            setFirstTokenReceived,
-            setChatMessages,
-            setToolInUse
-          )
-        }
-      }
+        // اگر مدل DALL-E 3 بود، این منطق اجرا می‌شود
+        if (payload.chatSettings.model === "dall-e-3") {
+          // یک آرایه جدید فقط با پیام فعلی کاربر می‌سازیم
+          const dallEPromptMessage = [
+            {
+              role: "user",
+              content: messageContent // messageContent همان ورودی کاربر است
+            }
+          ]
 
+          // درخواست را فقط با همان یک پیام ارسال می‌کنیم
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chatSettings: payload.chatSettings,
+              messages: dallEPromptMessage,
+              enableWebSearch: Boolean(chatSettings?.enableWebSearch)
+            })
+          })
+
+          // پاسخ را پردازش کرده و تصویر را نمایش می‌دهیم
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error("Error from DALL-E API:", errorData.message)
+            throw new Error(errorData.message || "Failed to generate image.")
+          }
+          const data = await response.json()
+          const imageUrl = data.imageUrl
+          const imageMarkdown = `![Generated Image](${imageUrl})`
+
+          setChatMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.message.id === tempAssistantChatMessage.message.id
+                ? {
+                    ...msg,
+                    message: { ...msg.message, content: imageMarkdown }
+                  }
+                : msg
+            )
+          )
+          generatedText = imageMarkdown
+        } else {
+          // برای بقیه مدل‌ها، کد به روال سابق عمل می‌کند
+          if (modelData!.provider === "ollama") {
+            generatedText = await handleLocalChat(
+              payload,
+              profile!,
+              chatSettings!,
+              tempAssistantChatMessage,
+              isRegeneration,
+              newAbortController,
+              setIsGenerating,
+              setFirstTokenReceived,
+              setChatMessages,
+              setToolInUse
+            )
+          } else {
+            generatedText = await handleHostedChat(
+              payload,
+              profile!,
+              modelData!,
+              tempAssistantChatMessage,
+              isRegeneration,
+              newAbortController,
+              newMessageImages,
+              chatImages,
+              setIsGenerating,
+              setFirstTokenReceived,
+              setChatMessages,
+              setToolInUse
+            )
+          }
+        }
+
+        // ----------- پایان کد نهایی و صحیح -----------
+      }
+      // ...
+      // ----------- پایان کد جدید و اصلاح شده -----------
+      // ...
+      // ----------- پایان تغییرات -----------
+
+      // ...
       if (!currentChat) {
         // وقتی چتی هنوز وجود نداره → یه چت جدید می‌سازیم
         currentChat = await handleCreateChat(
@@ -390,10 +445,15 @@ export const useChatHandler = () => {
 
       setIsGenerating(false)
       setFirstTokenReceived(false)
-    } catch (error) {
+    } catch (error: any) {
+      // "any" را اضافه کنید تا به "message" دسترسی داشته باشید
       setIsGenerating(false)
       setFirstTokenReceived(false)
       setUserInput(startingInput)
+
+      // این خط جدید و کلیدی است
+      // یک پیام خطا به کاربر نمایش می‌دهد
+      toast.error(error.message || "An unexpected error occurred.")
     }
   }
 

@@ -73,6 +73,15 @@ BEGIN
   -- Start data for chats 
   INSERT INTO chats (user_id, workspace_id, name, model, prompt, temperature, context_length, include_profile_context, include_workspace_instructions, embeddings_provider) VALUES 
   ('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', workspace1_id, 'Chat 1', 'gpt-4-turbo-preview', 'You are a friendly, helpful AI assistant. your name is Rhyno', 0.5, 4000, TRUE, TRUE, 'openai');
+-- Start data for workspaces with DALL·E 3
+INSERT INTO workspaces (user_id, name, description, default_context_length, default_model, default_prompt, default_temperature, include_profile_context, include_workspace_instructions, instructions, is_home, sharing, embeddings_provider) 
+VALUES 
+('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', 'Image Workspace', 'Workspace for generating images with DALL·E 3.', 4000, 'dall-e-3', '[[USER_INPUT]]', 0.7, TRUE, TRUE, 'Generate images based on user input text.', FALSE, 'private', 'openai');
+
+-- مثال اضافه کردن یک چت که از DALL·E 3 استفاده کنه
+INSERT INTO chats (user_id, workspace_id, name, model, prompt, temperature, context_length, include_profile_context, include_workspace_instructions, embeddings_provider)
+VALUES 
+('e9fc7e46-a8a5-4fd4-8ba7-af485013e6fa', '<WORKSPACE_ID>', 'Image Generation Chat', 'dall-e-3', '[[USER_INPUT]]', 0.7, 4000, TRUE, TRUE, 'openai');
 
   DECLARE
     folder1_id UUID;

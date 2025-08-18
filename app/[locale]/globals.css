@@ -115,3 +115,14 @@
     color: hsl(var(--muted-foreground));
   }
 }
+/* Fix for RTL ordered and unordered lists inside markdown */
+.markdown-content-rtl ol,
+.markdown-content-rtl ul {
+  padding-right: 2rem; /* ایجاد فاصله از سمت راست برای جای شماره یا بالت */
+  padding-left: 0;
+  list-style-position: outside;
+}
+
+.markdown-content-rtl li {
+  margin-bottom: 0.5rem; /* فاصله بین آیتم‌های لیست */
+}

@@ -41,7 +41,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-5": "Rhyno v5",
   "gpt-5-mini": "Rhyno v5 mini",
   "gpt-4o": "Rhyno v4.1",
-  "gpt-4o-mini": "Rhyno v4 mini"
+  "gpt-4o-mini": "Rhyno v4 mini",
+  "dall-e-3": "Rhyno Image"
 }
 
 // =================================================================
@@ -173,11 +174,17 @@ const MessageBody: FC<{
         />
       )
     }
-
+    // if (message.content.includes("<img src=")) {
+    //   return (
+    //     <div className="message-body" dangerouslySetInnerHTML={{ __html: message.content }} />
+    //   );
+    // }
+    // inside MessageBody component
+    // inside MessageBody component
     return (
       <MessageMarkdown
         content={message.content}
-        className="whitespace-pre-wrap text-right text-[15.5px] leading-[1.9] tracking-normal text-white"
+        className="markdown-content-rtl whitespace-pre-wrap text-right text-[15.5px] leading-relaxed tracking-normal text-white" // کلاس جدید اضافه شد
         dir="rtl"
       />
     )
@@ -254,6 +261,9 @@ const MessageImages: FC<{
     <div className="mt-3 flex flex-wrap gap-2">
       {message.image_paths.map((path, index) => {
         const item = chatImages.find(image => image.path === path)
+        console.log("message.image_paths:", message.image_paths)
+        console.log("chatImages:", chatImages)
+
         const src = path.startsWith("data") ? path : item?.base64 || ""
         return (
           <Image

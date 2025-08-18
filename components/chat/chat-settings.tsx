@@ -17,7 +17,22 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-5": "Rhyno v5",
   "gpt-5-mini": "Rhyno v5 mini",
   "gpt-4o": "Rhyno v4.1",
-  "gpt-4o-mini": "Rhyno v4 mini"
+  "gpt-4o-mini": "Rhyno v4 mini",
+  "dall-e-3": "Rhyno Image"
+}
+
+// پرامپت‌های پیش‌فرض
+const MODEL_PROMPTS: Record<string, string> = {
+  "gpt-3.5-turbo":
+    "You are a friendly, helpful AI assistant. yor name is Rhyno v1",
+  "gpt-4": "You are a highly intelligent AI assistant.yor name is Rhyno v2",
+  "gpt-4o":
+    "You are a powerful AI assistant with extended reasoning.yor name is Rhyno v4.1",
+  "gpt-4o-mini":
+    "You are a mini version of AI assistant.yor name is Rhyno v4 mini",
+  "gpt-5": "You are GPT-5 AI assistant.yor name is Rhyno v5",
+  "gpt-5-mini": "You are GPT-5 mini AI assistant.yor name is Rhyno v5 mini"
+  // "dall-e-3": "You are Rhyno Image, generate high quality creative images.yor name is Rhyno image"
 }
 
 export const ChatSettings: FC<ChatSettingsProps> = () => {
@@ -32,31 +47,46 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
 
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  // کلید میانبر برای باز کردن تنظیمات
   useHotkey("i", () => buttonRef.current?.click())
 
-  // محدود کردن مقادیر temperature و contextLength بر اساس CHAT_SETTING_LIMITS
+  // حالت اولیه پرامپت را بر اساس مدل انتخاب شده تنظیم می‌کند
   useEffect(() => {
     if (!chatSettings) return
-    console.log("Chat Settings:", chatSettings)
+
+    const selectedModel = chatSettings.model
+    console.log(
+      `Setting new prompt for model ${selectedModel}:`,
+      MODEL_PROMPTS[selectedModel]
+    )
+    // اگر پرامپت فعلی خالی است، پرامپت پیش‌فرض را اعمال می‌کند
+    if (
+      !chatSettings.prompt ||
+      MODEL_PROMPTS[selectedModel] !== chatSettings.prompt
+    ) {
+      setChatSettings(prevSettings => ({
+        ...prevSettings,
+        prompt: MODEL_PROMPTS[selectedModel] || "" // یک پرامپت پیش‌فرض را اعمال کنید
+      }))
+    }
+  }, [chatSettings?.model, chatSettings?.prompt, setChatSettings])
+
+  // محدود کردن مقادیر temperature و contextLength
+  useEffect(() => {
+    if (!chatSettings) return
 
     const selectedModel = chatSettings.model
 
-    // برای مدل‌هایی که فقط از دمای 1 پشتیبانی می‌کنند، آن را به 1 تنظیم می‌کنیم
     const updatedTemperature = [
-      "gpt-4-vision-preview", // فقط دمای 1
-      "gpt-4o", // فقط دمای 1
-      "gpt-4o-mini", // فقط دمای 1
-      "gpt-5", // فقط دمای 1
-      "gpt-5-mini" // فقط دمای 1
+      "gpt-4-vision-preview",
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-5",
+      "gpt-5-mini"
     ].includes(selectedModel)
-      ? 1 // فقط دمای 1 برای این مدل‌ها
-      : (chatSettings.temperature ?? 0.7) // اگر دما مشخص نباشد، به‌طور پیش‌فرض 0.7 می‌گذاریم
+      ? 1
+      : (chatSettings.temperature ?? 0.7)
 
-    // لاگ کردن مقدار updatedTemperature
-    console.log("Updated Temperature:", updatedTemperature)
-
-    setChatSettings({
+    const newSettings = {
       ...chatSettings,
       temperature: Math.min(
         updatedTemperature,
@@ -66,12 +96,13 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
         chatSettings.contextLength,
         CHAT_SETTING_LIMITS[selectedModel]?.MAX_CONTEXT_LENGTH ?? 4096
       )
-    })
+    }
+
+    setChatSettings(newSettings)
   }, [chatSettings?.model])
 
   if (!chatSettings) return null
 
-  // جمع‌آوری همه مدل‌های موجود (لوکال، هاست‌شده، کاستوم)
   const allModels = [
     ...models.map(model => ({
       modelId: model.model_id as LLMID,
@@ -102,11 +133,9 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
               fullModel?.modelName ||
               chatSettings.model}
           </div>
-
           <IconAdjustmentsHorizontal size={28} />
         </Button>
       </PopoverTrigger>
-
       <PopoverContent
         className="bg-background border-input relative flex max-h-[calc(100vh-60px)] w-[300px] flex-col space-y-4 overflow-auto rounded-lg border-2 p-6 sm:w-[350px] md:w-[400px] lg:w-[500px] dark:border-none"
         align="end"

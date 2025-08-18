@@ -49,6 +49,21 @@ const GPT5: LLM = {
   }
 }
 
+const DALL_E_3: LLM = {
+  modelId: "dall-e-3", // باید "dall-e-3" باشد
+  modelName: "DALL-E 3", // نام نمایشی صحیح
+  provider: "openai",
+  hostedId: "dall-e-3", // شناسه صحیح
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: false, // این مدل تصویر نمی‌گیرد، بلکه می‌سازد
+  pricing: {
+    // قیمت‌گذاری DALL-E 3 (اختیاری)
+    currency: "USD",
+    unit: "image",
+    inputCost: 0.04 // قیمت برای هر تصویر با کیفیت استاندارد
+  }
+}
+
 const GPT5Mini: LLM = {
   modelId: "gpt-5-mini",
   modelName: "GPT-5 Mini",
@@ -132,5 +147,6 @@ export const OPENAI_LLM_LIST: LLM[] = [
   GPT3_5Turbo,
   GPT5,
   GPT5Mini,
-  GPT4oMini
+  GPT4oMini,
+  DALL_E_3
 ]

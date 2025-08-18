@@ -96,37 +96,14 @@ export default async function Login({
     const email = formData.get("email") as string
     const password = formData.get("password") as string
 
-    const emailDomainWhitelistPatternsString = await getEnvVarOrEdgeConfigValue(
-      "EMAIL_DOMAIN_WHITELIST"
-    )
-    const emailDomainWhitelist = emailDomainWhitelistPatternsString?.trim()
-      ? emailDomainWhitelistPatternsString?.split(",")
-      : []
-    const emailWhitelistPatternsString =
-      await getEnvVarOrEdgeConfigValue("EMAIL_WHITELIST")
-    const emailWhitelist = emailWhitelistPatternsString?.trim()
-      ? emailWhitelistPatternsString?.split(",")
-      : []
-
-    // If there are whitelist patterns, check if the email is allowed to sign up
-    if (emailDomainWhitelist.length > 0 || emailWhitelist.length > 0) {
-      const domainMatch = emailDomainWhitelist?.includes(email.split("@")[1])
-      const emailMatch = emailWhitelist?.includes(email)
-      if (!domainMatch && !emailMatch) {
-        return redirect(
-          `/login?message=Email ${email} is not allowed to sign up.`
-        )
-      }
-    }
-
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
-    const { error } = await supabase.auth.signUp({
+    // ثبت‌نام کاربر
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
         // emailRedirectTo: `${origin}/auth/callback`
       }
     })
@@ -136,6 +113,125 @@ export default async function Login({
       return redirect(`/login?message=${error.message}`)
     }
 
+    const userId = data.user?.id
+    if (!userId) {
+      throw new Error("User ID not found after sign-up")
+    }
+
+    // workspaceهای پیش‌فرض برای کاربر جدید
+    // const defaultWorkspaces = [
+    //   {
+    //     name: 'Default gpt-3.5-turbo',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-3.5-turbo',
+    //     default_prompt: 'You are Rhyno v1, optimized for speed and efficiency.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: true
+    //   },
+    //   {
+    //     name: 'Default gpt-4',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-4',
+    //     default_prompt: 'You are Rhyno v2, provide detailed and accurate answers.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default gpt-4-turbo-preview',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-4-turbo-preview',
+    //     default_prompt: 'You are Rhyno v3, optimized for reasoning and analysis.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default gpt-5',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-5',
+    //     default_prompt: 'You are Rhyno v5, the most advanced model with deep reasoning.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default gpt-5-mini',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-5-mini',
+    //     default_prompt: 'You are Rhyno v5 mini, lightweight and fast responses.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default gpt-4o',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-4o',
+    //     default_prompt: 'You are Rhyno v4.1, multimodal and balanced in detail.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default gpt-4o-mini',
+    //     description: 'Auto-added model',
+    //     default_model: 'gpt-4o-mini',
+    //     default_prompt: 'You are Rhyno v4 mini, optimized for quick interactions.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   },
+    //   {
+    //     name: 'Default dall-e-3',
+    //     description: 'Auto-added model',
+    //     default_model: 'dall-e-3',
+    //     default_prompt: 'You are Rhyno Image, generate high quality creative images.',
+    //     default_temperature: 0.5,
+    //     default_context_length: 4096,
+    //     embeddings_provider: 'openai',
+    //     include_profile_context: true,
+    //     include_workspace_instructions: true,
+    //     sharing: 'private',
+    //     is_home: false
+    //   }
+    // ]
+
+    // اضافه کردن workspaceها به جدول
+    // for (const ws of defaultWorkspaces) {
+    //   await supabase.from('workspaces').insert({ user_id: userId, ...ws })
+    // }
+
+    // هدایت به صفحه setup بعد از ثبت‌نام
     return redirect("/setup")
 
     // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
