@@ -4,8 +4,6 @@ import { Tables } from "@/supabase/types"
 import { FC, useContext, useState } from "react"
 import { Message } from "../messages/message"
 
-import "./ChatMessages.css" // فرض می‌کنیم که فایل CSS خارجی در این مسیر قرار دارد.
-
 interface ChatMessagesProps {}
 
 export const ChatMessages: FC<ChatMessagesProps> = ({}) => {
@@ -24,35 +22,17 @@ export const ChatMessages: FC<ChatMessagesProps> = ({}) => {
           self.findIndex(item => item.id === chatFileItem.id) === _
       )
 
-      // استفاده از image_paths به جای imageUrl
-      const imagePaths = chatMessage.message.image_paths
-
       return (
-        <div key={chatMessage.message.sequence_number}>
-          <Message
-            message={chatMessage.message}
-            fileItems={messageFileItems}
-            isEditing={editingMessage?.id === chatMessage.message.id}
-            isLast={index === array.length - 1}
-            onStartEdit={setEditingMessage}
-            onCancelEdit={() => setEditingMessage(undefined)}
-            onSubmitEdit={handleSendEdit}
-          />
-
-          {/* اگر تصویر در پیام باشد، آن را نمایش دهیم */}
-          {imagePaths && imagePaths.length > 0 && (
-            <div className="message-image-container">
-              {imagePaths.map((imagePath, index) => (
-                <img
-                  key={index}
-                  src={imagePath} // اگر تصاویر Base64 است، از URL مناسب یا Base64 استفاده کنید
-                  alt="Generated Image"
-                  className="message-image"
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <Message
+          key={chatMessage.message.sequence_number}
+          message={chatMessage.message}
+          fileItems={messageFileItems}
+          isEditing={editingMessage?.id === chatMessage.message.id}
+          isLast={index === array.length - 1}
+          onStartEdit={setEditingMessage}
+          onCancelEdit={() => setEditingMessage(undefined)}
+          onSubmitEdit={handleSendEdit}
+        />
       )
     })
 }

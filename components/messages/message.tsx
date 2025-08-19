@@ -136,12 +136,16 @@ const MessageBody: FC<{
     setEditedMessage,
     editInputRef
   }) => {
+    // ---- شروع تغییرات ----
+
+    // ابتدا بررسی می‌کنیم که در حال لودینگ یا ویرایش نباشیم
     if (
       !firstTokenReceived &&
       isGenerating &&
       isLast &&
       message.role === "assistant"
     ) {
+      // ... (این بخش کد شما برای نمایش حالت لودینگ بدون تغییر باقی می‌ماند)
       switch (toolInUse) {
         case "retrieval":
           return (
@@ -163,6 +167,7 @@ const MessageBody: FC<{
     }
 
     if (isEditing) {
+      // ... (این بخش کد شما برای ویرایش هم بدون تغییر باقی می‌ماند)
       return (
         <TextareaAutosize
           textareaRef={editInputRef}
@@ -174,20 +179,35 @@ const MessageBody: FC<{
         />
       )
     }
-    // if (message.content.includes("<img src=")) {
-    //   return (
-    //     <div className="message-body" dangerouslySetInnerHTML={{ __html: message.content }} />
-    //   );
-    // }
-    // inside MessageBody component
-    // inside MessageBody component
+
+    // ⭐ منطق اصلی اینجاست ⭐
+    const content = message.content
+    const isBase64Image =
+      typeof content === "string" && content.startsWith("data:image")
+
+    if (isBase64Image) {
+      // اگر محتوا عکس بود، کامپوننت Image نکست را نمایش بده
+      return (
+        <Image
+          src={content}
+          alt="Uploaded content"
+          width={512} // می‌توانید اندازه را به دلخواه تغییر دهید
+          height={512}
+          className="rounded-lg object-contain"
+        />
+      )
+    }
+
+    // در غیر این صورت، محتوا را به عنوان مارک‌داون نمایش بده
     return (
       <MessageMarkdown
-        content={message.content}
-        className="markdown-content-rtl whitespace-pre-wrap text-right text-[15.5px] leading-relaxed tracking-normal text-white" // کلاس جدید اضافه شد
+        content={content}
+        className="markdown-content-rtl whitespace-pre-wrap text-right text-[15.5px] leading-relaxed tracking-normal text-white"
         dir="rtl"
       />
     )
+
+    // ---- پایان تغییرات ----
   }
 )
 MessageBody.displayName = "MessageBody"

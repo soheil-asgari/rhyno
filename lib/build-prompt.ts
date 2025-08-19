@@ -140,35 +140,46 @@ export async function buildFinalMessages(
 
   finalMessages.unshift(tempSystemMessage)
 
+  // کد اصلاح شده و صحیح
   finalMessages = finalMessages.map(message => {
     let content
 
-    if (message.image_paths.length > 0) {
+    // بررسی می‌کند که آیا پیام شامل عکس است یا نه
+    if (message.image_paths && message.image_paths.length > 0) {
+      // اگر عکس وجود داشت، یک آرایه محتوا می‌سازد
       content = [
+        // بخش اول: متن پیام
         {
-          type: "input_text",
+          type: "text", // ✅ صحیح
           text: message.content
         },
+        // بخش دوم: مپ کردن روی عکس‌ها
         ...message.image_paths.map(path => {
           let formedUrl = ""
 
-          if (path.startsWith("data")) {
+          // اگر مسیر از قبل یک Data URL است
+          if (path.startsWith("data:")) {
             formedUrl = path
           } else {
+            // در غیر این صورت، آن را از chatImages پیدا می‌کند
             const chatImage = chatImages.find(image => image.path === path)
-
             if (chatImage) {
               formedUrl = chatImage.base64
             }
           }
-          console.log("Formed Image URL:", formedUrl) // اینجا اضافه کنید
+
+          // ساختار صحیح برای هر عکس
           return {
-            type: "input_image",
-            image_url: formedUrl // اینجا دیگر نیازی به شیء نیست
+            type: "image_url", // ✅ صحیح
+            image_url: {
+              // ✅ صحیح (آبجکت)
+              url: formedUrl
+            }
           }
         })
       ]
     } else {
+      // اگر عکسی وجود نداشت، محتوا فقط متن است
       content = message.content
     }
 

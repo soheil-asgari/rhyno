@@ -25,7 +25,7 @@ const MODELS_NEED_MAX_COMPLETION = new Set([
 // مدل‌هایی که «وب‌سرچ داخلی OpenAI» را پشتیبانی می‌کنند
 const MODELS_WITH_OPENAI_WEB_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
 // مدل‌هایی که برای استریم نیاز به تایید سازمان دارند (و باید غیر استریم ارسال شوند)
-const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-4", "gpt-5"])
+const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
 // اگر کاربر سوییچ رو نگفته بود، برای این مدل‌ها وب‌سرچ را خودکار فعال کن
 const MODELS_WITH_AUTO_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
 
@@ -123,20 +123,58 @@ export async function POST(request: Request) {
       }
     }
 
+    // کد اصلاح شده و صحیح
     if (useOpenAIWebSearch) {
-      // این بخش همیشه استریم است چون API مخصوص به خود را دارد
       const encoder = new TextEncoder()
       const stream = new ReadableStream({
         async start(controller) {
           try {
-            const input = (messages ?? []).map((m: any) => ({
-              role: m.role,
-              content: m.content
-            }))
+            // ⭐ شروع تغییرات اصلی اینجاست ⭐
+            const transformedInput = (messages ?? []).map((m: any) => {
+              // --- پیام‌های کاربر ---
+              if (m.role === "user") {
+                // اگر پیام حاوی عکس است (آرایه)
+                if (Array.isArray(m.content)) {
+                  const newContent = m.content.map((part: any) => {
+                    if (part.type === "text") {
+                      return { ...part, type: "input_text" } // ✅ صحیح برای کاربر
+                    }
+                    if (part.type === "image_url") {
+                      return {
+                        type: "input_image",
+                        image_url: part.image_url.url
+                      }
+                    }
+                    return part
+                  })
+                  return { ...m, content: newContent }
+                }
+                // اگر پیام فقط متن است
+                return {
+                  ...m,
+                  content: [{ type: "input_text", text: m.content }]
+                } // ✅ صحیح برای کاربر
+              }
+
+              // --- پیام‌های دستیار ---
+              if (m.role === "assistant") {
+                // فرض می‌کنیم محتوای دستیار همیشه رشته است
+                if (typeof m.content === "string") {
+                  return {
+                    ...m,
+                    content: [{ type: "output_text", text: m.content }]
+                  } // ✅ صحیح برای دستیار
+                }
+              }
+
+              // سایر پیام‌ها (مانند system) را بدون تغییر عبور می‌دهیم
+              return m
+            })
+            // ⭐ پایان تغییرات اصلی ⭐
 
             const oaiStream = await openai.responses.stream({
               model: selectedModel,
-              input,
+              input: transformedInput, // استفاده از ورودی تبدیل شده صحیح
               tools: [{ type: "web_search_preview" }],
               temperature: temp,
               max_output_tokens: maxTokens
@@ -177,11 +215,18 @@ export async function POST(request: Request) {
       const payload: ChatCompletionCreateParamsStreaming = {
         model: selectedModel,
         messages,
-        stream: true, // استریم فعال است
+        stream: true,
         temperature: temp,
-        max_tokens: maxTokens,
         presence_penalty: 0,
         frequency_penalty: 0
+      }
+
+      // --- تغییر کلیدی اینجاست ---
+      // پارامتر مربوط به توکن را بر اساس مدل تنظیم می‌کنیم
+      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+        ;(payload as any).max_completion_tokens = maxTokens
+      } else {
+        payload.max_tokens = maxTokens
       }
 
       const encoder = new TextEncoder()
