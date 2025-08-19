@@ -25,9 +25,16 @@ export async function handleDalleRequest(
       model: "dall-e-3",
       prompt: prompt,
       n: 1,
-      size: "1024x1024",
-      quality: "standard"
+      size: "1792x1024",
+      quality: "hd"
     })
+
+    // const imageResponse = await openai.responses.create({
+    //   model: "gpt-5",
+    //   input: prompt,
+    //   tools: [{ type: "image_generation" }],
+    // });
+
     console.log("Response from OpenAI:", JSON.stringify(imageResponse, null, 2))
 
     const imageUrl = imageResponse?.data?.[0]?.url

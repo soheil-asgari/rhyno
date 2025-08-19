@@ -1,12 +1,12 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 @import "@fontsource/fira-code";
 @import "@fontsource/vazirmatn/400.css";
 
 @layer base {
   :root {
-    /* Light mode */
     --background: 0 0% 100%;
     --foreground: 222 14% 10%;
     --muted: 220 14% 96%;
@@ -18,10 +18,9 @@
   }
 
   .dark {
-    /* Dark mode (ChatGPT style) */
-    --background: 222 14% 10%; /* کل بک‌گراند */
+    --background: 222 14% 10%;
     --foreground: 0 0% 100%;
-    --muted: 220 10% 20%; /* خاکستری تیره، نه مشکی خالص */
+    --muted: 220 10% 20%;
     --muted-foreground: 220 9% 65%;
     --border: 220 13% 25%;
     --primary: 142 76% 36%;
@@ -33,7 +32,8 @@
   }
 
   body {
-    @apply font-vazir leading-relaxed antialiased;
+    @apply font-vazir antialiased;
+    line-height: 1.2; /* فاصله کلی کمتر بین خطوط */
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
@@ -42,21 +42,19 @@
     font-family: "Vazirmatn", sans-serif;
   }
 
-  /* Chat and messages */
   .chat-container {
     @apply max-w-4xl mx-auto p-4 md:p-6;
   }
 
   .chat-bubble {
     @apply p-4 rounded-2xl shadow-sm mb-4;
-    background-color: hsl(var(--background)); /* دقیقا رنگ پس‌زمینه سایت */
+    background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
 
-  /* Light mode explicitly */
   html:not(.dark) .chat-bubble {
-    background-color: hsl(220 14% 96%); /* خاکستری روشن */
-    color: hsl(222 14% 10%); /* متن تیره */
+    background-color: hsl(220 14% 96%);
+    color: hsl(222 14% 10%);
   }
 
   .chat-bubble.user {
@@ -64,13 +62,11 @@
     color: hsl(var(--primary-foreground));
   }
 
-  /* Light mode for user bubble */
   html:not(.dark) .chat-bubble.user {
     background-color: hsl(220 13% 18%);
     color: white;
   }
 
-  /* Dark mode specific styles for chat bubbles */
   .dark .chat-bubble {
     background-color: hsl(var(--muted));
     color: hsl(var(--foreground));
@@ -82,7 +78,6 @@
   }
 
   /* Message input */
-  /* Light mode */
   html:not(.dark) .chat-input {
     @apply w-full p-3 rounded-xl border shadow-sm focus:outline-none;
     background-color: hsl(220 14% 96%);
@@ -95,10 +90,9 @@
     --tw-ring-color: hsl(220 13% 18%);
   }
 
-  /* Dark mode */
   .dark .chat-input {
     @apply w-full p-3 rounded-xl border shadow-sm focus:outline-none;
-    background-color: hsl(var(--muted)); /* پس‌زمینه خاکستری تیره */
+    background-color: hsl(var(--muted));
     color: hsl(var(--foreground));
     border-color: hsl(var(--border));
   }
@@ -108,21 +102,58 @@
     --tw-ring-color: hsl(var(--primary));
   }
 
-  /* Help section or tooltips */
   .chat-help {
     @apply text-sm p-2 rounded-lg;
     background-color: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
   }
-}
-/* Fix for RTL ordered and unordered lists inside markdown */
-.markdown-content-rtl ol,
-.markdown-content-rtl ul {
-  padding-right: 2rem; /* ایجاد فاصله از سمت راست برای جای شماره یا بالت */
-  padding-left: 0;
-  list-style-position: outside;
+
+  /* Markdown content */
+  .markdown-content, .markdown-content-rtl {
+    @apply prose prose-sm dark:prose-invert m-0 p-0;
+    line-height: 1.1; /* فاصله کم بین خطوط در markdown */
+  }
+
+  .markdown-content p, .markdown-content-rtl p {
+    margin-bottom: 0; /* حذف فاصله اضافی بین پاراگراف‌ها */
+  }
+
+  .markdown-content pre, .markdown-content-rtl pre {
+    margin-bottom: 0;
+    padding: 0.5rem;
+  }
+
+  .markdown-content code, .markdown-content-rtl code {
+    line-height: 1.1;
+  }
+
+  /* RTL lists */
+  .markdown-content-rtl ol,
+  .markdown-content-rtl ul {
+    padding-right: 2rem;
+    padding-left: 0;
+    list-style-position: outside;
+  }
+
+  .markdown-content-rtl li {
+    margin-bottom: 0.25rem;
+  }
+
+  /* پیام دستیار */
+  .assistant-message {
+  line-height: 1.5; /* یا هر مقدار دیگری که می\u200cخواهید */
 }
 
-.markdown-content-rtl li {
-  margin-bottom: 0.5rem; /* فاصله بین آیتم‌های لیست */
+
+/* In your globals.css file */
+
+.message-line-height {
+  line-height: 0.2;
+}
+
+/* Or, if you prefer to use TailwindCSS syntax */
+
+.message-line-height {
+  @apply leading-[0.2];
+}
 }

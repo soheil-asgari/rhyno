@@ -5,7 +5,7 @@ import { MessageCodeBlock } from "./message-codeblock"
 import { MessageMarkdownMemoized } from "./message-markdown-memoized"
 import { cn } from "@/lib/utils"
 
-interface MessageMarkdownProps {
+interface MessageMarkdownProps extends React.HTMLAttributes<HTMLDivElement> {
   content: string
   className?: string
   dir?: "rtl" | "ltr"
@@ -14,22 +14,40 @@ interface MessageMarkdownProps {
 export const MessageMarkdown: FC<MessageMarkdownProps> = ({
   content,
   className = "",
-  dir = "ltr"
+  dir = "ltr",
+  style
 }) => {
+  const cleanedContent = content.replace(/\n{2,}/g, "\n")
   return (
-    <div dir={dir} className={cn("w-full", className)}>
+    <div dir={dir} className={cn("w-full", className)} style={style}>
       <MessageMarkdownMemoized
         className={cn(
-          "prose dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-vazir min-w-full space-y-6 break-words"
+          "prose dark:prose-invert prose-p:leading-tight prose-pre:p-0 font-vazir min-w-full space-y-0 break-words"
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>
+            return <p className="mb-0 leading-tight">{children}</p>
           },
+
           img({ node, ...props }) {
-            return <img className="max-w-[67%]" {...props} />
+            return (
+              <a
+                href={props.src}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="mx-auto block"
+              >
+                <img
+                  {...props}
+                  className="w-full max-w-screen-lg cursor-pointer rounded-lg shadow-lg transition-transform duration-200 hover:scale-105 sm:max-w-screen-md md:max-w-[896px] lg:max-w-screen-lg"
+                  alt={props.alt || "Generated image"}
+                />
+              </a>
+            )
           },
+
           code({ node, className, children, ...props }) {
             const childArray = React.Children.toArray(children)
             const firstChild = childArray[0] as React.ReactElement
@@ -71,7 +89,7 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({
           }
         }}
       >
-        {content}
+        {cleanedContent}
       </MessageMarkdownMemoized>
     </div>
   )

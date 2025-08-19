@@ -14,7 +14,7 @@ import {
   IconPencil
 } from "@tabler/icons-react"
 import Image from "next/image"
-import {
+import React, {
   FC,
   memo,
   useContext,
@@ -202,7 +202,7 @@ const MessageBody: FC<{
     return (
       <MessageMarkdown
         content={content}
-        className="markdown-content-rtl whitespace-pre-wrap text-right text-[15.5px] leading-relaxed tracking-normal text-white"
+        className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
         dir="rtl"
       />
     )
@@ -458,7 +458,7 @@ export const Message: FC<MessageProps> = ({
           "relative w-full max-w-2xl transition-all duration-200",
           message.role === "user"
             ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]"
-            : "border-none bg-transparent px-0 py-2"
+            : "assistant-message border-none bg-transparent px-0 py-2"
         )}
       >
         <div className="absolute right-5 top-7 sm:right-0">
