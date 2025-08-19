@@ -11,8 +11,8 @@ const MODEL_PROMPTS: Record<string, string> = {
   "gpt-5": "You are Rhyno v5, the most advanced model with deep reasoning.",
   "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
   "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
-  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions.",
-  "dall-e-3": "You are Rhyno Image, generate high quality creative images."
+  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions."
+  // DALL-E 3 از این پرامپت استفاده نمی‌کنه، پس حذفش کردیم
 }
 
 const buildBasePrompt = (
@@ -47,9 +47,20 @@ export async function buildFinalMessages(
   profile: Tables<"profiles">,
   chatImages: MessageImage[]
 ) {
+  // اگر مدل DALL-E 3 باشه، چیزی برنمی‌گردونیم چون منطق توی dalleHandler مدیریت می‌شه
+  if (payload.chatSettings.model === "dall-e-3") {
+    return [
+      {
+        role: "user",
+        content:
+          payload.chatMessages[payload.chatMessages.length - 1].message.content
+      }
+    ]
+  }
+
   console.log("Inside buildFinalMessages", buildFinalMessages)
   console.log("payload", JSON.stringify(payload, null, 2))
-  console.log("Inside buildFinalMessages", buildFinalMessages)
+
   const {
     chatSettings,
     workspaceInstructions,
@@ -58,7 +69,6 @@ export async function buildFinalMessages(
     messageFileItems,
     chatFileItems
   } = payload
-  console.log("payload", JSON.stringify(payload, null, 2))
 
   const modelPrompt = MODEL_PROMPTS[chatSettings.model]
   if (!modelPrompt) {
@@ -66,7 +76,7 @@ export async function buildFinalMessages(
   }
 
   const BUILT_PROMPT = buildBasePrompt(
-    modelPrompt, // ← اینجا فقط رشته مربوط به مدل فعلی
+    modelPrompt,
     chatSettings.includeProfileContext ? profile.profile_context || "" : "",
     chatSettings.includeWorkspaceInstructions ? workspaceInstructions : "",
     assistant
@@ -140,46 +150,34 @@ export async function buildFinalMessages(
 
   finalMessages.unshift(tempSystemMessage)
 
-  // کد اصلاح شده و صحیح
   finalMessages = finalMessages.map(message => {
     let content
 
-    // بررسی می‌کند که آیا پیام شامل عکس است یا نه
     if (message.image_paths && message.image_paths.length > 0) {
-      // اگر عکس وجود داشت، یک آرایه محتوا می‌سازد
       content = [
-        // بخش اول: متن پیام
         {
-          type: "text", // ✅ صحیح
+          type: "text",
           text: message.content
         },
-        // بخش دوم: مپ کردن روی عکس‌ها
         ...message.image_paths.map(path => {
           let formedUrl = ""
-
-          // اگر مسیر از قبل یک Data URL است
           if (path.startsWith("data:")) {
             formedUrl = path
           } else {
-            // در غیر این صورت، آن را از chatImages پیدا می‌کند
             const chatImage = chatImages.find(image => image.path === path)
             if (chatImage) {
               formedUrl = chatImage.base64
             }
           }
-
-          // ساختار صحیح برای هر عکس
           return {
-            type: "image_url", // ✅ صحیح
+            type: "image_url",
             image_url: {
-              // ✅ صحیح (آبجکت)
               url: formedUrl
             }
           }
         })
       ]
     } else {
-      // اگر عکسی وجود نداشت، محتوا فقط متن است
       content = message.content
     }
 
@@ -250,9 +248,6 @@ function adaptSingleMessageForGoogleGemini(message: any) {
 }
 
 function adaptMessagesForGeminiVision(messages: any[]) {
-  // Gemini Pro Vision cannot process multiple messages
-  // Reformat, using all texts and last visual only
-
   const basePrompt = messages[0].parts[0].text
   const baseRole = messages[0].role
   const lastMessage = messages[messages.length - 1]

@@ -10,6 +10,7 @@ import { Tables } from "@/supabase/types"
 import { ChatMessage, ChatPayload, LLMID, ModelProvider } from "@/types"
 import { useRouter } from "next/navigation"
 import { useContext, useEffect, useRef } from "react"
+import { toast } from "sonner"
 import { LLM_LIST } from "../../../lib/models/llm/llm-list"
 import {
   createTempMessages,
@@ -21,7 +22,7 @@ import {
   processResponse,
   validateChatSettings
 } from "../chat-helpers"
-import { toast } from "sonner"
+
 export const useChatHandler = () => {
   const router = useRouter()
 
@@ -84,10 +85,8 @@ export const useChatHandler = () => {
     setChatMessages([])
     setSelectedChat(null)
     setChatFileItems([])
-
     setIsGenerating(false)
     setFirstTokenReceived(false)
-
     setChatFiles([])
     setChatImages([])
     setNewMessageFiles([])
@@ -95,7 +94,6 @@ export const useChatHandler = () => {
     setShowFilesDisplay(false)
     setIsPromptPickerOpen(false)
     setIsFilePickerOpen(false)
-
     setSelectedTools([])
     setToolInUse("none")
 
@@ -156,23 +154,6 @@ export const useChatHandler = () => {
           | "openai"
           | "local"
       })
-    } else if (selectedWorkspace) {
-      // setChatSettings({
-      //   model: (selectedWorkspace.default_model ||
-      //     "gpt-4-1106-preview") as LLMID,
-      //   prompt:
-      //     selectedWorkspace.default_prompt ||
-      //     "You are a friendly, helpful AI assistant.",
-      //   temperature: selectedWorkspace.default_temperature || 0.5,
-      //   contextLength: selectedWorkspace.default_context_length || 4096,
-      //   includeProfileContext:
-      //     selectedWorkspace.include_profile_context || true,
-      //   includeWorkspaceInstructions:
-      //     selectedWorkspace.include_workspace_instructions || true,
-      //   embeddingsProvider:
-      //     (selectedWorkspace.embeddings_provider as "openai" | "local") ||
-      //     "openai"
-      // })
     }
 
     return router.push(`/${selectedWorkspace.id}/chat`)
@@ -228,9 +209,7 @@ export const useChatHandler = () => {
       )
 
       let currentChat = selectedChat ? { ...selectedChat } : null
-
       const b64Images = newMessageImages.map(image => image.base64)
-
       let retrievedFileItems: Tables<"file_items">[] = []
 
       if (
@@ -238,7 +217,6 @@ export const useChatHandler = () => {
         useRetrieval
       ) {
         setToolInUse("retrieval")
-
         retrievedFileItems = await handleRetrieval(
           userInput,
           newMessageFiles,
@@ -259,7 +237,7 @@ export const useChatHandler = () => {
           selectedAssistant
         )
 
-      let payload: ChatPayload = {
+      const payload: ChatPayload = {
         chatSettings: chatSettings!,
         workspaceInstructions: selectedWorkspace!.instructions || "",
         chatMessages: isRegeneration
@@ -269,97 +247,99 @@ export const useChatHandler = () => {
           selectedChat?.assistant_id && selectedAssistant
             ? selectedAssistant
             : null,
-
         messageFileItems: retrievedFileItems,
         chatFileItems: chatFileItems
       }
 
+      // =================================================================
+      // ✅✅✅ شروع ساختار اصلاح شده ✅✅✅
+      // =================================================================
+
+      // داخل تابع handleSendMessage توی useChatHandler.ts
+      // =================================================================
+      // ✅✅✅ شروع ساختار اصلاح شده ✅✅✅
+      // =================================================================
+
       let generatedText = ""
 
-      if (selectedTools.length > 0) {
-        setToolInUse("Tools")
-        console.log("Before calling buildFinalMessages")
-        const formattedMessages = await buildFinalMessages(
-          payload,
-          profile!,
-          chatImages
-        )
-        console.log("Formatted Messages Before Sending:", formattedMessages)
-        console.log("Formatted Messages Before Sending:", formattedMessages)
-        console.log("starrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrt")
-        const response = await fetch("/api/chat", {
+      if (payload.chatSettings.model === "dall-e-3") {
+        setToolInUse("drawing")
+
+        const response = await fetch("/api/chat/dalle", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            chatSettings: payload.chatSettings,
-            messages: formattedMessages,
-            enableWebSearch: Boolean(chatSettings?.enableWebSearch) // 👈 اینجا
+            prompt: messageContent
           })
         })
 
         setToolInUse("none")
 
-        generatedText = await processResponse(
-          response,
-          isRegeneration
-            ? payload.chatMessages[payload.chatMessages.length - 1]
-            : tempAssistantChatMessage,
-          true,
-          newAbortController,
-          setFirstTokenReceived,
-          setChatMessages,
-          setToolInUse
-        )
-        // ...
-        // ...
-        // ...
-      } else {
-        // اگر مدل DALL-E 3 بود، این منطق اجرا می‌شود
-        if (payload.chatSettings.model === "dall-e-3") {
-          // یک آرایه جدید فقط با پیام فعلی کاربر می‌سازیم
-          const dallEPromptMessage = [
-            {
-              role: "user",
-              content: messageContent // messageContent همان ورودی کاربر است
-            }
-          ]
+        if (!response.ok) {
+          // اگر پاسخ موفقیت‌آمیز نبود، متن خطا را چاپ کن
+          const errorText = await response.text()
+          console.error("Error Response Body:", errorText)
+          throw new Error(`Failed to generate image: ${response.statusText}`)
+        }
+        const { imageUrl } = await response.json()
+        if (!imageUrl) {
+          throw new Error("No image URL returned from API")
+        }
 
-          // درخواست را فقط با همان یک پیام ارسال می‌کنیم
+        const imageMarkdown = `![Generated Image](${imageUrl})`
+
+        setChatMessages((prevMessages: ChatMessage[]) =>
+          prevMessages.map((msg: ChatMessage) =>
+            msg.message.id === tempAssistantChatMessage.message.id
+              ? {
+                  ...msg,
+                  message: { ...msg.message, content: imageMarkdown }
+                }
+              : msg
+          )
+        )
+
+        generatedText = imageMarkdown
+      } else {
+        // 🧠 اگر مدل DALL-E 3 نبود، منطق قبلی برای بقیه مدل‌ها اجرا می‌شود
+        if (selectedTools.length > 0) {
+          setToolInUse("Tools")
+
+          const formattedMessages = await buildFinalMessages(
+            payload,
+            profile!,
+            chatImages
+          )
+
           const response = await fetch("/api/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json"
+            },
             body: JSON.stringify({
               chatSettings: payload.chatSettings,
-              messages: dallEPromptMessage,
+              messages: formattedMessages,
               enableWebSearch: Boolean(chatSettings?.enableWebSearch)
             })
           })
 
-          // پاسخ را پردازش کرده و تصویر را نمایش می‌دهیم
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error("Error from DALL-E API:", errorData.message)
-            throw new Error(errorData.message || "Failed to generate image.")
-          }
-          const data = await response.json()
-          const imageUrl = data.imageUrl
-          const imageMarkdown = `![Generated Image](${imageUrl})`
+          setToolInUse("none")
 
-          setChatMessages(prevMessages =>
-            prevMessages.map(msg =>
-              msg.message.id === tempAssistantChatMessage.message.id
-                ? {
-                    ...msg,
-                    message: { ...msg.message, content: imageMarkdown }
-                  }
-                : msg
-            )
+          generatedText = await processResponse(
+            response,
+            isRegeneration
+              ? payload.chatMessages[payload.chatMessages.length - 1]
+              : tempAssistantChatMessage,
+            true,
+            newAbortController,
+            setFirstTokenReceived,
+            setChatMessages,
+            setToolInUse
           )
-          generatedText = imageMarkdown
         } else {
-          // برای بقیه مدل‌ها، کد به روال سابق عمل می‌کند
+          // منطق برای مدل‌های دیگر بدون ابزار (Ollama یا سایر مدل‌های Hosted)
           if (modelData!.provider === "ollama") {
             generatedText = await handleLocalChat(
               payload,
@@ -390,46 +370,38 @@ export const useChatHandler = () => {
             )
           }
         }
-
-        // ----------- پایان کد نهایی و صحیح -----------
       }
-      // ...
-      // ----------- پایان کد جدید و اصلاح شده -----------
-      // ...
-      // ----------- پایان تغییرات -----------
 
-      // ...
+      // =================================================================
+      // 🔚🔚🔚 پایان ساختار اصلاح شده 🔚🔚🔚
+      // =================================================================
+
       if (!currentChat) {
-        // وقتی چتی هنوز وجود نداره → یه چت جدید می‌سازیم
         currentChat = await handleCreateChat(
           chatSettings!,
           profile!,
           selectedWorkspace!,
           messageContent,
-          selectedAssistant!, // اینجا مطمئنیم که assistant وجود داره
+          selectedAssistant!,
           newMessageFiles,
           setSelectedChat,
           setChats,
           setChatFiles
         )
       } else {
-        // وقتی چت وجود داره → فقط تاریخ آخرین آپدیت رو تغییر میدیم
         const updatedChat = await updateChat(currentChat.id, {
           updated_at: new Date().toISOString()
         })
-
-        setChats(prevChats => {
-          const updatedChats = prevChats.map(prevChat =>
+        setChats(prevChats =>
+          prevChats.map(prevChat =>
             prevChat.id === updatedChat.id ? updatedChat : prevChat
           )
-          return updatedChats
-        })
+        )
       }
 
-      // ✅ اینجا currentChat دیگه قطعاً null نیست
       await handleCreateMessages(
         chatMessages,
-        currentChat!, // non-null تضمین‌شده
+        currentChat!,
         profile!,
         modelData!,
         messageContent,
@@ -446,13 +418,9 @@ export const useChatHandler = () => {
       setIsGenerating(false)
       setFirstTokenReceived(false)
     } catch (error: any) {
-      // "any" را اضافه کنید تا به "message" دسترسی داشته باشید
       setIsGenerating(false)
       setFirstTokenReceived(false)
       setUserInput(startingInput)
-
-      // این خط جدید و کلیدی است
-      // یک پیام خطا به کاربر نمایش می‌دهد
       toast.error(error.message || "An unexpected error occurred.")
     }
   }
@@ -474,13 +442,11 @@ export const useChatHandler = () => {
     )
 
     setChatMessages(filteredMessages)
-
     handleSendMessage(editedContent, filteredMessages, false)
   }
 
   return {
     chatInputRef,
-    prompt,
     handleNewChat,
     handleSendMessage,
     handleFocusChatInput,
