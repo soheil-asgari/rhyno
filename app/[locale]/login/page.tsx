@@ -89,7 +89,8 @@ export default async function Login({
     // اگر در مرحله ورود خطا وجود داشت
     if (error) {
       const message = translateSupabaseError(error.message)
-      return redirect(`/login?message=${encodeURIComponent(message)}`)
+      const safeMessage = message.replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      return redirect(`/login?message=${encodeURIComponent(safeMessage)}`)
     }
 
     // مرحله ۲: اگر ورود موفق بود، workspace کاربر را پیدا کن
