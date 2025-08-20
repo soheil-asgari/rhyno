@@ -64,6 +64,7 @@ const MessageHeader: FC<{
           alt="assistant image"
           height={ICON_SIZE}
           width={ICON_SIZE}
+          loading="lazy"
           className="rounded"
         />
       ) : (
@@ -78,6 +79,7 @@ const MessageHeader: FC<{
               src="/rhyno.jpg"
               width={ICON_SIZE}
               height={ICON_SIZE}
+              loading="lazy"
               alt="Model Icon"
               className="rounded object-cover"
             />

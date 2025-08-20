@@ -13,7 +13,31 @@ import { redirect } from "next/navigation"
 export const metadata: Metadata = {
   title: "Login"
 }
+// یک تابع کمکی برای ترجمه خطاهای Supabase
+const translateSupabaseError = (errorMessage: string): string => {
+  const lowerCaseError = errorMessage.toLowerCase()
+  console.log("Supabase Error Message Received:", errorMessage)
 
+  // این کنسول لاگ به شما کمک می‌کند اگر خطای جدیدی رخ داد، آن را ببینید
+  console.log("Original Supabase Error for Translation:", lowerCaseError)
+
+  if (lowerCaseError.includes("invalid login credentials")) {
+    return "ایمیل یا رمز عبور وارد شده صحیح نیست."
+  }
+  if (lowerCaseError.includes("user already registered")) {
+    return "این ایمیل قبلاً ثبت‌نام شده است. لطفاً وارد شوید."
+  }
+  if (lowerCaseError.includes("password should be at least")) {
+    return "رمز عبور شما باید حداقل ۶ کاراکتر باشد."
+  }
+  if (lowerCaseError.includes("email not confirmed")) {
+    return "ایمیل شما هنوز تایید نشده است. لطفاً صندوق ورودی خود را بررسی کنید."
+  }
+  // ... می‌توانید خطاهای دیگر را به همین شکل اضافه کنید
+
+  // پیام پیش‌فرض برای خطاهایی که ترجمه نشده‌اند
+  return "یک خطای پیش‌بینی‌نشده رخ داد. لطفاً دوباره تلاش کنید."
+}
 export default async function Login({
   searchParams
 }: {
@@ -56,28 +80,33 @@ export default async function Login({
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
+    // مرحله ۱: تلاش برای ورود کاربر
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     })
 
+    // اگر در مرحله ورود خطا وجود داشت
     if (error) {
-      return redirect(`/login?message=${error.message}`)
+      const message = translateSupabaseError(error.message)
+      return redirect(`/login?message=${encodeURIComponent(message)}`)
     }
 
+    // مرحله ۲: اگر ورود موفق بود، workspace کاربر را پیدا کن
     const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
       .from("workspaces")
       .select("*")
+      // 👇 این خط به درستی اصلاح شده است
       .eq("user_id", data.user.id)
       .eq("is_home", true)
       .single()
 
-    if (!homeWorkspace) {
-      throw new Error(
-        homeWorkspaceError?.message || "An unexpected error occurred"
-      )
+    if (homeWorkspaceError) {
+      // اگر در گرفتن workspace خطا رخ داد، یک پیام عمومی نمایش بده
+      throw new Error("پس از ورود، در دریافت اطلاعات حساب شما خطایی رخ داد.")
     }
 
+    // مرحله ۳: کاربر را به داشبورد هدایت کن
     return redirect(`/${homeWorkspace.id}/chat`)
   }
 
@@ -95,147 +124,59 @@ export default async function Login({
 
     const email = formData.get("email") as string
     const password = formData.get("password") as string
-
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
     // ثبت‌نام کاربر
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // emailRedirectTo: `${origin}/auth/callback`
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+      {
+        email,
+        password,
+        options: {
+          // اگر می‌خوای تایید ایمیل فعال باشد، این گزینه را باز کن
+          // emailRedirectTo: `${origin}/auth/callback?next=/login`
+        }
       }
-    })
+    )
 
-    if (error) {
-      console.error(error)
-      return redirect(`/login?message=${error.message}`)
+    if (signUpError) {
+      // ۱. خطا را به تابع ترجمه می‌دهیم تا پیام فارسی را برگرداند.
+      const message = translateSupabaseError(signUpError.message)
+
+      // ۲. کاربر را با پیام ترجمه‌شده به صفحه لاگین هدایت می‌کنیم.
+      return redirect(`/login?message=${encodeURIComponent(message)}`)
     }
 
-    const userId = data.user?.id
+    // اگر خطایی وجود نداشت، کد به اجرای خود ادامه می‌دهد...
+    if (signUpData.user?.confirmation_sent_at) {
+      return redirect(
+        `/login?message=${encodeURIComponent(
+          "ثبت‌نام موفق بود. لطفاً ایمیل خود را برای تکمیل فرآیند ورود بررسی کنید."
+        )}`
+      )
+    }
+
+    // لاگین خودکار بعد از ثبت‌نام (برای تایید ایمیل غیر فعال)
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+    console.log("SIGN IN RESULT", { signInData, signInError })
+    if (signInError) {
+      const message = signInError.message.includes("Invalid login credentials")
+        ? "ایمیل یا پسورد اشتباه است. اگر هنوز ثبت‌نام نکرده‌اید، لطفا ثبت‌نام کنید."
+        : signInError.message
+      return redirect(`/login?message=${encodeURIComponent(message)}`)
+    }
+
+    const userId = signInData.user?.id
     if (!userId) {
-      throw new Error("User ID not found after sign-up")
+      throw new Error("شناسه کاربر پس از ثبت‌نام یافت نشد")
     }
 
-    // workspaceهای پیش‌فرض برای کاربر جدید
-    // const defaultWorkspaces = [
-    //   {
-    //     name: 'Default gpt-3.5-turbo',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-3.5-turbo',
-    //     default_prompt: 'You are Rhyno v1, optimized for speed and efficiency.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: true
-    //   },
-    //   {
-    //     name: 'Default gpt-4',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-4',
-    //     default_prompt: 'You are Rhyno v2, provide detailed and accurate answers.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default gpt-4-turbo-preview',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-4-turbo-preview',
-    //     default_prompt: 'You are Rhyno v3, optimized for reasoning and analysis.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default gpt-5',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-5',
-    //     default_prompt: 'You are Rhyno v5, the most advanced model with deep reasoning.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default gpt-5-mini',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-5-mini',
-    //     default_prompt: 'You are Rhyno v5 mini, lightweight and fast responses.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default gpt-4o',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-4o',
-    //     default_prompt: 'You are Rhyno v4.1, multimodal and balanced in detail.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default gpt-4o-mini',
-    //     description: 'Auto-added model',
-    //     default_model: 'gpt-4o-mini',
-    //     default_prompt: 'You are Rhyno v4 mini, optimized for quick interactions.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   },
-    //   {
-    //     name: 'Default dall-e-3',
-    //     description: 'Auto-added model',
-    //     default_model: 'dall-e-3',
-    //     default_prompt: 'You are Rhyno Image, generate high quality creative images.',
-    //     default_temperature: 0.5,
-    //     default_context_length: 4096,
-    //     embeddings_provider: 'openai',
-    //     include_profile_context: true,
-    //     include_workspace_instructions: true,
-    //     sharing: 'private',
-    //     is_home: false
-    //   }
-    // ]
-
-    // اضافه کردن workspaceها به جدول
-    // for (const ws of defaultWorkspaces) {
-    //   await supabase.from('workspaces').insert({ user_id: userId, ...ws })
-    // }
-
-    // هدایت به صفحه setup بعد از ثبت‌نام
-    return redirect("/setup")
-
-    // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
-    // return redirect("/login?message=Check email to continue sign in process")
+    // هدایت به صفحه setup یا داشبورد
+    return redirect(`/setup`)
   }
 
   const handleResetPassword = async (formData: FormData) => {
@@ -251,63 +192,81 @@ export default async function Login({
     })
 
     if (error) {
-      return redirect(`/login?message=${error.message}`)
+      let message = "خطایی رخ داد. لطفاً دوباره تلاش کنید."
+
+      if (error.message.includes("Invalid login credentials")) {
+        message = "ایمیل یا رمز عبور وارد شده صحیح نیست."
+      }
+
+      // می‌توانید خطاهای دیگر را هم به همین شکل اضافه کنید
+      // else if (error.message.includes("Another error text")) { ... }
+
+      return redirect(`/login?message=${encodeURIComponent(message)}`)
     }
 
     return redirect("/login?message=Check email to reset password")
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
+    // برای نمایش صحیح فونت فارسی و استایل‌ها، بهتر است در فایل layout اصلی خود dir="rtl" را به تگ <html> اضافه کنید.
+    <div className="font-vazir flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
       <form
-        className="animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2"
+        className="animate-in text-foreground font-vazir flex w-full flex-1 flex-col justify-center gap-2"
         action={signIn}
       >
         <Brand />
 
-        <Label className="text-md mt-4" htmlFor="email">
-          Email
+        {/* لیبل ایمیل */}
+        <Label className="text-md mt-4 text-right" htmlFor="email">
+          ایمیل
         </Label>
         <Input
-          className="mb-3 rounded-md border bg-inherit px-4 py-2"
+          className="font-vazir mb-3 rounded-md border bg-inherit px-4 py-2 text-right" // text-right برای ورودی فارسی
           name="email"
-          placeholder="you@example.com"
+          placeholder="shoma@example.com"
           required
         />
 
-        <Label className="text-md" htmlFor="password">
-          Password
+        {/* لیبل رمز عبور */}
+        <Label className="text-md text-right" htmlFor="password">
+          رمز عبور
         </Label>
         <Input
-          className="mb-6 rounded-md border bg-inherit px-4 py-2"
+          className="font-vazir mb-6 rounded-md border bg-inherit px-4 py-2 text-right" // text-right برای ورودی فارسی
           type="password"
           name="password"
           placeholder="••••••••"
+          required // بهتر است فیلد پسورد هم required باشد
         />
 
-        <SubmitButton className="mb-2 rounded-md bg-blue-700 px-4 py-2 text-white">
-          Login
+        {/* دکمه ورود */}
+        <SubmitButton className="font-vazir mb-2 rounded-md bg-blue-700 px-4 py-2 text-white">
+          ورود
         </SubmitButton>
 
+        {/* دکمه ثبت‌نام */}
         <SubmitButton
           formAction={signUp}
-          className="border-foreground/20 mb-2 rounded-md border px-4 py-2"
+          className="border-foreground/20 font-vazir mb-2 rounded-md border px-4 py-2"
         >
-          Sign Up
+          ثبت‌نام
         </SubmitButton>
 
-        <div className="text-muted-foreground mt-1 flex justify-center text-sm">
-          <span className="mr-1">Forgot your password?</span>
+        {/* بخش بازیابی رمز عبور */}
+        <div className="text-muted-foreground font-vazir mt-1 flex justify-center text-sm">
+          <span className="me-1">رمز عبور خود را فراموش کرده‌اید؟</span>{" "}
+          {/* me-1 برای فاصله در حالت راست‌چین */}
           <button
             formAction={handleResetPassword}
-            className="text-primary ml-1 underline hover:opacity-80"
+            className="text-primary font-vazir ms-1 underline hover:opacity-80" // ms-1 برای فاصله در حالت راست‌چین
           >
-            Reset
+            بازیابی
           </button>
         </div>
 
+        {/* نمایش پیام‌های خطا یا موفقیت */}
         {searchParams?.message && (
-          <p className="bg-foreground/10 text-foreground mt-4 p-4 text-center">
+          <p className="bg-foreground/10 text-foreground font-vazir mt-4 p-4 text-center">
             {searchParams.message}
           </p>
         )}

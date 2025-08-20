@@ -4,7 +4,7 @@ test('start chatting is displayed', async ({ page }) => {
   await page.goto('http://localhost:3000/');
 
   //expect the start chatting link to be visible
-  await expect (page.getByRole('link', { name: 'Start Chatting' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Start Chatting' })).toBeVisible();
 });
 
 test('No password error message', async ({ page }) => {
@@ -15,12 +15,13 @@ test('No password error message', async ({ page }) => {
   //wait for netwrok to be idle
   await page.waitForLoadState('networkidle');
   //validate that correct message is shown to the user
-  await expect(page.getByText('Invalid login credentials')).toBeVisible();
-  
+  await expect(page.getByText('ایمیل یا پسورد اشتباه است. اگر هنوز ثبت‌نام نکرده‌اید، لطفا ثبت‌نام کنید.')).toBeVisible();
+
+
 });
 test('No password for signup', async ({ page }) => {
   await page.goto('http://localhost:3000/login');
-  
+
   await page.getByPlaceholder('you@example.com').fill('dummyEmail@Gmail.com');
   await page.getByRole('button', { name: 'Sign Up' }).click();
   //validate appropriate error is thrown for missing password when signing up
@@ -28,7 +29,7 @@ test('No password for signup', async ({ page }) => {
 });
 test('invalid username for signup', async ({ page }) => {
   await page.goto('http://localhost:3000/login');
-  
+
   await page.getByPlaceholder('you@example.com').fill('dummyEmail');
   await page.getByPlaceholder('••••••••').fill('dummypassword');
   await page.getByRole('button', { name: 'Sign Up' }).click();

@@ -119,10 +119,30 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
   )
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    const {
+      data: { session }
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      console.log("No active session, redirecting...")
+      router.push("/login")
+      return
+    }
+
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      if (error.status === 403) {
+        // توکن منقضی شده یا refresh token ذخیره نشده
+        console.warn("Session already invalid, forcing client logout")
+        localStorage.removeItem("supabase.auth.token")
+      } else {
+        console.error("Logout error:", error)
+      }
+    }
+
     router.push("/login")
     router.refresh()
-    return
   }
 
   const handleSave = async () => {

@@ -34,6 +34,7 @@
     "@apidevtools/json-schema-ref-parser": "^11.1.0",
     "@fontsource/vazirmatn": "^5.2.6",
     "@google/generative-ai": "^0.11.4",
+    "@hcaptcha/react-hcaptcha": "^1.12.1",
     "@hookform/resolvers": "^3.3.2",
     "@langchain/community": "^0.3.51",
     "@langchain/core": "^0.3.71",

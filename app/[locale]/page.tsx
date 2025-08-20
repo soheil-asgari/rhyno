@@ -2,29 +2,7 @@
 
 import { IconArrowRight } from "@tabler/icons-react"
 import Link from "next/link"
-
+import { redirect } from "next/navigation"
 export default function HomePage() {
-  return (
-    <div className="flex size-full flex-col items-center justify-center">
-      <div>
-        <img
-          src="/rhyno.jpg"
-          width={80}
-          height={80}
-          alt="Logo"
-          className="mx-auto mb-2"
-        />
-      </div>
-
-      <div className="mt-2 text-4xl font-bold">Rhyno Chat</div>
-
-      <Link
-        className="mt-4 flex w-[200px] items-center justify-center rounded-md bg-blue-500 p-2 font-semibold"
-        href="/login"
-      >
-        Start Chatting
-        <IconArrowRight className="ml-1" size={20} />
-      </Link>
-    </div>
-  )
+  redirect("/login") // مسیر دلخواهت
 }
