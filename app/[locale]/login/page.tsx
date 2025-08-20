@@ -213,6 +213,7 @@ export default async function Login({
       <form
         className="animate-in text-foreground font-vazir flex w-full flex-1 flex-col justify-center gap-2"
         action={signIn}
+        method="post"
       >
         <Brand />
 
@@ -239,13 +240,16 @@ export default async function Login({
           required // بهتر است فیلد پسورد هم required باشد
         />
 
-        {/* دکمه ورود */}
-        <SubmitButton className="font-vazir mb-2 rounded-md bg-blue-700 px-4 py-2 text-white">
+        <SubmitButton
+          type="submit"
+          formAction={signIn}
+          className="font-vazir mb-2 rounded-md bg-blue-700 px-4 py-2 text-white"
+        >
           ورود
         </SubmitButton>
 
-        {/* دکمه ثبت‌نام */}
         <SubmitButton
+          type="submit"
           formAction={signUp}
           className="border-foreground/20 font-vazir mb-2 rounded-md border px-4 py-2"
         >
