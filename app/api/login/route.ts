@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     cookies: () => cookieStore
   })
 
-  console.log("Login attempt for:", email) // <-- لاگ ۱
+  console.log("Login attempt for:", email) // <-- لاگش ۱
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
