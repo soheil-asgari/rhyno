@@ -62,6 +62,7 @@ export default async function Login({
     })
 
     if (error) {
+      console.log("Supabase Error Message:", error.message)
       return redirect(`/login?message=${error.message}`)
     }
 
