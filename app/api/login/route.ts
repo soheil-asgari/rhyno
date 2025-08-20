@@ -3,49 +3,52 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { Database } from "@/supabase/types" // مسیر این فایل را با پروژه خود تطبیق دهید
+import { Database } from "@/supabase/types"
 
 export async function POST(request: Request) {
   const formData = await request.formData()
   const email = String(formData.get("email"))
   const password = String(formData.get("password"))
   const cookieStore = cookies()
-
   const supabase = createRouteHandlerClient<Database>({
     cookies: () => cookieStore
   })
 
-  // تلاش برای ورود کاربر
+  console.log("Login attempt for:", email) // <-- لاگ ۱
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
   })
 
-  // اگر خطایی در ورود وجود داشت
   if (error) {
+    console.error("Supabase sign-in error:", error.message) // <-- لاگ خطا
     const redirectUrl = new URL("/login", request.url)
     redirectUrl.searchParams.set("message", error.message)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // اگر ورود موفق بود، workspace کاربر را پیدا کن
-  const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
+  console.log("Sign-in successful for user:", data.user.id) // <-- لاگ ۲
+
+  console.log("Attempting to find workspace for user...") // <-- لاگ ۳
+  const { data: homeWorkspace, error: workspaceError } = await supabase
     .from("workspaces")
     .select("id")
     .eq("user_id", data.user.id)
     .eq("is_home", true)
     .single()
 
-  if (homeWorkspaceError || !homeWorkspace) {
+  if (workspaceError || !homeWorkspace) {
+    console.error(
+      "Workspace error:",
+      workspaceError?.message || "Workspace not found"
+    ) // <-- لاگ خطا
     const redirectUrl = new URL("/login", request.url)
-    redirectUrl.searchParams.set(
-      "message",
-      "Login successful, but failed to find your workspace."
-    )
+    redirectUrl.searchParams.set("message", "Could not find your workspace.")
     return NextResponse.redirect(redirectUrl)
   }
 
-  // کاربر را به صفحه چت هدایت کن
+  console.log("Workspace found:", homeWorkspace.id) // <-- لاگ ۴
   return NextResponse.redirect(
     new URL(`/${homeWorkspace.id}/chat`, request.url)
   )
