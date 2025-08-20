@@ -60,16 +60,47 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
+    const init = async () => {
+      console.log("🔍 Checking session...")
+
+      const { data, error } = await supabase.auth.getSession()
+
+      if (error) {
+        console.error("❌ getSession error:", error)
+      }
+
+      if (!data.session) {
+        console.warn("⚠️ No session found → redirecting to /login")
+        router.push("/login")
+      } else {
+        console.log("✅ Session found:", data.session.user.id)
+        fetchWorkspaceData(workspaceId)
+      }
+    }
+
+    init()
+
+    console.log("👂 Subscribing to auth state changes...")
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("🔔 Auth state changed:", event)
 
       if (!session) {
-        return router.push("/login")
+        console.warn("⚠️ Session cleared → redirecting to /login")
+        router.push("/login")
       } else {
-        await fetchWorkspaceData(workspaceId)
+        console.log("✅ New session:", session.user.id)
+        fetchWorkspaceData(workspaceId)
       }
-    })()
-  }, [])
+    })
+
+    return () => {
+      console.log("🧹 Cleaning up subscription")
+      subscription.unsubscribe()
+    }
+  }, [workspaceId])
 
   useEffect(() => {
     ;(async () => await fetchWorkspaceData(workspaceId))()
