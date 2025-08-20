@@ -63,7 +63,7 @@ export default async function Login({
 
     if (error) {
       console.log("Supabase Error Message:", error.message)
-      return redirect(`/login?message=${error.message}`)
+      return redirect(`/login?message=${encodeURIComponent(error.message)}`)
     }
 
     const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
@@ -134,7 +134,7 @@ export default async function Login({
 
     if (error) {
       console.error(error)
-      return redirect(`/login?message=${error.message}`)
+      return redirect(`/login?message=${encodeURIComponent(error.message)}`)
     }
 
     return redirect("/setup")
