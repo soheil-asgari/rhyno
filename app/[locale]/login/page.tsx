@@ -13,31 +13,7 @@ import { redirect } from "next/navigation"
 export const metadata: Metadata = {
   title: "Login"
 }
-// یک تابع کمکی برای ترجمه خطاهای Supabase
-const translateSupabaseError = (errorMessage: string): string => {
-  const lowerCaseError = errorMessage.toLowerCase()
-  console.log("Supabase Error Message Received:", errorMessage)
 
-  // این کنسول لاگ به شما کمک می‌کند اگر خطای جدیدی رخ داد، آن را ببینید
-  console.log("Original Supabase Error for Translation:", lowerCaseError)
-
-  if (lowerCaseError.includes("invalid login credentials")) {
-    return "ایمیل یا رمز عبور وارد شده صحیح نیست."
-  }
-  if (lowerCaseError.includes("user already registered")) {
-    return "این ایمیل قبلاً ثبت‌نام شده است. لطفاً وارد شوید."
-  }
-  if (lowerCaseError.includes("password should be at least")) {
-    return "رمز عبور شما باید حداقل ۶ کاراکتر باشد."
-  }
-  if (lowerCaseError.includes("email not confirmed")) {
-    return "ایمیل شما هنوز تایید نشده است. لطفاً صندوق ورودی خود را بررسی کنید."
-  }
-  // ... می‌توانید خطاهای دیگر را به همین شکل اضافه کنید
-
-  // پیام پیش‌فرض برای خطاهایی که ترجمه نشده‌اند
-  return "یک خطای پیش‌بینی‌نشده رخ داد. لطفاً دوباره تلاش کنید."
-}
 export default async function Login({
   searchParams
 }: {
@@ -80,34 +56,28 @@ export default async function Login({
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
-    // مرحله ۱: تلاش برای ورود کاربر
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     })
 
-    // اگر در مرحله ورود خطا وجود داشت
     if (error) {
-      const message = translateSupabaseError(error.message)
-      const safeMessage = message.replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-      return redirect(`/login?message=${encodeURIComponent(safeMessage)}`)
+      return redirect(`/login?message=${error.message}`)
     }
 
-    // مرحله ۲: اگر ورود موفق بود، workspace کاربر را پیدا کن
     const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
       .from("workspaces")
       .select("*")
-      // 👇 این خط به درستی اصلاح شده است
       .eq("user_id", data.user.id)
       .eq("is_home", true)
       .single()
 
-    if (homeWorkspaceError) {
-      // اگر در گرفتن workspace خطا رخ داد، یک پیام عمومی نمایش بده
-      throw new Error("پس از ورود، در دریافت اطلاعات حساب شما خطایی رخ داد.")
+    if (!homeWorkspace) {
+      throw new Error(
+        homeWorkspaceError?.message || "An unexpected error occurred"
+      )
     }
 
-    // مرحله ۳: کاربر را به داشبورد هدایت کن
     return redirect(`/${homeWorkspace.id}/chat`)
   }
 
@@ -125,59 +95,51 @@ export default async function Login({
 
     const email = formData.get("email") as string
     const password = formData.get("password") as string
+
+    const emailDomainWhitelistPatternsString = await getEnvVarOrEdgeConfigValue(
+      "EMAIL_DOMAIN_WHITELIST"
+    )
+    const emailDomainWhitelist = emailDomainWhitelistPatternsString?.trim()
+      ? emailDomainWhitelistPatternsString?.split(",")
+      : []
+    const emailWhitelistPatternsString =
+      await getEnvVarOrEdgeConfigValue("EMAIL_WHITELIST")
+    const emailWhitelist = emailWhitelistPatternsString?.trim()
+      ? emailWhitelistPatternsString?.split(",")
+      : []
+
+    // If there are whitelist patterns, check if the email is allowed to sign up
+    if (emailDomainWhitelist.length > 0 || emailWhitelist.length > 0) {
+      const domainMatch = emailDomainWhitelist?.includes(email.split("@")[1])
+      const emailMatch = emailWhitelist?.includes(email)
+      if (!domainMatch && !emailMatch) {
+        return redirect(
+          `/login?message=Email ${email} is not allowed to sign up.`
+        )
+      }
+    }
+
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
-    // ثبت‌نام کاربر
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
-      {
-        email,
-        password,
-        options: {
-          // اگر می‌خوای تایید ایمیل فعال باشد، این گزینه را باز کن
-          // emailRedirectTo: `${origin}/auth/callback?next=/login`
-        }
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
+        // emailRedirectTo: `${origin}/auth/callback`
       }
-    )
+    })
 
-    if (signUpError) {
-      // ۱. خطا را به تابع ترجمه می‌دهیم تا پیام فارسی را برگرداند.
-      const message = translateSupabaseError(signUpError.message)
-
-      // ۲. کاربر را با پیام ترجمه‌شده به صفحه لاگین هدایت می‌کنیم.
-      return redirect(`/login?message=${encodeURIComponent(message)}`)
+    if (error) {
+      console.error(error)
+      return redirect(`/login?message=${error.message}`)
     }
 
-    // اگر خطایی وجود نداشت، کد به اجرای خود ادامه می‌دهد...
-    if (signUpData.user?.confirmation_sent_at) {
-      return redirect(
-        `/login?message=${encodeURIComponent(
-          "ثبت‌نام موفق بود. لطفاً ایمیل خود را برای تکمیل فرآیند ورود بررسی کنید."
-        )}`
-      )
-    }
+    return redirect("/setup")
 
-    // لاگین خودکار بعد از ثبت‌نام (برای تایید ایمیل غیر فعال)
-    const { data: signInData, error: signInError } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
-    console.log("SIGN IN RESULT", { signInData, signInError })
-    if (signInError) {
-      const message = signInError.message.includes("Invalid login credentials")
-        ? "ایمیل یا پسورد اشتباه است. اگر هنوز ثبت‌نام نکرده‌اید، لطفا ثبت‌نام کنید."
-        : signInError.message
-      return redirect(`/login?message=${encodeURIComponent(message)}`)
-    }
-
-    const userId = signInData.user?.id
-    if (!userId) {
-      throw new Error("شناسه کاربر پس از ثبت‌نام یافت نشد")
-    }
-
-    // هدایت به صفحه setup یا داشبورد
-    return redirect(`/setup`)
+    // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
+    // return redirect("/login?message=Check email to continue sign in process")
   }
 
   const handleResetPassword = async (formData: FormData) => {
@@ -193,85 +155,63 @@ export default async function Login({
     })
 
     if (error) {
-      let message = "خطایی رخ داد. لطفاً دوباره تلاش کنید."
-
-      if (error.message.includes("Invalid login credentials")) {
-        message = "ایمیل یا رمز عبور وارد شده صحیح نیست."
-      }
-
-      // می‌توانید خطاهای دیگر را هم به همین شکل اضافه کنید
-      // else if (error.message.includes("Another error text")) { ... }
-
-      return redirect(`/login?message=${encodeURIComponent(message)}`)
+      return redirect(`/login?message=${error.message}`)
     }
 
     return redirect("/login?message=Check email to reset password")
   }
 
   return (
-    // برای نمایش صحیح فونت فارسی و استایل‌ها، بهتر است در فایل layout اصلی خود dir="rtl" را به تگ <html> اضافه کنید.
-    <div className="font-vazir flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
+    <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
       <form
-        className="animate-in text-foreground font-vazir flex w-full flex-1 flex-col justify-center gap-2"
+        className="animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2"
         action={signIn}
-        method="post"
       >
         <Brand />
 
-        {/* لیبل ایمیل */}
-        <Label className="text-md mt-4 text-right" htmlFor="email">
-          ایمیل
+        <Label className="text-md mt-4" htmlFor="email">
+          Email
         </Label>
         <Input
-          className="font-vazir mb-3 rounded-md border bg-inherit px-4 py-2 text-right" // text-right برای ورودی فارسی
+          className="mb-3 rounded-md border bg-inherit px-4 py-2"
           name="email"
-          placeholder="shoma@example.com"
+          placeholder="you@example.com"
           required
         />
 
-        {/* لیبل رمز عبور */}
-        <Label className="text-md text-right" htmlFor="password">
-          رمز عبور
+        <Label className="text-md" htmlFor="password">
+          Password
         </Label>
         <Input
-          className="font-vazir mb-6 rounded-md border bg-inherit px-4 py-2 text-right" // text-right برای ورودی فارسی
+          className="mb-6 rounded-md border bg-inherit px-4 py-2"
           type="password"
           name="password"
           placeholder="••••••••"
-          required // بهتر است فیلد پسورد هم required باشد
         />
 
-        <SubmitButton
-          type="submit"
-          formAction={signIn}
-          className="font-vazir mb-2 rounded-md bg-blue-700 px-4 py-2 text-white"
-        >
-          ورود
+        <SubmitButton className="mb-2 rounded-md bg-blue-700 px-4 py-2 text-white">
+          Login
         </SubmitButton>
 
         <SubmitButton
-          type="submit"
           formAction={signUp}
-          className="border-foreground/20 font-vazir mb-2 rounded-md border px-4 py-2"
+          className="border-foreground/20 mb-2 rounded-md border px-4 py-2"
         >
-          ثبت‌نام
+          Sign Up
         </SubmitButton>
 
-        {/* بخش بازیابی رمز عبور */}
-        <div className="text-muted-foreground font-vazir mt-1 flex justify-center text-sm">
-          <span className="me-1">رمز عبور خود را فراموش کرده‌اید؟</span>{" "}
-          {/* me-1 برای فاصله در حالت راست‌چین */}
+        <div className="text-muted-foreground mt-1 flex justify-center text-sm">
+          <span className="mr-1">Forgot your password?</span>
           <button
             formAction={handleResetPassword}
-            className="text-primary font-vazir ms-1 underline hover:opacity-80" // ms-1 برای فاصله در حالت راست‌چین
+            className="text-primary ml-1 underline hover:opacity-80"
           >
-            بازیابی
+            Reset
           </button>
         </div>
 
-        {/* نمایش پیام‌های خطا یا موفقیت */}
         {searchParams?.message && (
-          <p className="bg-foreground/10 text-foreground font-vazir mt-4 p-4 text-center">
+          <p className="bg-foreground/10 text-foreground mt-4 p-4 text-center">
             {searchParams.message}
           </p>
         )}
