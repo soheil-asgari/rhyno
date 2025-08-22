@@ -92,7 +92,7 @@ const handleResetPassword = async (formData: FormData) => {
 export default async function Login({
   searchParams
 }: {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams?: { [key: string]: string | string[] | undefined }
 }) {
   // ✅ راه‌حل مشکل دوم: پراپرتی searchParams await می‌شود
   const message = searchParams?.message
