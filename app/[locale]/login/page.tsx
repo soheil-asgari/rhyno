@@ -89,7 +89,7 @@ const handleResetPassword = async (formData: FormData) => {
 //  کامپوننت اصلی صفحه
 // =================================================================
 
-export default function Login({
+export default async function Login({
   searchParams
 }: {
   searchParams: { [key: string]: string | string[] | undefined }
