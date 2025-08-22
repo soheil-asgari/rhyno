@@ -89,14 +89,13 @@ const handleResetPassword = async (formData: FormData) => {
 //  کامپوننت اصلی صفحه
 // =================================================================
 
-export default async function Login({
+export default function Login({
   searchParams
 }: {
-  searchParams: { message: string }
+  searchParams: { [key: string]: string | string[] | undefined }
 }) {
   // ✅ راه‌حل مشکل دوم: پراپرتی searchParams await می‌شود
-  const awaitedSearchParams = await searchParams
-
+  const message = searchParams?.message
   return (
     <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
       <form
@@ -146,9 +145,9 @@ export default async function Login({
           </button>
         </div>
 
-        {awaitedSearchParams?.message && (
+        {searchParams?.message && (
           <p className="bg-foreground/10 text-foreground mt-4 p-4 text-center">
-            {awaitedSearchParams.message}
+            {searchParams.message}
           </p>
         )}
       </form>
