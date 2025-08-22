@@ -119,30 +119,10 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
   )
 
   const handleSignOut = async () => {
-    const {
-      data: { session }
-    } = await supabase.auth.getSession()
-
-    if (!session) {
-      console.log("No active session, redirecting...")
-      router.push("/login")
-      return
-    }
-
-    const { error } = await supabase.auth.signOut()
-
-    if (error) {
-      if (error.status === 403) {
-        // توکن منقضی شده یا refresh token ذخیره نشده
-        console.warn("Session already invalid, forcing client logout")
-        localStorage.removeItem("supabase.auth.token")
-      } else {
-        console.error("Logout error:", error)
-      }
-    }
-
+    await supabase.auth.signOut()
     router.push("/login")
     router.refresh()
+    return
   }
 
   const handleSave = async () => {
@@ -311,24 +291,26 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
     }
   }
 
-  if (!profile) return null
+  if (!profile) {
+    return <div className="profile-loading-skeleton" />
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        {profile.image_url ? (
-          <Image
-            className="mt-2 size-[34px] cursor-pointer rounded hover:opacity-50"
-            src={profile.image_url + "?" + new Date().getTime()}
-            height={34}
-            width={34}
-            alt={"Image"}
-          />
-        ) : (
-          <Button size="icon" variant="ghost">
-            <IconUser size={SIDEBAR_ICON_SIZE} />
-          </Button>
-        )}
+        <div>
+          {profile.image_url ? (
+            <Image
+              src={profile.image_url + "?" + new Date().getTime()}
+              height={34}
+              width={34}
+              alt="Profile"
+              className="cursor-pointer rounded-full"
+            />
+          ) : (
+            <IconUser size={SIDEBAR_ICON_SIZE} className="cursor-pointer" />
+          )}
+        </div>
       </SheetTrigger>
 
       <SheetContent

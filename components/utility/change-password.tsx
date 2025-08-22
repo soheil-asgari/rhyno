@@ -14,22 +14,32 @@ import {
 import { Input } from "../ui/input"
 import { toast } from "sonner"
 
-interface ChangePasswordProps {}
-
-export const ChangePassword: FC<ChangePasswordProps> = () => {
+export const ChangePassword: FC = () => {
   const router = useRouter()
-
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleResetPassword = async () => {
-    if (!newPassword) return toast.info("Please enter your new password.")
+    if (!newPassword || !confirmPassword) {
+      return toast.info("Please enter and confirm your new password.")
+    }
 
-    await supabase.auth.updateUser({ password: newPassword })
+    if (newPassword !== confirmPassword) {
+      return toast.error("Passwords do not match.")
+    }
+
+    setLoading(true)
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setLoading(false)
+
+    if (error) {
+      return toast.error(error.message)
+    }
 
     toast.success("Password changed successfully.")
-
-    return router.push("/login")
+    router.push("/login")
   }
 
   return (
@@ -45,6 +55,7 @@ export const ChangePassword: FC<ChangePasswordProps> = () => {
           type="password"
           value={newPassword}
           onChange={e => setNewPassword(e.target.value)}
+          className="mb-2"
         />
 
         <Input
@@ -56,7 +67,17 @@ export const ChangePassword: FC<ChangePasswordProps> = () => {
         />
 
         <DialogFooter>
-          <Button onClick={handleResetPassword}>Confirm Change</Button>
+          <Button
+            onClick={handleResetPassword}
+            disabled={
+              !newPassword ||
+              !confirmPassword ||
+              newPassword !== confirmPassword ||
+              loading
+            }
+          >
+            {loading ? "Updating..." : "Confirm Change"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

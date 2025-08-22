@@ -4,8 +4,8 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 export async function getServerProfile() {
-  const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
+  const cookieStore = await cookies() // صحیح: await اضافه شد
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -17,7 +17,10 @@ export async function getServerProfile() {
     }
   )
 
-  const user = (await supabase.auth.getUser()).data.user
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
   if (!user) {
     throw new Error("User not found")
   }

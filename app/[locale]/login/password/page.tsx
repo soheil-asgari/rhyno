@@ -7,22 +7,41 @@ import { useEffect, useState } from "react"
 
 export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(true)
-
+  const [sessionChecked, setSessionChecked] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
+    let isMounted = true // جلوگیری از setState بعد از unmount
 
-      if (!session) {
-        router.push("/login")
-      } else {
-        setLoading(false)
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        const session = data.session
+
+        if (isMounted) {
+          if (!session) {
+            // فقط یکبار redirect بزن
+            router.replace("/login") // replace به جای push برای جلوگیری از history loop
+          } else {
+            setLoading(false)
+          }
+          setSessionChecked(true)
+        }
+      } catch (err) {
+        console.error("Error checking session:", err)
+        if (isMounted) {
+          router.replace("/login")
+        }
       }
     })()
-  }, [])
 
-  if (loading) {
+    return () => {
+      isMounted = false
+    }
+  }, [router])
+
+  // تا وقتی session چک نشده، چیزی نمایش نده
+  if (loading && !sessionChecked) {
     return null
   }
 

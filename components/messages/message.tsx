@@ -35,9 +35,6 @@ import { MessageMarkdown } from "./message-markdown"
 const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  "gpt-3.5-turbo": "Rhyno v1",
-  "gpt-4": "Rhyno v2",
-  "gpt-4-turbo-preview": "Rhyno v3",
   "gpt-5": "Rhyno v5",
   "gpt-5-mini": "Rhyno v5 mini",
   "gpt-4o": "Rhyno v4.1",

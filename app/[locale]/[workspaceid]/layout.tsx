@@ -29,7 +29,30 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
   const params = useParams()
   const searchParams = useSearchParams()
-  const workspaceId = params.workspaceid as string
+  let workspaceId: string | undefined
+
+  if (Array.isArray(params.workspaceid)) {
+    workspaceId = params.workspaceid[0]
+  } else {
+    workspaceId = params.workspaceid
+  }
+
+  // اگر undefined بود خطا بده
+  if (!workspaceId) {
+    throw new Error("Workspace ID is missing")
+  }
+
+  // لیست route های رزرو شده
+  const RESERVED_ROUTES = ["chat", "settings", "profile"]
+
+  if (!RESERVED_ROUTES.includes(workspaceId)) {
+    const uuidRegex =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
+
+    if (!uuidRegex.test(workspaceId)) {
+      throw new Error(`Invalid workspace ID: ${workspaceId}`)
+    }
+  }
 
   const {
     setChatSettings,
@@ -60,47 +83,24 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const init = async () => {
-      console.log("🔍 Checking session...")
+    ;(async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession()
 
-      const { data, error } = await supabase.auth.getSession()
+        if (!session) {
+          // فقط فرم login نمایش داده شود، redirect نزن
+          return
+        }
 
-      if (error) {
-        console.error("❌ getSession error:", error)
+        await fetchWorkspaceData(workspaceId)
+      } catch (err) {
+        console.error("Error fetching session:", err)
+        // فرم login نمایش داده شود
       }
-
-      if (!data.session) {
-        console.warn("⚠️ No session found → redirecting to /login")
-        router.push("/login")
-      } else {
-        console.log("✅ Session found:", data.session.user.id)
-        fetchWorkspaceData(workspaceId)
-      }
-    }
-
-    init()
-
-    console.log("👂 Subscribing to auth state changes...")
-
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("🔔 Auth state changed:", event)
-
-      if (!session) {
-        console.warn("⚠️ Session cleared → redirecting to /login")
-        router.push("/login")
-      } else {
-        console.log("✅ New session:", session.user.id)
-        fetchWorkspaceData(workspaceId)
-      }
-    })
-
-    return () => {
-      console.log("🧹 Cleaning up subscription")
-      subscription.unsubscribe()
-    }
-  }, [workspaceId])
+    })()
+  }, [])
 
   useEffect(() => {
     ;(async () => await fetchWorkspaceData(workspaceId))()
@@ -122,6 +122,17 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const fetchWorkspaceData = async (workspaceId: string) => {
     setLoading(true)
 
+    // اگر جزو route های رزرو شده بود، DB نزن
+    if (RESERVED_ROUTES.includes(workspaceId)) {
+      setSelectedWorkspace(null) // یا یه مقدار پیش‌فرض
+      setAssistants([]) // خالی کن یا دیتا پیش‌فرض بده
+      setAssistantImages([]) // همینطور
+
+      setLoading(false)
+      return
+    }
+
+    // در غیر این صورت (UUID معتبر) برو دیتابیس
     const workspace = await getWorkspaceById(workspaceId)
     setSelectedWorkspace(workspace)
 

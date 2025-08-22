@@ -157,3 +157,10 @@
   @apply leading-[0.2];
 }
 }
+/* این کد را به انتهای فایل globals.css خود اضافه کنید */
+
+@layer components {
+  .profile-loading-skeleton {
+    @apply h-[34px] w-[34px] bg-gray-500 rounded-full animate-pulse;
+  }
+}
