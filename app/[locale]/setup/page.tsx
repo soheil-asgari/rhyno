@@ -4,7 +4,7 @@ import { ChatbotUIContext } from "@/context/context"
 import { getProfileByUserId, updateProfile } from "@/db/profile"
 import {
   getHomeWorkspaceByUserId,
-  getWorkspacesByUserId
+  getWorkspacesByUserId // ✨ این import را برمی‌گردانیم
 } from "@/db/workspaces"
 import { supabase } from "@/lib/supabase/browser-client"
 import { TablesUpdate } from "@/supabase/types"
@@ -21,15 +21,18 @@ export default function SetupPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(1)
+
   const [displayName, setDisplayName] = useState("")
   const [username, setUsername] = useState(profile?.username || "")
   const [usernameAvailable, setUsernameAvailable] = useState(true)
+  const [userEmail, setUserEmail] = useState("")
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "SIGNED_IN" && session) {
           const user = session.user
+          setUserEmail(user.email || "")
 
           const handleUserOnboarding = async () => {
             const profile = await getProfileByUserId(user.id)
@@ -41,14 +44,12 @@ export default function SetupPage() {
               if (homeWorkspaceId) {
                 router.push(`/${homeWorkspaceId}/chat`)
               } else {
-                console.error("Onboarded user has no home workspace!")
                 setLoading(false)
               }
             } else {
               setLoading(false)
             }
           }
-
           handleUserOnboarding()
         } else if (event === "SIGNED_OUT") {
           router.push("/login")
@@ -57,7 +58,9 @@ export default function SetupPage() {
     )
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
+      if (session) {
+        setUserEmail(session.user.email || "")
+      } else {
         setLoading(false)
       }
     })
@@ -67,6 +70,7 @@ export default function SetupPage() {
     }
   }, [router, setProfile])
 
+  // ✨ FIX: This function is now corrected
   const handleSaveSetupSetting = async () => {
     const {
       data: { session }
@@ -88,7 +92,8 @@ export default function SetupPage() {
     const updatedProfile = await updateProfile(profile.id, updateProfilePayload)
     setProfile(updatedProfile)
 
-    const workspaces = await getWorkspacesByUserId(profile.user_id)
+    // Revert to the correct logic of fetching all workspaces and finding the home one
+    const workspaces = await getWorkspacesByUserId(user.id)
     const homeWorkspace = workspaces.find(w => w.is_home)
 
     if (homeWorkspace) {
@@ -121,11 +126,11 @@ export default function SetupPage() {
             stepNum={currentStep}
             stepTitle="Welcome to Rhyno Chat"
             onShouldProceed={handleShouldProceed}
-            // ✨ اصلاح: متغیر `displayName` به شرط اضافه شد
             showNextButton={!!(displayName && username && usernameAvailable)}
             showBackButton={false}
           >
             <ProfileStep
+              email={userEmail}
               username={username}
               usernameAvailable={usernameAvailable}
               displayName={displayName}
@@ -154,7 +159,7 @@ export default function SetupPage() {
   }
 
   if (loading) {
-    return null // در حین بارگذاری صفحه سفید نمایش داده می‌شود
+    return null
   }
 
   return (

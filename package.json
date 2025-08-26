@@ -64,7 +64,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/ssr": "^0.0.10",
     "@supabase/supabase-js": "^2.38.4",
-    "@tabler/icons-react": "^2.40.0",
+    "@tabler/icons-react": "^2.47.0",
     "@tanstack/react-virtual": "^3.13.12",
     "@vercel/analytics": "^1.1.1",
     "@vercel/edge-config": "^0.4.1",
