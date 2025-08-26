@@ -12,17 +12,10 @@ import { ReactNode } from "react"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
-const APP_NAME = "Chatbot UI"
-const APP_DEFAULT_TITLE = "Chatbot UI"
-const APP_TITLE_TEMPLATE = "%s - Chatbot UI"
+const APP_NAME = "Rhyno Chat"
+const APP_DEFAULT_TITLE = "Rhyno Chat"
+const APP_TITLE_TEMPLATE = "%s - Rhyno Chat"
 const APP_DESCRIPTION = "Chabot UI PWA!"
-
-interface RootLayoutProps {
-  children: ReactNode
-  params: {
-    locale: string
-  }
-}
 
 export const metadata: Metadata = {
   applicationName: APP_NAME,
@@ -31,12 +24,11 @@ export const metadata: Metadata = {
     template: APP_TITLE_TEMPLATE
   },
   description: APP_DESCRIPTION,
-  manifest: "/manifest.json",
+  // manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
     title: APP_DEFAULT_TITLE
-    // startUpImage: [],
   },
   formatDetection: {
     telephone: false
@@ -66,28 +58,44 @@ export const viewport: Viewport = {
 
 const i18nNamespaces = ["translation"]
 
+interface RootLayoutProps {
+  children: React.ReactNode // <-- اصلاح شد: Node به ReactNode تغییر کرد
+  params: {
+    locale: string
+    workspaceid: string
+  }
+}
+
 export default async function RootLayout({
   children,
-  params: { locale }
+  params
 }: RootLayoutProps) {
-  const cookieStore = cookies()
+  const { locale } = await params
+
+  // ✅ اصلاح نهایی: await به اینجا برگردانده شد
+  const cookieStore = await cookies()
+
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
+          // حالا این خط بدون خطا کار می‌کند
           return cookieStore.get(name)?.value
         }
       }
     }
   )
-  const session = (await supabase.auth.getSession()).data.session
 
-  const { t, resources } = await initTranslations(locale, i18nNamespaces)
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+
+  const { resources } = await initTranslations(locale, i18nNamespaces)
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className={inter.className}>
         <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider

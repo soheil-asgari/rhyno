@@ -8,6 +8,7 @@ interface TextareaAutosizeProps {
 
   textareaRef?: React.RefObject<HTMLTextAreaElement>
   className?: string
+  dir?: "rtl" | "ltr" // ✅ اضافه شده
 
   placeholder?: string
   minRows?: number
@@ -24,6 +25,7 @@ export const TextareaAutosize: FC<TextareaAutosizeProps> = ({
   onValueChange,
   textareaRef,
   className,
+  dir, // ✅ اضافه شده
   placeholder = "",
   minRows = 1,
   maxRows = 6,
@@ -40,6 +42,7 @@ export const TextareaAutosize: FC<TextareaAutosizeProps> = ({
         "bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full resize-none rounded-md border-2 px-3 py-2 text-sm focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
+      dir={dir} // ✅ استفاده شده
       minRows={minRows}
       maxRows={minRows > maxRows ? minRows : maxRows}
       placeholder={placeholder}

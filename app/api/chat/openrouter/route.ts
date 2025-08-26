@@ -32,9 +32,9 @@ export async function POST(request: Request) {
       stream: true
     })
 
-    const stream = OpenAIStream(response)
+    // const stream = OpenAIStream(response)
 
-    return new StreamingTextResponse(stream)
+    // return new StreamingTextResponse(stream)
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500

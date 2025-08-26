@@ -62,7 +62,8 @@ export default async function Login({
     })
 
     if (error) {
-      return redirect(`/login?message=${error.message}`)
+      // return redirect(`/login?message=${error.message}`) // کد قبلی
+      return redirect(`/login?message=${encodeURIComponent(error.message)}`) // کد اصلاح شده
     }
 
     const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
@@ -131,9 +132,11 @@ export default async function Login({
       }
     })
 
+    // signUp function
     if (error) {
       console.error(error)
-      return redirect(`/login?message=${error.message}`)
+      // return redirect(`/login?message=${error.message}`) // کد قبلی
+      return redirect(`/login?message=${encodeURIComponent(error.message)}`) // کد اصلاح شده
     }
 
     return redirect("/setup")
@@ -154,10 +157,11 @@ export default async function Login({
       redirectTo: `${origin}/auth/callback?next=/login/password`
     })
 
+    // handleResetPassword function
     if (error) {
-      return redirect(`/login?message=${error.message}`)
+      // return redirect(`/login?message=${error.message}`) // کد قبلی
+      return redirect(`/login?message=${encodeURIComponent(error.message)}`) // کد اصلاح شده
     }
-
     return redirect("/login?message=Check email to reset password")
   }
 

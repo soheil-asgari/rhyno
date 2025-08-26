@@ -18,6 +18,7 @@ import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
 import { ChatSecondaryButtons } from "./chat-secondary-buttons"
+import { Tables } from "@/supabase/types"
 
 interface ChatUIProps {}
 
@@ -57,6 +58,26 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
   const [loading, setLoading] = useState(true)
 
+  // حالت دکمه وب‌سرچ
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [statusMessage, setStatusMessage] = useState("")
+
+  const toggleWebSearch = () => {
+    setWebSearchEnabled(prev => {
+      const newState = !prev
+      setStatusMessage(newState ? "جستجو فعال شد" : "جستجو غیرفعال شد")
+      setTimeout(() => setStatusMessage(""), 2000)
+
+      // به روز رسانی تنظیمات چت با وضعیت جدید وب‌سرچ
+      setChatSettings(prev => ({
+        ...prev,
+        enableWebSearch: newState // ارسال وضعیت جدید وب‌سرچ
+      }))
+
+      return newState
+    })
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       await fetchMessages()
@@ -80,9 +101,9 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)
 
     const imagePromises: Promise<MessageImage>[] = fetchedMessages.flatMap(
-      message =>
+      (message: Tables<"messages">) =>
         message.image_paths
-          ? message.image_paths.map(async imagePath => {
+          ? message.image_paths.map(async (imagePath: string) => {
               const url = await getMessageImageFromStorage(imagePath)
 
               if (url) {
@@ -111,21 +132,24 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     )
 
     const images: MessageImage[] = await Promise.all(imagePromises.flat())
-    setChatImages(images)
+    setChatImages(images) // ذخیره تصاویر
 
     const messageFileItemPromises = fetchedMessages.map(
-      async message => await getMessageFileItemsByMessageId(message.id)
+      async (message: Tables<"messages">) =>
+        await getMessageFileItemsByMessageId(message.id)
     )
 
     const messageFileItems = await Promise.all(messageFileItemPromises)
 
-    const uniqueFileItems = messageFileItems.flatMap(item => item.file_items)
+    const uniqueFileItems = messageFileItems.flatMap(
+      (item: { file_items: Tables<"file_items">[] }) => item.file_items
+    )
     setChatFileItems(uniqueFileItems)
 
     const chatFiles = await getChatFilesByChatId(params.chatid as string)
 
     setChatFiles(
-      chatFiles.files.map(file => ({
+      chatFiles.files.map((file: Tables<"files">) => ({
         id: file.id,
         name: file.name,
         type: file.type,
@@ -136,16 +160,20 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     setUseRetrieval(true)
     setShowFilesDisplay(true)
 
-    const fetchedChatMessages = fetchedMessages.map(message => {
-      return {
-        message,
-        fileItems: messageFileItems
-          .filter(messageFileItem => messageFileItem.id === message.id)
-          .flatMap(messageFileItem =>
-            messageFileItem.file_items.map(fileItem => fileItem.id)
+    const fetchedChatMessages = fetchedMessages.map(
+      (message: Tables<"messages">) => {
+        const relatedFileItems = messageFileItems
+          .flatMap(
+            (mfi: { file_items: Tables<"file_items">[] }) => mfi.file_items
           )
+          .filter(fi => fi.id === message.id) // اینجا اگر واقعا باید match بشه
+
+        return {
+          message,
+          fileItems: relatedFileItems.map(fileItem => fileItem.id)
+        }
       }
-    })
+    )
 
     setChatMessages(fetchedChatMessages)
   }
@@ -177,7 +205,8 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
       contextLength: chat.context_length,
       includeProfileContext: chat.include_profile_context,
       includeWorkspaceInstructions: chat.include_workspace_instructions,
-      embeddingsProvider: chat.embeddings_provider as "openai" | "local"
+      embeddingsProvider: chat.embeddings_provider as "openai" | "local",
+      enableWebSearch: webSearchEnabled // اینجا می‌فرستیم
     })
   }
 
@@ -206,6 +235,12 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
           {selectedChat?.name || "Chat"}
         </div>
       </div>
+
+      {statusMessage && (
+        <div className="absolute right-4 top-14 rounded bg-black px-3 py-1 text-xs text-white shadow-lg">
+          {statusMessage}
+        </div>
+      )}
 
       <div
         className="flex size-full flex-col overflow-auto border-b"

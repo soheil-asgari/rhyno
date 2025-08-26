@@ -3,6 +3,18 @@ import { ChatPayload, MessageImage } from "@/types"
 import { encode } from "gpt-tokenizer"
 import { getBase64FromDataURL, getMediaTypeFromDataURL } from "@/lib/utils"
 
+const MODEL_PROMPTS: Record<string, string> = {
+  "gpt-3.5-turbo": "You are Rhyno v1, optimized for speed and efficiency.",
+  "gpt-4": "You are Rhyno v2, provide detailed and accurate answers.",
+  "gpt-4-turbo-preview":
+    "You are Rhyno v3, optimized for reasoning and analysis.",
+  "gpt-5": "You are Rhyno v5, the most advanced model with deep reasoning.",
+  "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
+  "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
+  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions."
+  // DALL-E 3 از این پرامپت استفاده نمی‌کنه، پس حذفش کردیم
+}
+
 const buildBasePrompt = (
   prompt: string,
   profileContext: string,
@@ -35,6 +47,20 @@ export async function buildFinalMessages(
   profile: Tables<"profiles">,
   chatImages: MessageImage[]
 ) {
+  // اگر مدل DALL-E 3 باشه، چیزی برنمی‌گردونیم چون منطق توی dalleHandler مدیریت می‌شه
+  if (payload.chatSettings.model === "dall-e-3") {
+    return [
+      {
+        role: "user",
+        content:
+          payload.chatMessages[payload.chatMessages.length - 1].message.content
+      }
+    ]
+  }
+
+  console.log("Inside buildFinalMessages", buildFinalMessages)
+  console.log("payload", JSON.stringify(payload, null, 2))
+
   const {
     chatSettings,
     workspaceInstructions,
@@ -44,20 +70,23 @@ export async function buildFinalMessages(
     chatFileItems
   } = payload
 
+  const modelPrompt = MODEL_PROMPTS[chatSettings.model]
+  if (!modelPrompt) {
+    throw new Error(`No prompt found for model: ${chatSettings.model}`)
+  }
+
   const BUILT_PROMPT = buildBasePrompt(
-    chatSettings.prompt,
+    modelPrompt,
     chatSettings.includeProfileContext ? profile.profile_context || "" : "",
     chatSettings.includeWorkspaceInstructions ? workspaceInstructions : "",
     assistant
   )
 
   const CHUNK_SIZE = chatSettings.contextLength
-  const PROMPT_TOKENS = encode(chatSettings.prompt).length
+  const BUILT_PROMPT_TOKENS = encode(BUILT_PROMPT).length
 
-  let remainingTokens = CHUNK_SIZE - PROMPT_TOKENS
-
-  let usedTokens = 0
-  usedTokens += PROMPT_TOKENS
+  let remainingTokens = CHUNK_SIZE - BUILT_PROMPT_TOKENS
+  let usedTokens = BUILT_PROMPT_TOKENS
 
   const processedChatMessages = chatMessages.map((chatMessage, index) => {
     const nextChatMessage = chatMessages[index + 1]
@@ -124,7 +153,7 @@ export async function buildFinalMessages(
   finalMessages = finalMessages.map(message => {
     let content
 
-    if (message.image_paths.length > 0) {
+    if (message.image_paths && message.image_paths.length > 0) {
       content = [
         {
           type: "text",
@@ -132,17 +161,14 @@ export async function buildFinalMessages(
         },
         ...message.image_paths.map(path => {
           let formedUrl = ""
-
-          if (path.startsWith("data")) {
+          if (path.startsWith("data:")) {
             formedUrl = path
           } else {
             const chatImage = chatImages.find(image => image.path === path)
-
             if (chatImage) {
               formedUrl = chatImage.base64
             }
           }
-
           return {
             type: "image_url",
             image_url: {
@@ -184,36 +210,35 @@ function buildRetrievalText(fileItems: Tables<"file_items">[]) {
 }
 
 function adaptSingleMessageForGoogleGemini(message: any) {
-
   let adaptedParts = []
 
   let rawParts = []
-  if(!Array.isArray(message.content)) {
-    rawParts.push({type: 'text', text: message.content})
+  if (!Array.isArray(message.content)) {
+    rawParts.push({ type: "text", text: message.content })
   } else {
     rawParts = message.content
   }
 
-  for(let i = 0; i < rawParts.length; i++) {
+  for (let i = 0; i < rawParts.length; i++) {
     let rawPart = rawParts[i]
 
-    if(rawPart.type == 'text') {
-      adaptedParts.push({text: rawPart.text})
-    } else if(rawPart.type === 'image_url') {
+    if (rawPart.type == "text") {
+      adaptedParts.push({ text: rawPart.text })
+    } else if (rawPart.type === "image_url") {
       adaptedParts.push({
         inlineData: {
           data: getBase64FromDataURL(rawPart.image_url.url),
-          mimeType: getMediaTypeFromDataURL(rawPart.image_url.url),
+          mimeType: getMediaTypeFromDataURL(rawPart.image_url.url)
         }
       })
     }
   }
 
-  let role = 'user'
-  if(["user", "system"].includes(message.role)) {
-    role = 'user'
-  } else if(message.role === 'assistant') {
-    role = 'model'
+  let role = "user"
+  if (["user", "system"].includes(message.role)) {
+    role = "user"
+  } else if (message.role === "assistant") {
+    role = "model"
   }
 
   return {
@@ -222,29 +247,26 @@ function adaptSingleMessageForGoogleGemini(message: any) {
   }
 }
 
-function adaptMessagesForGeminiVision(
-  messages: any[]
-) {
-  // Gemini Pro Vision cannot process multiple messages
-  // Reformat, using all texts and last visual only
-
+function adaptMessagesForGeminiVision(messages: any[]) {
   const basePrompt = messages[0].parts[0].text
   const baseRole = messages[0].role
-  const lastMessage = messages[messages.length-1]
-  const visualMessageParts = lastMessage.parts;
-  let visualQueryMessages = [{
-    role: "user",
-    parts: [
-      `${baseRole}:\n${basePrompt}\n\nuser:\n${visualMessageParts[0].text}\n\n`,
-      visualMessageParts.slice(1)
-    ]
-  }]
+  const lastMessage = messages[messages.length - 1]
+  const visualMessageParts = lastMessage.parts
+  let visualQueryMessages = [
+    {
+      role: "user",
+      parts: [
+        `${baseRole}:\n${basePrompt}\n\nuser:\n${visualMessageParts[0].text}\n\n`,
+        visualMessageParts.slice(1)
+      ]
+    }
+  ]
   return visualQueryMessages
 }
 
 export async function adaptMessagesForGoogleGemini(
   payload: ChatPayload,
-  messages:  any[]
+  messages: any[]
 ) {
   let geminiMessages = []
   for (let i = 0; i < messages.length; i++) {
@@ -252,9 +274,8 @@ export async function adaptMessagesForGoogleGemini(
     geminiMessages.push(adaptedMessage)
   }
 
-  if(payload.chatSettings.model === "gemini-pro-vision") {
+  if (payload.chatSettings.model === "gemini-pro-vision") {
     geminiMessages = adaptMessagesForGeminiVision(geminiMessages)
   }
   return geminiMessages
 }
-

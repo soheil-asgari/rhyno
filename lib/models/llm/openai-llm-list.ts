@@ -34,6 +34,51 @@ const GPT4Turbo: LLM = {
   }
 }
 
+const GPT5: LLM = {
+  modelId: "gpt-5",
+  modelName: "GPT-5",
+  provider: "openai",
+  hostedId: "gpt-5",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 1.25,
+    outputCost: 10.0
+  }
+}
+
+const DALL_E_3: LLM = {
+  modelId: "dall-e-3", // باید "dall-e-3" باشد
+  modelName: "DALL-E 3", // نام نمایشی صحیح
+  provider: "openai",
+  hostedId: "dall-e-3", // شناسه صحیح
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: false, // این مدل تصویر نمی‌گیرد، بلکه می‌سازد
+  pricing: {
+    // قیمت‌گذاری DALL-E 3 (اختیاری)
+    currency: "USD",
+    unit: "image",
+    inputCost: 0.04 // قیمت برای هر تصویر با کیفیت استاندارد
+  }
+}
+
+const GPT5Mini: LLM = {
+  modelId: "gpt-5-mini",
+  modelName: "GPT-5 Mini",
+  provider: "openai",
+  hostedId: "gpt-5-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 1.25, // هزینه ورودی
+    outputCost: 10.0 // هزینه خروجی
+  }
+}
+
 // GPT-4 Vision (UPDATED 12/18/23)
 const GPT4Vision: LLM = {
   modelId: "gpt-4-vision-preview",
@@ -80,11 +125,28 @@ const GPT3_5Turbo: LLM = {
     outputCost: 1.5
   }
 }
-
+const GPT4oMini: LLM = {
+  modelId: "gpt-4o-mini",
+  modelName: "GPT-4o Mini",
+  provider: "openai",
+  hostedId: "gpt-4o-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.15, // هزینه ورودی
+    outputCost: 0.6 // هزینه خروجی
+  }
+}
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT4o,
   GPT4Turbo,
   GPT4Vision,
   GPT4,
-  GPT3_5Turbo
+  GPT3_5Turbo,
+  GPT5,
+  GPT5Mini,
+  GPT4oMini,
+  DALL_E_3
 ]

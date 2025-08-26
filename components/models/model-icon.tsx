@@ -9,7 +9,7 @@ import Image from "next/image"
 import { FC, HTMLAttributes } from "react"
 import { AnthropicSVG } from "../icons/anthropic-svg"
 import { GoogleSVG } from "../icons/google-svg"
-import { OpenAISVG } from "../icons/openai-svg"
+import { OpenAIImage } from "../icons/openai-svg"
 
 interface ModelIconProps extends HTMLAttributes<HTMLDivElement> {
   provider: ModelProvider
@@ -28,14 +28,11 @@ export const ModelIcon: FC<ModelIconProps> = ({
   switch (provider as ModelProvider) {
     case "openai":
       return (
-        <OpenAISVG
-          className={cn(
-            "rounded-sm bg-white p-1 text-black",
-            props.className,
-            theme === "dark" ? "bg-white" : "border-DEFAULT border-black"
-          )}
-          width={width}
-          height={height}
+        <OpenAIImage
+          className="icon-class"
+          width={40}
+          height={40}
+          imageUrl="/rhyno1.png" // آدرس تصویر خود را اینجا وارد کنید
         />
       )
     case "mistral":
@@ -45,7 +42,7 @@ export const ModelIcon: FC<ModelIconProps> = ({
             "rounded-sm p-1",
             theme === "dark" ? "bg-white" : "border-DEFAULT border-black"
           )}
-          src={mistral.src}
+          src="/providers/mistral.png" // اصلاح مسیر
           alt="Mistral"
           width={width}
           height={height}
@@ -58,7 +55,7 @@ export const ModelIcon: FC<ModelIconProps> = ({
             "rounded-sm p-0",
             theme === "dark" ? "bg-white" : "border-DEFAULT border-black"
           )}
-          src={groq.src}
+          src="/providers/groq.png" // اصلاح مسیر
           alt="Groq"
           width={width}
           height={height}
@@ -95,8 +92,8 @@ export const ModelIcon: FC<ModelIconProps> = ({
             "rounded-sm p-1",
             theme === "dark" ? "bg-white" : "border-DEFAULT border-black"
           )}
-          src={perplexity.src}
-          alt="Mistral"
+          src="/providers/perplexity.png" // اصلاح مسیر
+          alt="Perplexity"
           width={width}
           height={height}
         />

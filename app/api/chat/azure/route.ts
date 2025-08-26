@@ -12,7 +12,6 @@ export async function POST(request: Request) {
 
   try {
     const profile = await getServerProfile()
-
     checkApiKey(profile.azure_openai_api_key, "Azure OpenAI")
 
     const ENDPOINT = profile.azure_openai_endpoint
@@ -38,9 +37,7 @@ export async function POST(request: Request) {
     if (!ENDPOINT || !KEY || !DEPLOYMENT_ID) {
       return new Response(
         JSON.stringify({ message: "Azure resources not found" }),
-        {
-          status: 400
-        }
+        { status: 400 }
       )
     }
 
@@ -55,13 +52,9 @@ export async function POST(request: Request) {
       model: DEPLOYMENT_ID as ChatCompletionCreateParamsBase["model"],
       messages: messages as ChatCompletionCreateParamsBase["messages"],
       temperature: chatSettings.temperature,
-      max_tokens: chatSettings.model === "gpt-4-vision-preview" ? 4096 : null, // TODO: Fix
+      max_tokens: chatSettings.model === "gpt-4-vision-preview" ? 4096 : null,
       stream: true
     })
-
-    const stream = OpenAIStream(response)
-
-    return new StreamingTextResponse(stream)
   } catch (error: any) {
     const errorMessage = error.error?.message || "An unexpected error occurred"
     const errorCode = error.status || 500

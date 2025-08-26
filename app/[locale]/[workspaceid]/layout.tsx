@@ -29,7 +29,30 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
   const params = useParams()
   const searchParams = useSearchParams()
-  const workspaceId = params.workspaceid as string
+  let workspaceId: string | undefined
+
+  if (Array.isArray(params.workspaceid)) {
+    workspaceId = params.workspaceid[0]
+  } else {
+    workspaceId = params.workspaceid
+  }
+
+  // اگر undefined بود خطا بده
+  if (!workspaceId) {
+    throw new Error("Workspace ID is missing")
+  }
+
+  // لیست route های رزرو شده
+  const RESERVED_ROUTES = ["chat", "settings", "profile"]
+
+  if (!RESERVED_ROUTES.includes(workspaceId)) {
+    const uuidRegex =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
+
+    if (!uuidRegex.test(workspaceId)) {
+      throw new Error(`Invalid workspace ID: ${workspaceId}`)
+    }
+  }
 
   const {
     setChatSettings,
@@ -58,21 +81,41 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   } = useContext(ChatbotUIContext)
 
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession()
 
-      if (!session) {
-        return router.push("/login")
-      } else {
-        await fetchWorkspaceData(workspaceId)
+        if (!session) {
+          // فقط فرم login نمایش داده شود، redirect نزن
+          return
+        }
+
+        // Ensure workspaceId is defined before calling fetchWorkspaceData
+        if (workspaceId) {
+          await fetchWorkspaceData(workspaceId)
+        } else {
+          console.error("Workspace ID is undefined")
+          // Handle undefined workspaceId (e.g., show an error or redirect)
+        }
+      } catch (err) {
+        console.error("Error fetching session:", err)
+        // فرم login نمایش داده شود
       }
     })()
   }, [])
 
   useEffect(() => {
-    ;(async () => await fetchWorkspaceData(workspaceId))()
+    ;(async () => {
+      if (workspaceId) {
+        await fetchWorkspaceData(workspaceId)
+      } else {
+        console.error("Workspace ID is undefined")
+        // Handle the case where workspaceId is undefined
+      }
+    })()
 
     setUserInput("")
     setChatMessages([])
@@ -91,6 +134,17 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const fetchWorkspaceData = async (workspaceId: string) => {
     setLoading(true)
 
+    // اگر جزو route های رزرو شده بود، DB نزن
+    if (RESERVED_ROUTES.includes(workspaceId)) {
+      setSelectedWorkspace(null) // یا یه مقدار پیش‌فرض
+      setAssistants([]) // خالی کن یا دیتا پیش‌فرض بده
+      setAssistantImages([]) // همینطور
+
+      setLoading(false)
+      return
+    }
+
+    // در غیر این صورت (UUID معتبر) برو دیتابیس
     const workspace = await getWorkspaceById(workspaceId)
     setSelectedWorkspace(workspace)
 
@@ -162,7 +216,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         "gpt-4-1106-preview") as LLMID,
       prompt:
         workspace?.default_prompt ||
-        "You are a friendly, helpful AI assistant.",
+        "You are a friendly, helpful AI assistant. your name is Rhyno",
       temperature: workspace?.default_temperature || 0.5,
       contextLength: workspace?.default_context_length || 4096,
       includeProfileContext: workspace?.include_profile_context || true,

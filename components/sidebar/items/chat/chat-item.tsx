@@ -32,6 +32,10 @@ export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
   const itemRef = useRef<HTMLDivElement>(null)
 
   const handleClick = () => {
+    console.log("✅ مرحله ۱: روی چت کلیک شد. ID:", chat.id)
+    console.log(
+      `[ChatItem] روی چت کلیک شد. در حال تلاش برای ناوبری به چت با ID: ${chat.id}`
+    )
     if (!selectedWorkspace) return
     return router.push(`/${selectedWorkspace.id}/chat/${chat.id}`)
   }

@@ -291,24 +291,26 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
     }
   }
 
-  if (!profile) return null
+  if (!profile) {
+    return <div className="profile-loading-skeleton" />
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        {profile.image_url ? (
-          <Image
-            className="mt-2 size-[34px] cursor-pointer rounded hover:opacity-50"
-            src={profile.image_url + "?" + new Date().getTime()}
-            height={34}
-            width={34}
-            alt={"Image"}
-          />
-        ) : (
-          <Button size="icon" variant="ghost">
-            <IconUser size={SIDEBAR_ICON_SIZE} />
-          </Button>
-        )}
+        <div>
+          {profile.image_url ? (
+            <Image
+              src={profile.image_url + "?" + new Date().getTime()}
+              height={34}
+              width={34}
+              alt="Profile"
+              className="cursor-pointer rounded-full"
+            />
+          ) : (
+            <IconUser size={SIDEBAR_ICON_SIZE} className="cursor-pointer" />
+          )}
+        </div>
       </SheetTrigger>
 
       <SheetContent
@@ -336,7 +338,7 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
           <Tabs defaultValue="profile">
             <TabsList className="mt-4 grid w-full grid-cols-2">
               <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="keys">API Keys</TabsTrigger>
+              {/* <TabsTrigger value="keys">API Keys</TabsTrigger> */}
             </TabsList>
 
             <TabsContent className="mt-4 space-y-4" value="profile">
@@ -734,7 +736,7 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
             <WithTooltip
               display={
                 <div>
-                  Download Chatbot UI 1.0 data as JSON. Import coming soon!
+                  Download Rhyno Chat 1.0 data as JSON. Import coming soon!
                 </div>
               }
               trigger={

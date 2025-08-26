@@ -33,10 +33,10 @@ export async function POST(request: Request) {
     })
 
     // Convert the response into a friendly text-stream.
-    const stream = OpenAIStream(response)
+    // const stream = OpenAIStream(response)
 
-    // Respond with the stream
-    return new StreamingTextResponse(stream)
+    // // Respond with the stream
+    // return new StreamingTextResponse(stream)
   } catch (error: any) {
     let errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500

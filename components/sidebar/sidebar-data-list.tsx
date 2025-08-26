@@ -206,13 +206,17 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
     setIsDragOver(false)
   }
 
+  // در فایل: components/sidebar/sidebar-data-list.tsx
+
   useEffect(() => {
+    // ما دیگر اینجا لاگ نمی‌گذاریم چون مشکل را پیدا کردیم
     if (divRef.current) {
       setIsOverflowing(
         divRef.current.scrollHeight > divRef.current.clientHeight
       )
     }
-  }, [data])
+    // آرایه وابستگی به طول داده‌ها تغییر کرده است
+  }, [data.length]) // <--- تغییر اصلی اینجاست
 
   const dataWithFolders = data.filter(item => item.folder_id)
   const dataWithoutFolders = data.filter(item => item.folder_id === null)
@@ -226,7 +230,7 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
       >
         {data.length === 0 && (
           <div className="flex grow flex-col items-center justify-center">
-            <div className=" text-centertext-muted-foreground p-8 text-lg italic">
+            <div className="text-muted-foreground p-8 text-center text-lg italic">
               No {contentType}.
             </div>
           </div>
@@ -234,9 +238,7 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
 
         {(dataWithFolders.length > 0 || dataWithoutFolders.length > 0) && (
           <div
-            className={`h-full ${
-              isOverflowing ? "w-[calc(100%-8px)]" : "w-full"
-            } space-y-2 pt-2 ${isOverflowing ? "mr-2" : ""}`}
+            className={`h-full ${isOverflowing ? "w-[calc(100%-8px)]" : "w-full"} space-y-2 pt-2 ${isOverflowing ? "mr-2" : ""}`}
           >
             {folders.map(folder => (
               <Folder
@@ -315,17 +317,15 @@ export const SidebarDataList: FC<SidebarDataListProps> = ({
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
               >
-                {dataWithoutFolders.map(item => {
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={e => handleDragStart(e, item.id)}
-                    >
-                      {getDataListComponent(contentType, item)}
-                    </div>
-                  )
-                })}
+                {dataWithoutFolders.map(item => (
+                  <div
+                    key={item.id}
+                    draggable
+                    onDragStart={e => handleDragStart(e, item.id)}
+                  >
+                    {getDataListComponent(contentType, item)}
+                  </div>
+                ))}
               </div>
             )}
           </div>

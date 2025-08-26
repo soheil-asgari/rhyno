@@ -9,7 +9,7 @@ import {
   IconSend
 } from "@tabler/icons-react"
 import Image from "next/image"
-import { FC, useContext, useEffect, useRef, useState } from "react"
+import { FC, useContext, useEffect, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Input } from "../ui/input"
@@ -81,65 +81,63 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     }, 200) // FIX: hacky
   }, [selectedPreset, selectedAssistant])
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (!isTyping && event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      setIsPromptPickerOpen(false)
-      handleSendMessage(userInput, chatMessages, false)
-    }
-
-    // Consolidate conditions to avoid TypeScript error
-    if (
-      isPromptPickerOpen ||
-      isFilePickerOpen ||
-      isToolPickerOpen ||
-      isAssistantPickerOpen
-    ) {
-      if (
-        event.key === "Tab" ||
-        event.key === "ArrowUp" ||
-        event.key === "ArrowDown"
-      ) {
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!isTyping && event.key === "Enter" && !event.shiftKey) {
         event.preventDefault()
-        // Toggle focus based on picker type
-        if (isPromptPickerOpen) setFocusPrompt(!focusPrompt)
-        if (isFilePickerOpen) setFocusFile(!focusFile)
-        if (isToolPickerOpen) setFocusTool(!focusTool)
-        if (isAssistantPickerOpen) setFocusAssistant(!focusAssistant)
+        setIsPromptPickerOpen(false)
+        handleSendMessage(userInput, chatMessages, false)
+
+        return
       }
-    }
 
-    if (event.key === "ArrowUp" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToPreviousUserMessage()
-    }
+      const isPickerOpen =
+        isPromptPickerOpen ||
+        isFilePickerOpen ||
+        isToolPickerOpen ||
+        isAssistantPickerOpen
+      if (isPickerOpen) {
+        if (["Tab", "ArrowUp", "ArrowDown"].includes(event.key)) {
+          event.preventDefault()
+          if (isPromptPickerOpen) setFocusPrompt(prev => !prev)
+          if (isFilePickerOpen) setFocusFile(prev => !prev)
+          if (isToolPickerOpen) setFocusTool(prev => !prev)
+          if (isAssistantPickerOpen) setFocusAssistant(prev => !prev)
+          return
+        }
+      }
 
-    if (event.key === "ArrowDown" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToNextUserMessage()
-    }
-
-    //use shift+ctrl+up and shift+ctrl+down to navigate through chat history
-    if (event.key === "ArrowUp" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToPreviousUserMessage()
-    }
-
-    if (event.key === "ArrowDown" && event.shiftKey && event.ctrlKey) {
-      event.preventDefault()
-      setNewMessageContentToNextUserMessage()
-    }
-
-    if (
-      isAssistantPickerOpen &&
-      (event.key === "Tab" ||
-        event.key === "ArrowUp" ||
-        event.key === "ArrowDown")
-    ) {
-      event.preventDefault()
-      setFocusAssistant(!focusAssistant)
-    }
-  }
+      if (event.shiftKey && event.ctrlKey) {
+        if (event.key === "ArrowUp") {
+          event.preventDefault()
+          setNewMessageContentToPreviousUserMessage()
+          return
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault()
+          setNewMessageContentToNextUserMessage()
+          return
+        }
+      }
+    },
+    [
+      isTyping,
+      isPromptPickerOpen,
+      isFilePickerOpen,
+      isToolPickerOpen,
+      isAssistantPickerOpen,
+      userInput,
+      chatMessages,
+      setIsPromptPickerOpen,
+      setFocusPrompt,
+      setFocusFile,
+      setFocusTool,
+      setFocusAssistant,
+      setNewMessageContentToPreviousUserMessage,
+      setNewMessageContentToNextUserMessage,
+      handleSendMessage
+    ]
+  )
 
   const handlePaste = (event: React.ClipboardEvent) => {
     const imagesAllowed = LLM_LIST.find(
@@ -151,7 +149,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       if (item.type.indexOf("image") === 0) {
         if (!imagesAllowed) {
           toast.error(
-            `Images are not supported for this model. Use models like GPT-4 Vision instead.`
+            `Images are not supported for this model. Use models like Rhyno V5 instead.`
           )
           return
         }
@@ -238,7 +236,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent px-14 py-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent px-14 py-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           placeholder={t(
             // `Ask anything. Type "@" for assistants, "/" for prompts, "#" for files, and "!" for tools.`
             `Ask anything. Type @  /  #  !`
@@ -253,7 +251,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           onCompositionEnd={() => setIsTyping(false)}
         />
 
-        <div className="absolute bottom-[14px] right-3 cursor-pointer hover:opacity-50">
+        {/* دکمه ارسال یا توقف تولید */}
+        <div className="absolute bottom-2.5 right-3 cursor-pointer">
           {isGenerating ? (
             <IconPlayerStopFilled
               className="hover:bg-background animate-pulse rounded bg-transparent p-1"
@@ -268,10 +267,9 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
               )}
               onClick={() => {
                 if (!userInput) return
-
                 handleSendMessage(userInput, chatMessages, false)
               }}
-              size={30}
+              size={28}
             />
           )}
         </div>

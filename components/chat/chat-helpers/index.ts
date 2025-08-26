@@ -203,14 +203,17 @@ export const handleHostedChat = async (
 ) => {
   const provider =
     modelData.provider === "openai" && profile.use_azure_openai
-      ? "azure"
+      ? "openai" // یا مقدار دیگری که Azure نباشه
       : modelData.provider
 
   let draftMessages = await buildFinalMessages(payload, profile, chatImages)
 
-  let formattedMessages : any[] = []
+  let formattedMessages: any[] = []
   if (provider === "google") {
-    formattedMessages = await adaptMessagesForGoogleGemini(payload, draftMessages)
+    formattedMessages = await adaptMessagesForGoogleGemini(
+      payload,
+      draftMessages
+    )
   } else {
     formattedMessages = draftMessages
   }
