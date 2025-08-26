@@ -23,7 +23,8 @@
     "db-types": "supabase gen types typescript --local > supabase/types.ts",
     "db-pull": "supabase db remote commit",
     "db-push": "supabase db push",
-    "test": "jest"
+    "test": "jest",
+    "build:analyze": "cross-env ANALYZE=true next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.18.0",
@@ -64,6 +65,7 @@
     "@supabase/ssr": "^0.0.10",
     "@supabase/supabase-js": "^2.38.4",
     "@tabler/icons-react": "^2.40.0",
+    "@tanstack/react-virtual": "^3.13.12",
     "@vercel/analytics": "^1.1.1",
     "@vercel/edge-config": "^0.4.1",
     "@xenova/transformers": "^2.13.4",
@@ -113,6 +115,7 @@
     "@types/uuid": "^9.0.7",
     "autoprefixer": "^10.4.16",
     "clsx": "^2.0.0",
+    "cross-env": "^10.0.0",
     "eslint": "^8",
     "eslint-config-next": "^14.0.2",
     "eslint-config-prettier": "^9.1.0",

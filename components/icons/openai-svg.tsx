@@ -1,5 +1,5 @@
 import { FC } from "react"
-
+import Image from "next/image"
 interface OpenAIImageProps {
   height?: number
   width?: number
@@ -14,10 +14,11 @@ export const OpenAIImage: FC<OpenAIImageProps> = ({
   imageUrl = "/rhyno1.png"
 }) => {
   return (
-    <img
+    <Image
       className={className}
       src={imageUrl}
       alt="OpenAI Image"
+      priority
       width={width}
       height={height}
     />

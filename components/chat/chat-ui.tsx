@@ -1,3 +1,5 @@
+"use aclient"
+
 import Loading from "@/app/[locale]/loading"
 import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
@@ -9,40 +11,31 @@ import { getMessagesByChatId } from "@/db/messages"
 import { getMessageImageFromStorage } from "@/db/storage/message-images"
 import { convertBlobToBase64 } from "@/lib/blob-to-b64"
 import useHotkey from "@/lib/hooks/use-hotkey"
-import { LLMID, MessageImage } from "@/types"
+import { LLMID, MessageImage, ChatMessage } from "@/types" // ✨ ChatMessage اضافه شد
+import { Tables } from "@/supabase/types"
 import { useParams } from "next/navigation"
 import { FC, useContext, useEffect, useState } from "react"
-import { ChatHelp } from "./chat-help"
+import dynamic from "next/dynamic"
+
 import { useScroll } from "./chat-hooks/use-scroll"
 import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
-import { ChatSecondaryButtons } from "./chat-secondary-buttons"
-import { Tables } from "@/supabase/types"
+
+const ChatHelp = dynamic(() => import("./chat-help").then(mod => mod.ChatHelp))
+const ChatSecondaryButtons = dynamic(() =>
+  import("./chat-secondary-buttons").then(mod => mod.ChatSecondaryButtons)
+)
 
 interface ChatUIProps {}
 
 export const ChatUI: FC<ChatUIProps> = ({}) => {
-  useHotkey("o", () => handleNewChat())
-
   const params = useParams()
+  const context = useContext(ChatbotUIContext)
 
-  const {
-    setChatMessages,
-    selectedChat,
-    setSelectedChat,
-    setChatSettings,
-    setChatImages,
-    assistants,
-    setSelectedAssistant,
-    setChatFileItems,
-    setChatFiles,
-    setShowFilesDisplay,
-    setUseRetrieval,
-    setSelectedTools
-  } = useContext(ChatbotUIContext)
-
+  // ✨ FIX 1: Move useChatHandler hook to the top
   const { handleNewChat, handleFocusChatInput } = useChatHandler()
+  useHotkey("o", () => handleNewChat())
 
   const {
     messagesStartRef,
@@ -58,98 +51,81 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
   const [loading, setLoading] = useState(true)
 
-  // حالت دکمه وب‌سرچ
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-  const [statusMessage, setStatusMessage] = useState("")
-
-  const toggleWebSearch = () => {
-    setWebSearchEnabled(prev => {
-      const newState = !prev
-      setStatusMessage(newState ? "جستجو فعال شد" : "جستجو غیرفعال شد")
-      setTimeout(() => setStatusMessage(""), 2000)
-
-      // به روز رسانی تنظیمات چت با وضعیت جدید وب‌سرچ
-      setChatSettings(prev => ({
-        ...prev,
-        enableWebSearch: newState // ارسال وضعیت جدید وب‌سرچ
-      }))
-
-      return newState
-    })
-  }
-
   useEffect(() => {
-    const fetchData = async () => {
-      await fetchMessages()
-      await fetchChat()
-
-      scrollToBottom()
-      setIsAtBottom(true)
-    }
-
     if (params.chatid) {
-      fetchData().then(() => {
+      setLoading(true)
+      fetchAllChatData(params.chatid as string).then(() => {
         handleFocusChatInput()
         setLoading(false)
+        scrollToBottom()
+        setIsAtBottom(true)
       })
     } else {
       setLoading(false)
     }
-  }, [])
+  }, [params.chatid])
 
-  const fetchMessages = async () => {
-    const fetchedMessages = await getMessagesByChatId(params.chatid as string)
+  const fetchAllChatData = async (chatId: string) => {
+    const [chat, messages, chatFilesResponse] = await Promise.all([
+      getChatById(chatId),
+      getMessagesByChatId(chatId),
+      getChatFilesByChatId(chatId)
+    ])
 
-    const imagePromises: Promise<MessageImage>[] = fetchedMessages.flatMap(
-      (message: Tables<"messages">) =>
-        message.image_paths
-          ? message.image_paths.map(async (imagePath: string) => {
-              const url = await getMessageImageFromStorage(imagePath)
+    if (!chat) return
 
-              if (url) {
-                const response = await fetch(url)
-                const blob = await response.blob()
-                const base64 = await convertBlobToBase64(blob)
+    await processMessagesAndFiles(messages, chatFilesResponse.files)
+    await processChatDetails(chat)
+  }
 
-                return {
-                  messageId: message.id,
-                  path: imagePath,
-                  base64,
-                  url,
-                  file: null
-                }
-              }
+  const processMessagesAndFiles = async (
+    messages: Tables<"messages">[],
+    chatFiles: Tables<"files">[]
+  ) => {
+    if (messages.length === 0) {
+      context.setChatMessages([])
+      return
+    }
 
-              return {
-                messageId: message.id,
-                path: imagePath,
-                base64: "",
-                url,
-                file: null
-              }
-            })
-          : []
+    const imagePromises = messages.flatMap(msg =>
+      (msg.image_paths || []).map(async path => {
+        const url = await getMessageImageFromStorage(path)
+        if (!url)
+          return { messageId: msg.id, path, base64: "", url, file: null }
+        const response = await fetch(url)
+        const blob = await response.blob()
+        const base64 = await convertBlobToBase64(blob)
+        return { messageId: msg.id, path, base64, url, file: null }
+      })
     )
 
-    const images: MessageImage[] = await Promise.all(imagePromises.flat())
-    setChatImages(images) // ذخیره تصاویر
-
-    const messageFileItemPromises = fetchedMessages.map(
-      async (message: Tables<"messages">) =>
-        await getMessageFileItemsByMessageId(message.id)
+    // ✨ FIX 2: Correctly map file items to messages using their index
+    const fileItemPromises = messages.map(msg =>
+      getMessageFileItemsByMessageId(msg.id)
     )
 
-    const messageFileItems = await Promise.all(messageFileItemPromises)
+    const [messageFileItemsResults, images] = await Promise.all([
+      Promise.all(fileItemPromises),
+      Promise.all(imagePromises)
+    ])
 
-    const uniqueFileItems = messageFileItems.flatMap(
-      (item: { file_items: Tables<"file_items">[] }) => item.file_items
+    const allFileItems = messageFileItemsResults.flatMap(
+      result => result.file_items
     )
-    setChatFileItems(uniqueFileItems)
+    context.setChatFileItems(allFileItems)
 
-    const chatFiles = await getChatFilesByChatId(params.chatid as string)
+    const newChatMessages: ChatMessage[] = messages.map((message, index) => {
+      const fileItemsForThisMessage = messageFileItemsResults[index].file_items
+      return {
+        message,
+        fileItems: fileItemsForThisMessage.map(fi => fi.id)
+      }
+    })
 
-    setChatFiles(
-      chatFiles.files.map((file: Tables<"files">) => ({
+    context.setChatMessages(newChatMessages)
+    context.setChatImages(images)
+    context.setChatFiles(
+      chatFiles.map(file => ({
         id: file.id,
         name: file.name,
         type: file.type,
@@ -157,56 +133,34 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
       }))
     )
 
-    setUseRetrieval(true)
-    setShowFilesDisplay(true)
-
-    const fetchedChatMessages = fetchedMessages.map(
-      (message: Tables<"messages">) => {
-        const relatedFileItems = messageFileItems
-          .flatMap(
-            (mfi: { file_items: Tables<"file_items">[] }) => mfi.file_items
-          )
-          .filter(fi => fi.id === message.id) // اینجا اگر واقعا باید match بشه
-
-        return {
-          message,
-          fileItems: relatedFileItems.map(fileItem => fileItem.id)
-        }
-      }
-    )
-
-    setChatMessages(fetchedChatMessages)
+    if (chatFiles.length > 0) {
+      context.setUseRetrieval(true)
+      context.setShowFilesDisplay(true)
+    }
   }
 
-  const fetchChat = async () => {
-    const chat = await getChatById(params.chatid as string)
-    if (!chat) return
+  const processChatDetails = async (chat: Tables<"chats">) => {
+    context.setSelectedChat(chat)
 
     if (chat.assistant_id) {
-      const assistant = assistants.find(
-        assistant => assistant.id === chat.assistant_id
-      )
-
+      const assistant = context.assistants.find(a => a.id === chat.assistant_id)
       if (assistant) {
-        setSelectedAssistant(assistant)
-
-        const assistantTools = (
-          await getAssistantToolsByAssistantId(assistant.id)
-        ).tools
-        setSelectedTools(assistantTools)
+        context.setSelectedAssistant(assistant)
+        const assistantTools = await getAssistantToolsByAssistantId(
+          assistant.id
+        )
+        context.setSelectedTools(assistantTools.tools)
       }
     }
 
-    setSelectedChat(chat)
-    setChatSettings({
+    context.setChatSettings({
       model: chat.model as LLMID,
       prompt: chat.prompt,
       temperature: chat.temperature,
       contextLength: chat.context_length,
       includeProfileContext: chat.include_profile_context,
       includeWorkspaceInstructions: chat.include_workspace_instructions,
-      embeddingsProvider: chat.embeddings_provider as "openai" | "local",
-      enableWebSearch: webSearchEnabled // اینجا می‌فرستیم
+      embeddingsProvider: chat.embeddings_provider as "openai" | "local"
     })
   }
 
@@ -232,24 +186,16 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
       <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full items-center justify-center border-b-2 font-bold">
         <div className="max-w-[200px] truncate sm:max-w-[400px] md:max-w-[500px] lg:max-w-[600px] xl:max-w-[700px]">
-          {selectedChat?.name || "Chat"}
+          {context.selectedChat?.name || "Chat"}
         </div>
       </div>
-
-      {statusMessage && (
-        <div className="absolute right-4 top-14 rounded bg-black px-3 py-1 text-xs text-white shadow-lg">
-          {statusMessage}
-        </div>
-      )}
 
       <div
         className="flex size-full flex-col overflow-auto border-b"
         onScroll={handleScroll}
       >
         <div ref={messagesStartRef} />
-
         <ChatMessages />
-
         <div ref={messagesEndRef} />
       </div>
 

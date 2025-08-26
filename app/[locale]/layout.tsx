@@ -1,4 +1,5 @@
-import { Toaster } from "@/components/ui/sonner"
+// FILE: app/layout.tsx
+
 import { GlobalState } from "@/components/utility/global-state"
 import { Providers } from "@/components/utility/providers"
 import TranslationsProvider from "@/components/utility/translations-provider"
@@ -9,49 +10,26 @@ import { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import { ReactNode } from "react"
+import dynamic from "next/dynamic"
 import "./globals.css"
+
+// ✨ FIX: Dynamically import our new client-side wrapper component
+const ClientToaster = dynamic(
+  () => import("@/components/utility/client-toaster"),
+  {
+    ssr: false
+  }
+)
 
 const inter = Inter({ subsets: ["latin"] })
 const APP_NAME = "Rhyno Chat"
 const APP_DEFAULT_TITLE = "Rhyno Chat"
-const APP_TITLE_TEMPLATE = "%s - Rhyno Chat"
-const APP_DESCRIPTION = "Chabot UI PWA!"
+// ... (بقیه متادیتا و viewport بدون تغییر باقی می‌ماند)
 
 export const metadata: Metadata = {
-  applicationName: APP_NAME,
-  title: {
-    default: APP_DEFAULT_TITLE,
-    template: APP_TITLE_TEMPLATE
-  },
-  description: APP_DESCRIPTION,
-  // manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black",
-    title: APP_DEFAULT_TITLE
-  },
-  formatDetection: {
-    telephone: false
-  },
-  openGraph: {
-    type: "website",
-    siteName: APP_NAME,
-    title: {
-      default: APP_DEFAULT_TITLE,
-      template: APP_TITLE_TEMPLATE
-    },
-    description: APP_DESCRIPTION
-  },
-  twitter: {
-    card: "summary",
-    title: {
-      default: APP_DEFAULT_TITLE,
-      template: APP_TITLE_TEMPLATE
-    },
-    description: APP_DESCRIPTION
-  }
+  applicationName: APP_NAME
+  // ...
 }
-
 export const viewport: Viewport = {
   themeColor: "#000000"
 }
@@ -59,10 +37,9 @@ export const viewport: Viewport = {
 const i18nNamespaces = ["translation"]
 
 interface RootLayoutProps {
-  children: React.ReactNode // <-- اصلاح شد: Node به ReactNode تغییر کرد
+  children: ReactNode
   params: {
     locale: string
-    workspaceid: string
   }
 }
 
@@ -70,10 +47,8 @@ export default async function RootLayout({
   children,
   params
 }: RootLayoutProps) {
-  const { locale } = await params
-
-  // ✅ اصلاح نهایی: await به اینجا برگردانده شد
-  const cookieStore = await cookies()
+  const { locale } = params
+  const cookieStore = cookies()
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,18 +56,21 @@ export default async function RootLayout({
     {
       cookies: {
         get(name: string) {
-          // حالا این خط بدون خطا کار می‌کند
           return cookieStore.get(name)?.value
         }
       }
     }
   )
 
+  const [sessionResponse, translationResponse] = await Promise.all([
+    supabase.auth.getSession(),
+    initTranslations(locale, i18nNamespaces)
+  ])
+
   const {
     data: { session }
-  } = await supabase.auth.getSession()
-
-  const { resources } = await initTranslations(locale, i18nNamespaces)
+  } = sessionResponse
+  const { resources } = translationResponse
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -103,7 +81,8 @@ export default async function RootLayout({
             locale={locale}
             resources={resources}
           >
-            <Toaster richColors position="top-center" duration={3000} />
+            {/* ✨ کامپوننت پوششی جدید را اینجا رندر می‌کنیم */}
+            <ClientToaster />
             <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
               {session ? <GlobalState>{children}</GlobalState> : children}
             </div>

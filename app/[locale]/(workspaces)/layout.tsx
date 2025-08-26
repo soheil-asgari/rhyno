@@ -1,6 +1,5 @@
 "use client"
 
-import { Dashboard } from "@/components/ui/dashboard"
 import { ChatbotUIContext } from "@/context/context"
 import { getAssistantWorkspacesByWorkspaceId } from "@/db/assistants"
 import { getChatsByWorkspaceId } from "@/db/chats"
@@ -19,39 +18,46 @@ import { LLMID } from "@/types"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ReactNode, useContext, useEffect, useState } from "react"
 import Loading from "../loading"
+import dynamic from "next/dynamic"
+
+const Dashboard = dynamic(
+  () => import("@/components/ui/dashboard").then(mod => mod.Dashboard),
+  {
+    ssr: false, // چون Dashboard به احتمال زیاد به context و state وابسته است
+    loading: () => <Loading /> // در حین لود شدن داشبورد، کامپوننت لودینگ را نشان بده
+  }
+)
+// این کامپوننت نیازی به dynamic import ندارد مگر اینکه دلیل خاصی داشته باشید
+// import dynamic from "next/dynamic"
 
 interface WorkspaceLayoutProps {
   children: ReactNode
 }
 
+const RESERVED_ROUTES = ["chat", "settings", "profile"]
+
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const router = useRouter()
-
   const params = useParams()
   const searchParams = useSearchParams()
-  let workspaceId: string | undefined
 
-  if (Array.isArray(params.workspaceid)) {
-    workspaceId = params.workspaceid[0]
-  } else {
-    workspaceId = params.workspaceid
-  }
+  // استخراج و اعتبارسنجی workspaceId ساده‌تر شده است
+  const workspaceId = Array.isArray(params.workspaceid)
+    ? params.workspaceid[0]
+    : params.workspaceid
 
-  // اگر undefined بود خطا بده
   if (!workspaceId) {
+    // در Next.js 13+ بهتر است از notFound() استفاده کنید یا یک Error Boundary داشته باشید
     throw new Error("Workspace ID is missing")
   }
 
-  // لیست route های رزرو شده
-  const RESERVED_ROUTES = ["chat", "settings", "profile"]
-
-  if (!RESERVED_ROUTES.includes(workspaceId)) {
-    const uuidRegex =
-      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
-
-    if (!uuidRegex.test(workspaceId)) {
-      throw new Error(`Invalid workspace ID: ${workspaceId}`)
-    }
+  if (
+    !RESERVED_ROUTES.includes(workspaceId) &&
+    !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+      workspaceId
+    )
+  ) {
+    throw new Error(`Invalid workspace ID: ${workspaceId}`)
   }
 
   const {
@@ -66,7 +72,6 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setPrompts,
     setTools,
     setModels,
-    selectedWorkspace,
     setSelectedWorkspace,
     setSelectedChat,
     setChatMessages,
@@ -81,152 +86,153 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   } = useContext(ChatbotUIContext)
 
   const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const {
-          data: { session }
-        } = await supabase.auth.getSession()
-
-        if (!session) {
-          // فقط فرم login نمایش داده شود، redirect نزن
-          return
-        }
-
-        // Ensure workspaceId is defined before calling fetchWorkspaceData
-        if (workspaceId) {
-          await fetchWorkspaceData(workspaceId)
-        } else {
-          console.error("Workspace ID is undefined")
-          // Handle undefined workspaceId (e.g., show an error or redirect)
-        }
-      } catch (err) {
-        console.error("Error fetching session:", err)
-        // فرم login نمایش داده شود
-      }
-    })()
-  }, [])
 
   useEffect(() => {
-    ;(async () => {
-      if (workspaceId) {
-        await fetchWorkspaceData(workspaceId)
-      } else {
-        console.error("Workspace ID is undefined")
-        // Handle the case where workspaceId is undefined
-      }
-    })()
-
+    // ریست کردن state چت هنگام تغییر workspaceId
     setUserInput("")
     setChatMessages([])
     setSelectedChat(null)
-
     setIsGenerating(false)
     setFirstTokenReceived(false)
-
     setChatFiles([])
     setChatImages([])
     setNewMessageFiles([])
     setNewMessageImages([])
     setShowFilesDisplay(false)
-  }, [workspaceId])
+
+    // بررسی session و بارگذاری داده‌ها
+    const checkSessionAndFetchData = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        // اگر session وجود نداشت، کاربر لاگین نکرده و نیازی به ادامه نیست
+        setLoading(false) // لودینگ را متوقف کن
+        return
+      }
+
+      if (workspaceId) {
+        await fetchWorkspaceData(workspaceId)
+      }
+    }
+
+    checkSessionAndFetchData()
+  }, [workspaceId]) // این useEffect فقط به workspaceId وابسته است
 
   const fetchWorkspaceData = async (workspaceId: string) => {
     setLoading(true)
 
-    // اگر جزو route های رزرو شده بود، DB نزن
     if (RESERVED_ROUTES.includes(workspaceId)) {
-      setSelectedWorkspace(null) // یا یه مقدار پیش‌فرض
-      setAssistants([]) // خالی کن یا دیتا پیش‌فرض بده
-      setAssistantImages([]) // همینطور
-
+      setSelectedWorkspace(null)
+      setAssistants([])
+      setAssistantImages([])
+      // بقیه state ها را هم خالی کن
+      setChats([])
+      setCollections([])
+      setFolders([])
+      // ...
       setLoading(false)
       return
     }
 
-    // در غیر این صورت (UUID معتبر) برو دیتابیس
-    const workspace = await getWorkspaceById(workspaceId)
-    setSelectedWorkspace(workspace)
+    try {
+      // ✅ اجرای همزمان تمام درخواست‌های اصلی با Promise.all
+      const [
+        workspace,
+        assistantData,
+        chats,
+        collectionData,
+        folders,
+        fileData,
+        presetData,
+        promptData,
+        toolData,
+        modelData
+      ] = await Promise.all([
+        getWorkspaceById(workspaceId),
+        getAssistantWorkspacesByWorkspaceId(workspaceId),
+        getChatsByWorkspaceId(workspaceId),
+        getCollectionWorkspacesByWorkspaceId(workspaceId),
+        getFoldersByWorkspaceId(workspaceId),
+        getFileWorkspacesByWorkspaceId(workspaceId),
+        getPresetWorkspacesByWorkspaceId(workspaceId),
+        getPromptWorkspacesByWorkspaceId(workspaceId),
+        getToolWorkspacesByWorkspaceId(workspaceId),
+        getModelWorkspacesByWorkspaceId(workspaceId)
+      ])
 
-    const assistantData = await getAssistantWorkspacesByWorkspaceId(workspaceId)
-    setAssistants(assistantData.assistants)
+      // تنظیم state ها بعد از دریافت تمام داده‌ها
+      setSelectedWorkspace(workspace)
+      setAssistants(assistantData.assistants)
+      setChats(chats)
+      setCollections(collectionData.collections)
+      setFolders(folders)
+      setFiles(fileData.files)
+      setPresets(presetData.presets)
+      setPrompts(promptData.prompts)
+      setTools(toolData.tools)
+      setModels(modelData.models)
 
-    for (const assistant of assistantData.assistants) {
-      let url = ""
-
-      if (assistant.image_path) {
-        url = (await getAssistantImageFromStorage(assistant.image_path)) || ""
-      }
-
-      if (url) {
-        const response = await fetch(url)
-        const blob = await response.blob()
-        const base64 = await convertBlobToBase64(blob)
-
-        setAssistantImages(prev => [
-          ...prev,
-          {
+      // ✅ بهینه‌سازی پردازش تصاویر
+      if (assistantData.assistants.length > 0) {
+        const imagePromises = assistantData.assistants.map(async assistant => {
+          if (!assistant.image_path) {
+            return {
+              assistantId: assistant.id,
+              path: "",
+              base64: "",
+              url: ""
+            }
+          }
+          const url =
+            (await getAssistantImageFromStorage(assistant.image_path)) || ""
+          if (!url) {
+            return {
+              assistantId: assistant.id,
+              path: assistant.image_path,
+              base64: "",
+              url: ""
+            }
+          }
+          const response = await fetch(url)
+          const blob = await response.blob()
+          const base64 = await convertBlobToBase64(blob)
+          return {
             assistantId: assistant.id,
             path: assistant.image_path,
             base64,
             url
           }
-        ])
+        })
+        const assistantImages = await Promise.all(imagePromises)
+        setAssistantImages(assistantImages)
       } else {
-        setAssistantImages(prev => [
-          ...prev,
-          {
-            assistantId: assistant.id,
-            path: assistant.image_path,
-            base64: "",
-            url
-          }
-        ])
+        setAssistantImages([])
       }
+
+      // تنظیمات چت
+      setChatSettings({
+        model: (searchParams.get("model") ||
+          workspace?.default_model ||
+          "gpt-4-1106-preview") as LLMID,
+        prompt:
+          workspace?.default_prompt ||
+          "You are a friendly, helpful AI assistant. your name is Rhyno",
+        temperature: workspace?.default_temperature || 0.5,
+        contextLength: workspace?.default_context_length || 4096,
+        includeProfileContext: workspace?.include_profile_context || true,
+        includeWorkspaceInstructions:
+          workspace?.include_workspace_instructions || true,
+        embeddingsProvider:
+          (workspace?.embeddings_provider as "openai" | "local") || "openai"
+      })
+    } catch (error) {
+      console.error("Failed to fetch workspace data:", error)
+      // در اینجا می‌توانید یک state برای خطا تعریف کرده و به کاربر نمایش دهید
+    } finally {
+      setLoading(false)
     }
-
-    const chats = await getChatsByWorkspaceId(workspaceId)
-    setChats(chats)
-
-    const collectionData =
-      await getCollectionWorkspacesByWorkspaceId(workspaceId)
-    setCollections(collectionData.collections)
-
-    const folders = await getFoldersByWorkspaceId(workspaceId)
-    setFolders(folders)
-
-    const fileData = await getFileWorkspacesByWorkspaceId(workspaceId)
-    setFiles(fileData.files)
-
-    const presetData = await getPresetWorkspacesByWorkspaceId(workspaceId)
-    setPresets(presetData.presets)
-
-    const promptData = await getPromptWorkspacesByWorkspaceId(workspaceId)
-    setPrompts(promptData.prompts)
-
-    const toolData = await getToolWorkspacesByWorkspaceId(workspaceId)
-    setTools(toolData.tools)
-
-    const modelData = await getModelWorkspacesByWorkspaceId(workspaceId)
-    setModels(modelData.models)
-
-    setChatSettings({
-      model: (searchParams.get("model") ||
-        workspace?.default_model ||
-        "gpt-4-1106-preview") as LLMID,
-      prompt:
-        workspace?.default_prompt ||
-        "You are a friendly, helpful AI assistant. your name is Rhyno",
-      temperature: workspace?.default_temperature || 0.5,
-      contextLength: workspace?.default_context_length || 4096,
-      includeProfileContext: workspace?.include_profile_context || true,
-      includeWorkspaceInstructions:
-        workspace?.include_workspace_instructions || true,
-      embeddingsProvider:
-        (workspace?.embeddings_provider as "openai" | "local") || "openai"
-    })
-
-    setLoading(false)
   }
 
   if (loading) {

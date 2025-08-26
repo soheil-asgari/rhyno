@@ -15,6 +15,17 @@ import { UpdateChat } from "./update-chat"
 interface ChatItemProps {
   chat: Tables<"chats">
 }
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "gpt-3.5-turbo": "Rhyno v1",
+  "gpt-4": "Rhyno v2",
+  "gpt-4-turbo-preview": "Rhyno v3",
+  "gpt-5": "Rhyno v5",
+  "gpt-5-mini": "Rhyno v5 mini",
+  "gpt-4o": "Rhyno v4.1",
+  "gpt-4o-mini": "Rhyno v4 mini", // <--- می‌توانید این را تغییر دهید
+  "dall-e-3": "Rhyno Image"
+  // ... هر مدل دیگری که می‌خواهید نامش را تغییر دهید
+}
 
 export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
   const {
@@ -56,7 +67,8 @@ export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
   const assistantImage = assistantImages.find(
     image => image.assistantId === chat.assistant_id
   )?.base64
-
+  const modelDisplayName =
+    MODEL_DISPLAY_NAMES[MODEL_DATA?.modelId] || MODEL_DATA?.modelName
   return (
     <div
       ref={itemRef}
@@ -87,7 +99,7 @@ export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
       ) : (
         <WithTooltip
           delayDuration={200}
-          display={<div>{MODEL_DATA?.modelName}</div>}
+          display={<div>{modelDisplayName}</div>}
           trigger={
             <ModelIcon provider={MODEL_DATA?.provider} height={30} width={30} />
           }

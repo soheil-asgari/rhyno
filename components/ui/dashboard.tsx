@@ -1,26 +1,42 @@
 "use client"
 
-import { Sidebar } from "@/components/sidebar/sidebar"
-import { SidebarSwitcher } from "@/components/sidebar/sidebar-switcher"
+import { FC, useState, useEffect } from "react"
+import dynamic from "next/dynamic" // ✨ dynamic را import کنید
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { IconChevronCompactRight } from "@tabler/icons-react"
+
 import { Button } from "@/components/ui/button"
 import { Tabs } from "@/components/ui/tabs"
+import { SidebarSwitcher } from "@/components/sidebar/sidebar-switcher"
+import { useSelectFileHandler } from "../chat/chat-hooks/use-select-file-handler"
+
 import useHotkey from "@/lib/hooks/use-hotkey"
 import { cn } from "@/lib/utils"
 import { ContentType } from "@/types"
-import { IconChevronCompactRight } from "@tabler/icons-react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { FC, useState } from "react"
-import { useSelectFileHandler } from "../chat/chat-hooks/use-select-file-handler"
-import { CommandK } from "../utility/command-k"
+import { Skeleton } from "@/components/ui/skeleton" // ✨ برای نمایش حالت لودینگ
 
 export const SIDEBAR_WIDTH = 350
+
+// ✨ ۱. کامپوننت‌های سنگین را به صورت دینامیک وارد کنید
+const Sidebar = dynamic(
+  () => import("@/components/sidebar/sidebar").then(mod => mod.Sidebar),
+  {
+    // در حین لود شدن سایدبار، یک اسکلت ساده نمایش می‌دهیم
+    loading: () => <SidebarSkeleton />
+  }
+)
+
+const CommandK = dynamic(
+  () => import("../utility/command-k").then(mod => mod.CommandK),
+  { ssr: false } // کامپوننت CommandK نیازی به رندر سمت سرور ندارد
+)
 
 interface DashboardProps {
   children: React.ReactNode
 }
 
 export const Dashboard: FC<DashboardProps> = ({ children }) => {
-  useHotkey("s", () => setShowSidebar(prevState => !prevState))
+  useHotkey("s", () => handleToggleSidebar())
 
   const pathname = usePathname()
   const router = useRouter()
@@ -32,39 +48,46 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   const [contentType, setContentType] = useState<ContentType>(
     tabValue as ContentType
   )
-  const [showSidebar, setShowSidebar] = useState(
-    localStorage.getItem("showSidebar") === "true"
-  )
+  const [showSidebar, setShowSidebar] = useState(true) // ✨ مقدار اولیه ثابت
+  const [isInitialized, setIsInitialized] = useState(false) // ✨ برای جلوگیری از FOUC
   const [isDragging, setIsDragging] = useState(false)
 
-  const onFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
+  // ✨ ۲. مشکل localStorage را حل کنید
+  // برای جلوگیری از خطای Hydration، مقدار localStorage را فقط در سمت کلاینت می‌خوانیم
+  useEffect(() => {
+    const storedShowSidebar = localStorage.getItem("showSidebar")
+    setShowSidebar(storedShowSidebar === "true")
+    setIsInitialized(true)
+  }, [])
 
-    const files = event.dataTransfer.files
-    const file = files[0]
-
-    handleSelectDeviceFile(file)
-
-    setIsDragging(false)
+  const handleToggleSidebar = () => {
+    const newState = !showSidebar
+    setShowSidebar(newState)
+    localStorage.setItem("showSidebar", String(newState))
   }
 
+  // توابع مربوط به Drag & Drop بدون تغییر
+  const onFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const files = event.dataTransfer.files
+    handleSelectDeviceFile(files[0])
+    setIsDragging(false)
+  }
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragging(true)
   }
-
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragging(false)
   }
-
   const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
   }
 
-  const handleToggleSidebar = () => {
-    setShowSidebar(prevState => !prevState)
-    localStorage.setItem("showSidebar", String(!showSidebar))
+  // ✨ از isInitialized استفاده می‌کنیم تا از پرش UI جلوگیری شود
+  if (!isInitialized) {
+    return null // یا یک کامپوننت Loading تمام صفحه
   }
 
   return (
@@ -76,7 +99,6 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
           "duration-200 dark:border-none " + (showSidebar ? "border-r-2" : "")
         )}
         style={{
-          // Sidebar
           minWidth: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
           maxWidth: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
           width: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px"
@@ -92,7 +114,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
             }}
           >
             <SidebarSwitcher onContentTypeChange={setContentType} />
-
+            {/* ✨ حالا کامپوننت Sidebar دینامیک رندر می‌شود */}
             <Sidebar contentType={contentType} showSidebar={showSidebar} />
           </Tabs>
         )}
@@ -118,7 +140,6 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
             "absolute left-[4px] top-[50%] z-10 size-[32px] cursor-pointer"
           )}
           style={{
-            // marginLeft: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
             transform: showSidebar ? "rotate(180deg)" : "rotate(0deg)"
           }}
           variant="ghost"
@@ -127,6 +148,20 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
         >
           <IconChevronCompactRight size={24} />
         </Button>
+      </div>
+    </div>
+  )
+}
+
+// یک کامپوننت ساده برای نمایش حالت لودینگ سایدبار
+const SidebarSkeleton = () => {
+  return (
+    <div className="flex h-full flex-col p-4">
+      <Skeleton className="h-[36px] w-[120px]" />
+      <div className="mt-4 space-y-2">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
       </div>
     </div>
   )

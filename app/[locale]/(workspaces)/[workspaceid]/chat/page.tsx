@@ -1,16 +1,31 @@
 "use client"
 
-import { ChatHelp } from "@/components/chat/chat-help"
 import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
-import { ChatInput } from "@/components/chat/chat-input"
-import { ChatSettings } from "@/components/chat/chat-settings"
-import { ChatUI } from "@/components/chat/chat-ui"
-import { QuickSettings } from "@/components/chat/quick-settings"
-import { Brand } from "@/components/ui/brand"
 import { ChatbotUIContext } from "@/context/context"
 import useHotkey from "@/lib/hooks/use-hotkey"
 import { useTheme } from "next-themes"
 import { useContext } from "react"
+import dynamic from "next/dynamic" // ✨ ۱. dynamic را import کنید
+
+// ✨ ۲. تمام کامپوننت‌های سنگین را به صورت دینامیک وارد کنید
+const ChatHelp = dynamic(() =>
+  import("@/components/chat/chat-help").then(mod => mod.ChatHelp)
+)
+const ChatInput = dynamic(() =>
+  import("@/components/chat/chat-input").then(mod => mod.ChatInput)
+)
+const ChatSettings = dynamic(() =>
+  import("@/components/chat/chat-settings").then(mod => mod.ChatSettings)
+)
+const ChatUI = dynamic(() =>
+  import("@/components/chat/chat-ui").then(mod => mod.ChatUI)
+)
+const QuickSettings = dynamic(() =>
+  import("@/components/chat/quick-settings").then(mod => mod.QuickSettings)
+)
+const Brand = dynamic(() =>
+  import("@/components/ui/brand").then(mod => mod.Brand)
+)
 
 export default function ChatPage() {
   useHotkey("o", () => handleNewChat())
@@ -19,9 +34,7 @@ export default function ChatPage() {
   })
 
   const { chatMessages } = useContext(ChatbotUIContext)
-
   const { handleNewChat, handleFocusChatInput } = useChatHandler()
-
   const { theme } = useTheme()
 
   return (
