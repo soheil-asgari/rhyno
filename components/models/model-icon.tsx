@@ -29,12 +29,13 @@ export const ModelIcon: FC<ModelIconProps> = ({
     case "openai":
       return (
         <OpenAIImage
-          className="icon-class"
+          className="icon-class rounded-image"
           width={40}
           height={40}
           imageUrl="/rhyno1.png" // آدرس تصویر خود را اینجا وارد کنید
         />
       )
+
     case "mistral":
       return (
         <Image

@@ -34,7 +34,8 @@
 @media (max-width: 768px) {
   body {
     font-size: 14px;  /* تنظیم سایز فونت برای موبایل */
-    padding: 15px;
+    padding: 0 15px;  /* حذف padding اضافی در موبایل */
+    line-height: 1.5;  /* افزایش فاصله بین خطوط برای خوانایی بیشتر */
   }
 
   .container {
@@ -60,6 +61,11 @@
     min-height: 44px;
     padding: 10px;
     font-size: 16px;
+  }
+
+  /* افزایش فاصله خطوط */
+  p {
+    line-height: 1.6;  /* بهبود خوانایی متن در موبایل */
   }
 }
 
@@ -113,6 +119,45 @@
   .font-vazir {
     font-family: "Vazirmatn", sans-serif;
   }
+
+
+  /* در فایل CSS خود */
+.rounded-image {
+  border-radius: 50%;
+}
+/* فایل CSS */
+.message-line-height {
+  line-height: 1.2; /* یا مقدار دلخواه دیگر */
+}
+/* فایل globals.css یا فایل استایل اصلی شما */
+
+/* این کد را در فایل CSS اصلی خود جایگزین کد قبلی کنید */
+
+/* ۱. استایل کلی لیست (تگ ol) */
+/* کد نهایی و کامل: لطفاً همه کدهای قبلی برای ol و li را حذف و این را جایگزین کنید */
+
+/* ۱. آماده‌سازی لیست */
+.markdown-content-rtl ol {
+  list-style: none; /* حذف شماره پیش‌فرض */
+  counter-reset: final-counter; /* تعریف شمارنده */
+  padding-right: 0;
+}
+
+/* ۲. تراز کردن آیتم با Flexbox (مهم‌ترین بخش) */
+.markdown-content-rtl ol li {
+  display: flex; /* تبدیل آیتم به فلکس‌باکس */
+  align-items: baseline; /* تراز کردن همه چیز بر اساس خط مبنای متن */
+  counter-increment: final-counter; /* افزایش شمارنده */
+  margin-bottom: 0.75rem;
+}
+
+/* ۳. ساخت و استایل‌دهی شماره */
+.markdown-content-rtl ol li::before {
+  content: counter(final-counter) ".";
+  font-weight: bold;
+  min-width: 1.5rem; /* ایجاد یک حداقل عرض ثابت برای هم‌ترازی بهتر */
+  margin-left: 0.75rem; /* ایجاد فاصله بین شماره و متن */
+}
 }
 
 @layer base {
