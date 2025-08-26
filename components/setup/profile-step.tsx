@@ -12,12 +12,12 @@ import {
   IconCircleXFilled,
   IconLoader2
 } from "@tabler/icons-react"
-import { FC, useCallback, useState, useEffect } from "react"
+import { FC, useCallback, useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { LimitDisplay } from "../ui/limit-display"
 
 interface ProfileStepProps {
-  email: string // ✨ ۱. ایمیل به props اضافه شد
+  email: string
   username: string
   usernameAvailable: boolean
   displayName: string
@@ -27,7 +27,7 @@ interface ProfileStepProps {
 }
 
 export const ProfileStep: FC<ProfileStepProps> = ({
-  email, // ✨ ۲. ایمیل از props گرفته شد
+  email,
   username,
   usernameAvailable,
   displayName,
@@ -36,56 +36,76 @@ export const ProfileStep: FC<ProfileStepProps> = ({
   onDisplayNameChange
 }) => {
   const [loading, setLoading] = useState(false)
+  const hasGeneratedUsername = useRef(false)
 
   useEffect(() => {
-    if (username || !email) return
+    // این افکت فقط زمانی اجرا می‌شود که ایمیل وجود داشته باشد و هنوز نام کاربری ساخته نشده باشد
+    if (!email || hasGeneratedUsername.current) {
+      return
+    }
 
     const generateAndSetUsername = async () => {
+      hasGeneratedUsername.current = true
       setLoading(true)
 
-      // ✨ ۳. از prop ایمیل برای ساخت نام کاربری استفاده می‌کنیم
-      const emailPrefix = email
-        .split("@")[0]
-        .replace(/[^a-zA-Z0-9_]/g, "_")
-        .slice(0, PROFILE_USERNAME_MAX - 4)
+      // ✨ از try...catch...finally برای مدیریت بهتر خطاها استفاده می‌کنیم
+      try {
+        const emailPrefix = email
+          .split("@")[0]
+          .replace(/[^a-zA-Z0-9_]/g, "_")
+          .slice(0, PROFILE_USERNAME_MAX - 4)
 
-      let finalUsername = emailPrefix
-      let isAvailable = false
-      let attempts = 0
+        let finalUsername = emailPrefix
+        let isAvailable = false
+        let attempts = 0
 
-      while (!isAvailable && attempts < 10) {
-        const response = await fetch(`/api/username/available`, {
-          method: "POST",
-          body: JSON.stringify({ username: finalUsername })
-        })
-        const data = await response.json()
-        isAvailable = data.isAvailable
+        while (!isAvailable && attempts < 10) {
+          const response = await fetch(`/api/username/available`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: finalUsername })
+          })
 
-        if (isAvailable) break
+          if (!response.ok) {
+            throw new Error("Network response was not ok.")
+          }
 
-        const randomNumber = Math.floor(100 + Math.random() * 900)
-        finalUsername = `${emailPrefix}_${randomNumber}`
-        attempts++
+          const data = await response.json()
+          isAvailable = data.isAvailable
+
+          if (isAvailable) break
+
+          const randomNumber = Math.floor(100 + Math.random() * 900)
+          finalUsername = `${emailPrefix}_${randomNumber}`
+          attempts++
+        }
+
+        onUsernameChange(finalUsername)
+        onUsernameAvailableChange(isAvailable)
+      } catch (error) {
+        console.error("Failed to generate username:", error)
+        // در صورت خطا، حداقل نام کاربری اولیه را به کاربر نمایش می‌دهیم
+        const fallbackUsername = email
+          .split("@")[0]
+          .replace(/[^a-zA-Z0-9_]/g, "_")
+        onUsernameChange(fallbackUsername)
+        onUsernameAvailableChange(false) // کاربر باید آن را ویرایش کند
+        toast.error("Could not check username availability.")
+      } finally {
+        setLoading(false)
       }
-
-      onUsernameChange(finalUsername)
-      onUsernameAvailableChange(isAvailable)
-      setLoading(false)
     }
 
     generateAndSetUsername()
-  }, [email, username, onUsernameChange, onUsernameAvailableChange])
+  }, [email, onUsernameChange, onUsernameAvailableChange])
 
-  // ... (بقیه کد بدون تغییر باقی می‌ماند)
   const debounce = (func: (...args: any[]) => void, wait: number) => {
     let timeout: NodeJS.Timeout | null
-
     return (...args: any[]) => {
       const later = () => {
         if (timeout) clearTimeout(timeout)
         func(...args)
       }
-
       if (timeout) clearTimeout(timeout)
       timeout = setTimeout(later, wait)
     }
@@ -94,7 +114,6 @@ export const ProfileStep: FC<ProfileStepProps> = ({
   const checkUsernameAvailability = useCallback(
     debounce(async (username: string) => {
       if (!username) return
-
       if (
         username.length < PROFILE_USERNAME_MIN ||
         username.length > PROFILE_USERNAME_MAX
@@ -102,14 +121,12 @@ export const ProfileStep: FC<ProfileStepProps> = ({
         onUsernameAvailableChange(false)
         return
       }
-
       const usernameRegex = /^[a-zA-Z0-9_]+$/
       if (!usernameRegex.test(username)) {
         onUsernameAvailableChange(false)
         toast.error("Username must be letters, numbers, or underscores only.")
         return
       }
-
       setLoading(true)
       const response = await fetch(`/api/username/available`, {
         method: "POST",
