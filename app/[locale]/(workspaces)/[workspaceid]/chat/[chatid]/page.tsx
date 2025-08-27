@@ -3,5 +3,5 @@
 import { ChatUI } from "@/components/chat/chat-ui"
 
 export default function ChatIDPage() {
-  return <ChatUI />
+  return <ChatUI isRealtimeMode={false} />
 }
