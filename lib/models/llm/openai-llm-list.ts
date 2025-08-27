@@ -139,6 +139,37 @@ const GPT4oMini: LLM = {
     outputCost: 0.6 // هزینه خروجی
   }
 }
+
+const GPT4oRealtime: LLM = {
+  modelId: "gpt-4o-realtime-preview-2025-06-03",
+  modelName: "GPT-4o Realtime",
+  provider: "openai",
+  hostedId: "gpt-4o-realtime-preview-2025-06-03",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: false, // ورودی این مدل صدا و متن هست، نه تصویر
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens (approx, realtime session)",
+    inputCost: 0, // قیمت دقیق هنوز مشخص نیست
+    outputCost: 0
+  }
+}
+
+const GPT4oMiniRealtime: LLM = {
+  modelId: "gpt-4o-mini-realtime-preview-2024-12-17",
+  modelName: "GPT-4o Mini Realtime",
+  provider: "openai",
+  hostedId: "gpt-4o-mini-realtime-preview-2024-12-17",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: false,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens (approx, realtime session)",
+    inputCost: 0,
+    outputCost: 0
+  }
+}
+
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT4o,
   GPT4Turbo,
@@ -148,5 +179,7 @@ export const OPENAI_LLM_LIST: LLM[] = [
   GPT5,
   GPT5Mini,
   GPT4oMini,
-  DALL_E_3
+  DALL_E_3,
+  GPT4oRealtime, // 👈 اضافه شد
+  GPT4oMiniRealtime
 ]

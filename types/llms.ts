@@ -20,6 +20,8 @@ export type OpenAILLMID =
   | "gpt-4o"
   | "gpt-4o-mini"
   | "dall-e-3"
+  | "gpt-4o-realtime-preview-2025-06-03"
+  | "gpt-4o-mini-realtime-preview-2024-12-17"
 
 // Google Models
 export type GoogleLLMID =

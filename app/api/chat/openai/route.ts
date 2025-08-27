@@ -7,6 +7,8 @@ import type {
   ChatCompletionCreateParamsStreaming
 } from "openai/resources/chat/completions"
 import { NextResponse } from "next/server"
+import { MODEL_PROMPTS } from "@/lib/build-prompt"
+
 export const runtime: ServerRuntime = "edge"
 
 type ExtendedChatSettings = ChatSettings & {
@@ -21,9 +23,19 @@ const MODELS_NEED_MAX_COMPLETION = new Set([
   "gpt-5",
   "gpt-5-mini"
 ])
-const MODELS_WITH_OPENAI_WEB_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
+const MODELS_WITH_OPENAI_WEB_SEARCH = new Set([
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5",
+  "gpt-5-mini"
+])
 const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
-const MODELS_WITH_AUTO_SEARCH = new Set(["gpt-4o", "gpt-4o-mini"])
+const MODELS_WITH_AUTO_SEARCH = new Set([
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5",
+  "gpt-5-mini"
+])
 
 function pickMaxTokens(cs: ExtendedChatSettings): number {
   return Math.min(cs.maxTokens ?? cs.max_tokens ?? 10000, 12000)
@@ -46,9 +58,65 @@ export async function POST(request: Request) {
     // هدایت درخواست‌های DALL-E 3 به /api/dalle
     if (selectedModel === "dall-e-3") {
       return NextResponse.json(
-        { message: "DALL-E 3 requests should be sent to /api/dalle/routs.ts" },
+        { message: "DALL-E 3 requests should be sent to /api/dalle/route.ts" },
         { status: 400 }
       )
+    }
+
+    // ✅ منطق برای مدل‌های Realtime با مدیریت خطای اصولی
+    if (selectedModel.includes("realtime")) {
+      console.log(`Creating realtime session for model: ${selectedModel}`)
+
+      // مستقیم از MODEL_PROMPTS بخون
+      const systemPrompt =
+        MODEL_PROMPTS[selectedModel] ?? "You are Rhyno realtime assistant."
+
+      const response = await fetch(
+        "https://api.openai.com/v1/realtime/sessions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${profile.openai_api_key}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            voice: "alloy",
+            instructions:
+              "You are Rhyno realtime assistant. Use the web_search function when needed.",
+            tools: [
+              {
+                type: "function",
+                name: "web_search",
+                description: "Search the web for up-to-date information",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: {
+                      type: "string",
+                      description: "The search query to look up online"
+                    }
+                  },
+                  required: ["query"]
+                }
+              }
+            ]
+          })
+        }
+      )
+
+      // ✨ اصلاح کلیدی: اگر OpenAI خطا برگرداند، آن را مدیریت کن
+      if (!response.ok) {
+        const errorBody = await response.json()
+        console.error("Error creating OpenAI realtime session:", errorBody)
+        // پرتاب خطا باعث می‌شود که به بلاک catch اصلی برویم و پاسخ خطای استاندارد ارسال شود
+        throw new Error(
+          errorBody.error?.message || "Failed to create realtime session"
+        )
+      }
+
+      const session = await response.json()
+      return NextResponse.json(session)
     }
 
     // منطق برای مدل‌های غیر DALL-E 3
@@ -76,38 +144,44 @@ export async function POST(request: Request) {
       !!enableSearch && MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel)
 
     if (useOpenAIWebSearch) {
+      // اگر مدل gpt-5 یا gpt-5-mini باشه → استریم نکن
+      if (["gpt-5", "gpt-5-mini"].includes(selectedModel)) {
+        const response = await openai.responses.create({
+          model: selectedModel,
+          input: messages.map((m: any) =>
+            m.role === "user"
+              ? {
+                  role: "user",
+                  content: [{ type: "input_text", text: m.content }]
+                }
+              : m
+          ),
+          tools: [{ type: "web_search" as any }],
+          temperature: temp,
+          max_output_tokens: maxTokens
+        })
+
+        return new Response(response.output_text ?? "", {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        })
+      }
+
+      // برای مدل‌های دیگه (مثلاً gpt-4o) همچنان استریم کن
       const encoder = new TextEncoder()
       const stream = new ReadableStream({
         async start(controller) {
           try {
             const transformedInput = (messages ?? []).map((m: any) => {
               if (m.role === "user") {
-                if (Array.isArray(m.content)) {
-                  const newContent = m.content.map((part: any) => {
-                    if (part.type === "text") {
-                      return { ...part, type: "input_text" }
-                    }
-                    if (part.type === "image_url") {
-                      return {
-                        type: "input_image",
-                        image_url: part.image_url.url
-                      }
-                    }
-                    return part
-                  })
-                  return { ...m, content: newContent }
-                }
                 return {
                   ...m,
                   content: [{ type: "input_text", text: m.content }]
                 }
               }
-              if (m.role === "assistant") {
-                if (typeof m.content === "string") {
-                  return {
-                    ...m,
-                    content: [{ type: "output_text", text: m.content }]
-                  }
+              if (m.role === "assistant" && typeof m.content === "string") {
+                return {
+                  ...m,
+                  content: [{ type: "output_text", text: m.content }]
                 }
               }
               return m
@@ -116,7 +190,7 @@ export async function POST(request: Request) {
             const oaiStream = await openai.responses.stream({
               model: selectedModel,
               input: transformedInput,
-              tools: [{ type: "web_search_preview" }],
+              tools: [{ type: "web_search" as any }], // 👈 تغییر به web_search
               temperature: temp,
               max_output_tokens: maxTokens
             })

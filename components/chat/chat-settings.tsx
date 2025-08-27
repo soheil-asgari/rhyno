@@ -18,7 +18,9 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-5-mini": "Rhyno v5 mini",
   "gpt-4o": "Rhyno v4.1",
   "gpt-4o-mini": "Rhyno v4 mini",
-  "dall-e-3": "Rhyno Image"
+  "dall-e-3": "Rhyno Image",
+  "gpt-4o-realtime-preview-2025-06-03": "Rhyno l-1",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "Rhyno l-mini"
 }
 
 // پرامپت‌های پیش‌فرض
@@ -31,7 +33,9 @@ const MODEL_PROMPTS: Record<string, string> = {
   "gpt-4o-mini":
     "You are a mini version of AI assistant.yor name is Rhyno v4 mini",
   "gpt-5": "You are GPT-5 AI assistant.yor name is Rhyno v5",
-  "gpt-5-mini": "You are GPT-5 mini AI assistant.yor name is Rhyno v5 mini"
+  "gpt-5-mini": "You are GPT-5 mini AI assistant.yor name is Rhyno v5 mini",
+  "gpt-4o-realtime-preview-2025-06-03": "You are Rhyno stream ",
+  "gpt-4o-mini-realtime-preview-2025-06-03": "You are Rhyno stream mini."
   // "dall-e-3": "You are Rhyno Image, generate high quality creative images.yor name is Rhyno image"
 }
 
@@ -54,6 +58,18 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
     if (!chatSettings) return
 
     const selectedModel = chatSettings.model
+    console.log(
+      `Setting new prompt for model ${selectedModel}:`,
+      MODEL_PROMPTS[selectedModel]
+    )
+    if (selectedModel.includes("realtime")) {
+      console.log(`Realtime model selected ${selectedModel}, skipping prompt.`)
+      setChatSettings(prevSettings => ({
+        ...prevSettings,
+        prompt: "" // خالی بمونه → backend خودش instructions ست می‌کنه
+      }))
+      return
+    }
     console.log(
       `Setting new prompt for model ${selectedModel}:`,
       MODEL_PROMPTS[selectedModel]

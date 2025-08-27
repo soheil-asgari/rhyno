@@ -14,7 +14,9 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-5-mini": "Rhyno v5 mini",
   "gpt-4o": "Rhyno v4.1",
   "gpt-4o-mini": "Rhyno v4 mini",
-  "dall-e-3": "Rhyno Image"
+  "dall-e-3": "Rhyno Image",
+  "gpt-4o-realtime-preview-2025-06-03": "Rhyno l-1",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "Rhyno l-mini"
 }
 // شناسه‌ها
 const MODEL_IDS = Object.keys(MODEL_DISPLAY_NAMES)

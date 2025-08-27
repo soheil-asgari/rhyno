@@ -3,7 +3,7 @@ import { ChatPayload, MessageImage } from "@/types"
 import { encode } from "gpt-tokenizer"
 import { getBase64FromDataURL, getMediaTypeFromDataURL } from "@/lib/utils"
 
-const MODEL_PROMPTS: Record<string, string> = {
+export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-3.5-turbo": "You are Rhyno v1, optimized for speed and efficiency.",
   "gpt-4": "You are Rhyno v2, provide detailed and accurate answers.",
   "gpt-4-turbo-preview":
@@ -11,8 +11,9 @@ const MODEL_PROMPTS: Record<string, string> = {
   "gpt-5": "You are Rhyno v5, the most advanced model with deep reasoning.",
   "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
   "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
-  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions."
-  // DALL-E 3 از این پرامپت استفاده نمی‌کنه، پس حذفش کردیم
+  "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions.",
+  "gpt-4o-realtime-preview-2025-06-03": "Rhyno l-1",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "Rhyno l-mini"
 }
 
 const buildBasePrompt = (
@@ -73,6 +74,16 @@ export async function buildFinalMessages(
   const modelPrompt = MODEL_PROMPTS[chatSettings.model]
   if (!modelPrompt) {
     throw new Error(`No prompt found for model: ${chatSettings.model}`)
+  }
+
+  // 🎤 استثنا برای مدل‌های Realtime → فقط پرامپت ساده برگردون
+  if (chatSettings.model.includes("realtime")) {
+    return [
+      {
+        role: "system",
+        content: modelPrompt
+      }
+    ]
   }
 
   const BUILT_PROMPT = buildBasePrompt(
