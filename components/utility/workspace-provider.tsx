@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabase/browser-client"
 import { LLMID } from "@/types"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ReactNode, useContext, useEffect, useState } from "react"
-import Loading from "@/app/[locale]/loading"
+import Loading from "@/app/loading"
 
 interface WorkspaceProviderProps {
   children: ReactNode

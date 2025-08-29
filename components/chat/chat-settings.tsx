@@ -100,7 +100,7 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
       "gpt-5-mini"
     ].includes(selectedModel)
       ? 1
-      : chatSettings.temperature ?? 0.7
+      : (chatSettings.temperature ?? 0.7)
 
     const newSettings = {
       ...chatSettings,

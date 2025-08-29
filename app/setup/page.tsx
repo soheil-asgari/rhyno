@@ -11,9 +11,9 @@ import { TablesUpdate } from "@/supabase/types"
 import { useRouter } from "next/navigation"
 import { useContext, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { FinishStep } from "../../../components/setup/finish-step"
-import { ProfileStep } from "../../../components/setup/profile-step"
-import { StepContainer } from "../../../components/setup/step-container"
+import { FinishStep } from "@/components/setup/finish-step"
+import { ProfileStep } from "@/components/setup/profile-step"
+import { StepContainer } from "@/components/setup/step-container"
 import { PROFILE_USERNAME_MAX } from "@/db/limits"
 
 // ---------- helpers (NEW) ----------

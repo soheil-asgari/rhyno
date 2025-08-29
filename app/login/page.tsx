@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server"
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Metadata } from "next"
-
 import { sendCustomOtpAction, verifyCustomOtpAction } from "./actions"
 import OtpStep from "./OtpStep"
 
@@ -14,71 +13,161 @@ export const metadata: Metadata = {
   title: "ورود | Rhyno Chat"
 }
 
+const errorMessages: { [key: string]: string } = {
+  invalid_credentials: "ایمیل یا رمز عبور نامعتبر است.",
+  user_not_found: "کاربر یافت نشد.",
+  invalid_code: "کد وارد شده نامعتبر یا اشتباه است.",
+  expired_code: "کد منقضی شده است. لطفاً دوباره درخواست دهید.",
+  send_otp_failed: "خطا در ارسال کد تایید. لطفاً لحظاتی دیگر تلاش کنید.",
+  auth_failed: "خطا در فرآیند احراز هویت.",
+  invalid_email: "فرمت ایمیل نامعتبر است.",
+  invalid_password: "رمز عبور باید حداقل 6 کاراکتر باشد."
+}
+
+// ... سایر importها
+// ... سایر importها
 export default async function LoginPage({
   searchParams
 }: {
   searchParams: {
     message?: string
+    error?: string
     method?: "email" | "phone"
     step?: "otp"
     phone?: string
   }
 }) {
   const cookieStore = cookies()
+  cookieStore.getAll().forEach(cookie => {
+    if (cookie.name.startsWith("sb-vkwgwiiesvyfcgaemeck-auth-token")) {
+      cookieStore.delete(cookie.name)
+      console.log("Deleted cookie:", cookie.name)
+    }
+  })
   const supabase = createClient(cookieStore)
   const {
     data: { session }
   } = await supabase.auth.getSession()
 
-  // 👇✅ اصلاح اول: این بخش ساده‌سازی شده است.
-  // اگر کاربر از قبل لاگین کرده، او را به صفحه اصلی هدایت می‌کنیم.
-  // middleware بقیه کارها را انجام خواهد داد.
+  console.log("searchParams:", JSON.stringify(searchParams))
+
   if (session) {
+    console.log("Session exists, redirecting to /")
     return redirect("/")
   }
 
-  // --------------------------------------------------------------------------
-  // 🔹 تعریف Server Actions
-  // --------------------------------------------------------------------------
+  let method: string | undefined
+  let error: string | undefined
+  try {
+    method = searchParams.method
+      ? decodeURIComponent(searchParams.method)
+      : undefined
+    error = searchParams.error
+      ? decodeURIComponent(searchParams.error)
+      : undefined
+    console.log("Decoded method:", method, "Decoded error:", error)
+  } catch (e) {
+    console.error("Error decoding searchParams:", e)
+    return redirect(`/login?error=${encodeURIComponent("invalid_params")}`)
+  }
+
+  const displayMessage = error
+    ? errorMessages[error] || "یک خطای ناشناخته رخ داد."
+    : searchParams.message
+
+  // app/login/page.tsx
   const signIn = async (formData: FormData) => {
     "use server"
     const email = formData.get("email") as string
     const password = formData.get("password") as string
+    console.log("Form data:", { email, password })
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      console.log("Invalid email format:", email)
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("invalid_email")}`
+      )
+    }
+    if (password.length < 6) {
+      console.log("Invalid password length:", password.length)
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("invalid_password")}`
+      )
+    }
+
     const cookieStore = cookies()
+    console.log("Cookies before auth:", cookieStore.getAll())
+
     const supabase = createClient(cookieStore)
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password
     })
-
-    if (error)
+    if (authError) {
+      console.log("Supabase auth error:", authError.message)
       return redirect(
-        `/login?method=email&message=${encodeURIComponent("ایمیل یا رمز عبور نامعتبر است.")}`
+        `/login?method=email&error=${encodeURIComponent("invalid_credentials")}`
       )
+    }
+
+    console.log("Cookies after auth:", cookieStore.getAll())
 
     const {
-      data: { user }
+      data: { user },
+      error: userError
     } = await supabase.auth.getUser()
-    if (!user)
-      return redirect(
-        `/login?method=email&message=${encodeURIComponent("کاربر یافت نشد.")}`
+    if (userError || !user) {
+      console.log(
+        "User error:",
+        userError?.message || "User not found for email:",
+        email
       )
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("user_not_found")}`
+      )
+    }
 
-    // 👇✅ اصلاح دوم: چک کردن شماره تلفن بلافاصله بعد از ورود موفق
-    // این منطق اصلی است که شما می‌خواستید.
+    console.log("User data:", {
+      id: user.id,
+      email: user.email,
+      phone: user.phone
+    })
+
     if (!user.phone) {
+      console.log("User phone not set:", user.id)
       return redirect("/verify-phone")
     }
 
-    // اگر کاربر شماره تلفن داشت، به صورت عادی به داشبورد هدایت می‌شود
-    const { data: homeWorkspace } = await supabase
+    const { data: homeWorkspace, error: workspaceError } = await supabase
       .from("workspaces")
-      .select("id")
+      .select("id, name")
       .eq("user_id", user.id)
       .eq("is_home", true)
       .single()
-    if (!homeWorkspace) return redirect("/setup")
-    return redirect(`/${homeWorkspace.id}/chat`)
+    if (workspaceError || !homeWorkspace) {
+      console.log(
+        "Workspace error:",
+        workspaceError?.message || "No home workspace found for user:",
+        user.id
+      )
+      return redirect("/setup")
+    }
+
+    console.log("Home workspace:", {
+      id: homeWorkspace.id,
+      name: homeWorkspace.name
+    })
+
+    if (!homeWorkspace.id.match(/^[0-9a-fA-F-]{36}$/)) {
+      console.error("Invalid workspace id:", homeWorkspace.id)
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("invalid_workspace_id")}`
+      )
+    }
+
+    const redirectUrl = `/${homeWorkspace.id}/chat`
+    console.log("Redirecting to:", redirectUrl)
+    return redirect(redirectUrl)
   }
 
   const signInWithGoogle = async () => {
@@ -90,14 +179,18 @@ export default async function LoginPage({
       provider: "google",
       options: { redirectTo: `${origin}/auth/callback` }
     })
-    if (error)
+    if (error) {
+      console.log("Google auth error:", error.message)
       return redirect(`/login?message=${encodeURIComponent(error.message)}`)
-    if (data.url) return redirect(data.url)
+    }
+    if (data.url) {
+      console.log("Redirecting to Google auth URL:", data.url)
+      return redirect(data.url)
+    }
   }
 
-  // بخش رندر کردن UI بدون تغییر است
   const renderContent = () => {
-    if (!searchParams.method) {
+    if (!method) {
       return (
         <>
           <h1 className="font-vazir text-center text-2xl font-bold text-white">
@@ -178,7 +271,7 @@ export default async function LoginPage({
         </>
       )
     }
-    if (searchParams.method === "email") {
+    if (method === "email") {
       return (
         <>
           <Label className="font-vazir text-md text-right" htmlFor="email">
@@ -215,9 +308,12 @@ export default async function LoginPage({
         </>
       )
     }
-    if (searchParams.method === "phone") {
+    if (method === "phone") {
       return searchParams.step === "otp" ? (
-        <OtpStep phone={searchParams.phone || ""} />
+        <OtpStep
+          phone={searchParams.phone || ""}
+          formAction={verifyCustomOtpAction}
+        />
       ) : (
         <>
           <input type="hidden" name="referer" value="/login" />
@@ -240,7 +336,12 @@ export default async function LoginPage({
         </>
       )
     }
+    return null
   }
+
+  const messageClasses = error
+    ? "bg-red-900/50 text-white"
+    : "bg-foreground/10 text-foreground"
 
   return (
     <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
@@ -249,7 +350,7 @@ export default async function LoginPage({
           <Brand />
         </div>
         {renderContent()}
-        {searchParams.method && (
+        {method && (
           <a
             href="/login"
             className="font-vazir text-muted-foreground mt-4 text-center text-sm font-bold hover:underline"
@@ -257,9 +358,11 @@ export default async function LoginPage({
             &larr; بازگشت به روش‌های ورود
           </a>
         )}
-        {searchParams?.message && (
-          <p className="bfont-vazir g-foreground/10 text-foreground mt-4 rounded-md p-4 text-center text-sm">
-            {searchParams.message}
+        {displayMessage && (
+          <p
+            className={`font-vazir mt-4 rounded-md p-4 text-center text-sm ${messageClasses}`}
+          >
+            {displayMessage}
           </p>
         )}
       </form>

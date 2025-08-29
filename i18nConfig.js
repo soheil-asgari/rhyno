@@ -1,25 +1,8 @@
 const i18nConfig = {
-  defaultLocale: "en",
-  locales: [
-    "ar",
-    "bn",
-    "de",
-    "en",
-    "es",
-    "fr",
-    "he",
-    "id",
-    "it",
-    "ja",
-    "ko",
-    "pt",
-    "ru",
-    "si",
-    "sv",
-    "te",
-    "vi",
-    "zh"
-  ]
-}
+  locales: ['fa', 'en'],
+  defaultLocale: 'fa',
+  // این گزینه باعث می‌شود برای زبان پیش‌فرض (فارسی)، پیشوند /fa در URL نمایش داده نشود
+  prefixDefault: false
+};
 
-module.exports = i18nConfig
+export default i18nConfig;

@@ -7,8 +7,8 @@ import { SubmitButton } from "@/components/ui/submit-button"
 import {
   sendCustomOtpAction,
   verifyAndUpdatePhoneAction
-} from "@/app/[locale]/login/actions"
-import OtpStep from "@/app/[locale]/login/OtpStep"
+} from "@/app/login/actions"
+import OtpStep from "@/app/login/OtpStep"
 
 export default function VerifyPhonePage() {
   const searchParams = useSearchParams()
