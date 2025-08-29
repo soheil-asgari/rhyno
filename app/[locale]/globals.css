@@ -148,7 +148,7 @@
   display: flex; /* تبدیل آیتم به فلکس‌باکس */
   align-items: baseline; /* تراز کردن همه چیز بر اساس خط مبنای متن */
   counter-increment: final-counter; /* افزایش شمارنده */
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.20rem;
 }
 
 /* ۳. ساخت و استایل‌دهی شماره */
