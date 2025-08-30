@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { Metadata } from "next"
 import { sendCustomOtpAction, verifyCustomOtpAction } from "./actions"
 import OtpStep from "./OtpStep"
-import { clearAuthCookies } from "./actions"
+import { clearAuthCookies, getSession } from "./actions"
 import Head from "next/head"
 
 export const metadata: Metadata = {
@@ -26,8 +26,6 @@ const errorMessages: { [key: string]: string } = {
   invalid_password: "رمز عبور باید حداقل 6 کاراکتر باشد."
 }
 
-// ... سایر importها
-// ... سایر importها
 export default async function LoginPage({
   searchParams
 }: {
@@ -42,10 +40,7 @@ export default async function LoginPage({
   await clearAuthCookies()
 
   const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-  const {
-    data: { session }
-  } = await supabase.auth.getSession()
+  const session = await getSession()
 
   console.log("searchParams:", JSON.stringify(searchParams))
 

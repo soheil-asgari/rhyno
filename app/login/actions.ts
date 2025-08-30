@@ -6,6 +6,14 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
 import { createClient } from "@/lib/supabase/server"
 
+export async function getSession() {
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+  return session
+}
 // تابع کمکی برای تبدیل شماره به فرمت استاندارد E.164
 const toE164 = (phone: string) => {
   if (phone.startsWith("0")) {
