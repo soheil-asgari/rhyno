@@ -180,7 +180,6 @@ export async function verifyCustomOtpAction(formData: FormData) {
 
   try {
     // ۱. چک کردن OTP در جدول otp_codes
-    console.log(`[OTP] Fetching OTP for phone: ${phoneE164}`)
     const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -192,9 +191,7 @@ export async function verifyCustomOtpAction(formData: FormData) {
     if (otpError) {
       console.error("[OTP] Fetch error:", {
         phone: phoneE164,
-        error: otpError.message,
-        code: otpError.code,
-        details: otpError.details
+        error: otpError.message
       })
       return redirect(
         `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=otp_fetch_failed`
@@ -219,7 +216,6 @@ export async function verifyCustomOtpAction(formData: FormData) {
     }
 
     // ۲. اعتبارسنجی OTP
-    console.log(`[OTP] Verifying OTP for phone: ${phoneE164}`)
     const isValid = await bcrypt.compare(otp, latestOtp.hashed_otp)
     if (!isValid) {
       console.error("[OTP] Invalid OTP provided:", { phone: phoneE164 })
@@ -229,30 +225,12 @@ export async function verifyCustomOtpAction(formData: FormData) {
     }
 
     // ۳. حذف کد OTP مصرف‌شده
-    console.log(`[OTP] Deleting OTP for phone: ${phoneE164}`)
-    const { error: deleteError } = await supabase
-      .from("otp_codes")
-      .delete()
-      .eq("id", latestOtp.id)
-    if (deleteError) {
-      console.error("[OTP] Failed to delete OTP:", {
-        phone: phoneE164,
-        error: deleteError.message,
-        code: deleteError.code
-      })
-      throw new Error(`Failed to delete OTP: ${deleteError.message}`)
-    }
+    await supabase.from("otp_codes").delete().eq("id", latestOtp.id)
 
-    // ۴. پیدا کردن کاربر در auth.users
-    console.log(`[USER] Fetching users for phone: ${phoneE164}`)
+    // ۴. پیدا کردن کاربر در auth.users (روش اصلی شما که درست است)
     const { data: users, error: listError } =
       await supabaseAdmin.auth.admin.listUsers()
     if (listError) {
-      console.error("[USER] List users error:", {
-        phone: phoneE164,
-        error: listError.message,
-        code: listError.code
-      })
       throw new Error(`Failed to list users: ${listError.message}`)
     }
 
@@ -260,77 +238,45 @@ export async function verifyCustomOtpAction(formData: FormData) {
     const user = users.users.find(
       u => u.phone === phoneE164 || u.phone === normalizedPhone
     )
+
     if (!user) {
-      console.log(
-        `[USER] No user found for phone: ${phoneE164} or ${normalizedPhone}`
-      )
       return redirect(
-        `/signup?phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(
-          "اکانت پیدا نشد. ثبت‌نام کنید."
-        )}`
+        `/signup?phone=${encodeURIComponent(phone)}&message=${encodeURIComponent("اکانت پیدا نشد. ثبت‌نام کنید.")}`
       )
     }
 
     // ۵. بررسی وجود ایمیل کاربر
     if (!user.email) {
-      console.error("[USER] User has no email:", {
-        userId: user.id,
-        phone: phoneE164
-      })
       throw new Error("User has no email address")
     }
 
     // ۶. ساخت لینک جادویی برای سشن
-    console.log(
-      `[SESSION] Generating magic link for user: ${user.id}, email: ${user.email}`
-    )
-    const { data: session, error: sessionError } =
+    const { data, error: sessionError } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
-        email: user.email
+        email: user.email,
+        options: {
+          // این آدرس را به صفحه‌ای که می‌خواهید کاربر بعد از لاگین برود تغییر دهید
+          redirectTo: "/chat"
+        }
       })
+
     if (sessionError) {
-      console.error("[SESSION] Generate magic link error:", {
-        userId: user.id,
-        phone: phoneE164,
-        error: sessionError.message,
-        code: sessionError.code
-      })
       throw new Error(`Failed to generate magic link: ${sessionError.message}`)
     }
 
-    // ۷. تنظیم کوکی سشن
-    console.log(`[SESSION] Setting auth cookie for user: ${user.id}`)
-    cookies().set(
-      "sb-vkwgwiiesvyfcgaemeck-auth-token",
-      session.properties?.action_link,
-      {
-        path: "/",
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax"
-      }
-    )
-
-    // ۸. ریدایرکت به صفحه چت
-    console.log(
-      `[REDIRECT] Authentication successful, redirecting to chat for user: ${user.id}`
-    )
-    return redirect(`/${user.id}/chat`)
+    // ۷. کاربر را به لینک جادویی هدایت کنید
+    return redirect(data.properties.action_link)
   } catch (error: unknown) {
-    // مدیریت خطای ریدایرکت
+    // ✅ بلوک catch که حذف شده بود
     if (error instanceof Error && error.message === "NEXT_REDIRECT") {
-      throw error // اجازه می‌دهیم ریدایرکت به درستی انجام شود
+      throw error
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
-
     console.error("[ERROR] Verify OTP Error:", {
       phone: phoneE164,
-      message: errorMessage,
-      stack: errorStack,
-      timestamp: new Date().toISOString()
+      message: errorMessage
     })
     return redirect(
       `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=verify_failed`
