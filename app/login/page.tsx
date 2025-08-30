@@ -163,7 +163,7 @@ export default async function LoginPage({
 
   const signInWithGoogle = async () => {
     "use server"
-    const origin = headers().get("origin")
+    const origin = headers().get("origin") || process.env.NEXT_PUBLIC_SITE_URL
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
     const { data, error } = await supabase.auth.signInWithOAuth({
