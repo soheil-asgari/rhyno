@@ -45,144 +45,296 @@ export async function clearAuthCookies() {
 }
 
 // 📌 ارسال OTP
+
 export async function sendCustomOtpAction(formData: FormData) {
   const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const phone = formData.get("phone") as string
-  const refererPath = formData.get("referer") as string
+  const refererPath = (formData.get("referer") as string) || "/login"
   const phoneE164 = toE164(phone)
+  const successMessage = "کد تایید با موفقیت ارسال شد."
 
   try {
+    // ۱. تولید کد OTP
+    console.log(`[OTP] Generating OTP for phone: ${phoneE164}`)
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
-    const message = `کد تایید شما در Rhyno Chat: ${otp}`
 
-    const response = await fetch(`${process.env.IPPANEL_BASE_URL}/api/send`, {
+    // ۲. ارسال OTP به سرویس sms.ir
+    console.log(`[SMS] Sending OTP to sms.ir for phone: ${phoneE164}`)
+    const response = await fetch("https://api.sms.ir/v1/send/verify", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: process.env.IPPANEL_API_KEY!
+        "x-api-key": process.env.SMSIR_API_KEY!
       },
       body: JSON.stringify({
-        sending_type: "webservice",
-        from_number: process.env.IPPANEL_SENDER_LINE,
-        message,
-        params: { recipients: [phoneE164] }
+        mobile: phoneE164,
+        templateId: Number(process.env.SMSIR_TEMPLATE_ID),
+        parameters: [{ name: "RHYONCHAT", value: otp }]
       })
     })
 
     const result = await response.json()
-    if (!result?.meta?.status) {
-      return redirect(
-        `${refererPath || "/login"}?method=phone&error=send_otp_failed`
-      )
-    }
-
-    const hashedOtp = await bcrypt.hash(otp, 10)
-
-    await supabase.from("otp_codes").delete().eq("phone", phoneE164)
-    await supabase.from("otp_codes").insert({
+    console.log(`[SMS] sms.ir response:`, {
       phone: phoneE164,
-      hashed_otp: hashedOtp,
-      expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString()
+      status: result.status,
+      message: result.message,
+      data: result.data
     })
 
-    const successMessage = "کد تایید با موفقیت ارسال شد."
-    if (refererPath === "/verify-phone") {
-      return redirect(
-        `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
-      )
+    if (!result || result.status !== 1) {
+      console.error("[SMS] sms.ir send error:", {
+        phone: phoneE164,
+        status: result.status,
+        message: result.message
+      })
+      return redirect(`${refererPath}?method=phone&error=sms_send_failed`)
     }
-    return redirect(
-      `/login?method=phone&step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
-    )
-  } catch (error) {
-    if (typeof error === "object" && error !== null && "digest" in error) {
-      if ((error as { digest: string }).digest?.startsWith("NEXT_REDIRECT"))
-        throw error
+
+    // ۳. هش کردن OTP
+    console.log(`[OTP] Hashing OTP for phone: ${phoneE164}`)
+    const hashedOtp = await bcrypt.hash(otp, 10)
+
+    // ۴. حذف OTPهای قبلی
+    console.log(`[DB] Deleting existing OTPs for phone: ${phoneE164}`)
+    const { error: deleteError } = await supabaseAdmin
+      .from("otp_codes")
+      .delete()
+      .eq("phone", phoneE164)
+    if (deleteError) {
+      console.error("[DB] Failed to delete existing OTPs:", {
+        phone: phoneE164,
+        error: deleteError.message,
+        code: deleteError.code
+      })
+      throw new Error(`Failed to delete existing OTPs: ${deleteError.message}`)
     }
-    console.error("Send OTP Error:", error)
-    return redirect(
-      `${refererPath || "/login"}?method=phone&error=send_otp_failed`
+
+    // ۵. درج OTP جدید
+    console.log(`[DB] Inserting OTP for phone: ${phoneE164}`)
+    const { error: insertError } = await supabaseAdmin
+      .from("otp_codes")
+      .insert({
+        phone: phoneE164,
+        hashed_otp: hashedOtp,
+        expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString()
+      })
+    if (insertError) {
+      console.error("[DB] Failed to insert OTP:", {
+        phone: phoneE164,
+        error: insertError.message,
+        code: insertError.code
+      })
+      throw new Error(`Failed to insert OTP: ${insertError.message}`)
+    }
+
+    // ۶. ریدایرکت به صفحه تأیید
+    console.log(
+      `[REDIRECT] OTP sent successfully, redirecting for phone: ${phoneE164}`
     )
+    const redirectUrl =
+      refererPath === "/verify-phone"
+        ? `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
+        : `/login?method=phone&step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
+
+    return redirect(redirectUrl)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+
+    console.error("[ERROR] Send OTP Error:", {
+      phone: phoneE164,
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString()
+    })
+
+    // بررسی خطای ریدایرکت
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      throw error
+    }
+
+    return redirect(`${refererPath}?method=phone&error=send_otp_failed`)
   }
 }
 
-// 📌 تایید OTP برای لاگین/ثبت‌نام
+const normalizePhone = (phone: string) => {
+  // شماره تلفن بدون "+" برای مقایسه
+  return phone.startsWith("+") ? phone.slice(1) : phone
+}
+
 export async function verifyCustomOtpAction(formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
   const phone = formData.get("phone") as string
   const otp = formData.get("otp") as string
   const phoneE164 = toE164(phone)
+  const refererPath = "/login"
+
+  const supabase = createClient(cookies())
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   try {
-    const { data: latestOtp } = await supabase
+    // ۱. چک کردن OTP در جدول otp_codes
+    console.log(`[OTP] Fetching OTP for phone: ${phoneE164}`)
+    const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
       .eq("phone", phoneE164)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single()
-    if (!latestOtp)
-      return redirect(
-        `/login?method=phone&step=otp&phone=${phone}&error=invalid_code`
-      )
-    if (new Date(latestOtp.expires_at) < new Date())
-      return redirect(
-        `/login?method=phone&step=otp&phone=${phone}&error=expired_code`
-      )
+      .maybeSingle()
 
-    const isValid = await bcrypt.compare(otp, latestOtp.hashed_otp)
-    if (!isValid)
-      return redirect(
-        `/login?method=phone&step=otp&phone=${phone}&error=invalid_code`
-      )
-
-    await supabase.from("otp_codes").delete().eq("id", latestOtp.id)
-
-    const dummyEmail = `${phoneE164}@example.com`
-    const secretPassword = `a_very_secret_key_for_${phoneE164}`
-    let authResponse = await supabase.auth.signInWithPassword({
-      email: dummyEmail,
-      password: secretPassword
-    })
-
-    if (authResponse.error) {
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
-      await supabaseAdmin.auth.admin.createUser({
-        email: dummyEmail,
-        password: secretPassword,
+    if (otpError) {
+      console.error("[OTP] Fetch error:", {
         phone: phoneE164,
-        email_confirm: true
+        error: otpError.message,
+        code: otpError.code,
+        details: otpError.details
       })
-      authResponse = await supabase.auth.signInWithPassword({
-        email: dummyEmail,
-        password: secretPassword
-      })
+      return redirect(
+        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=otp_fetch_failed`
+      )
     }
 
-    if (authResponse.error || !authResponse.data.user) {
-      throw authResponse.error || new Error("User auth failed after creation.")
+    if (!latestOtp) {
+      console.error("[OTP] No OTP found for phone:", { phone: phoneE164 })
+      return redirect(
+        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
+      )
     }
 
-    const { data: homeWorkspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("user_id", authResponse.data.user.id)
-      .eq("is_home", true)
-      .single()
-    if (!homeWorkspace) return redirect("/setup")
-    return redirect(`/${homeWorkspace.id}/chat`)
-  } catch (error) {
-    if (typeof error === "object" && error !== null && "digest" in error) {
-      if ((error as { digest: string }).digest?.startsWith("NEXT_REDIRECT"))
-        throw error
+    if (new Date(latestOtp.expires_at) < new Date()) {
+      console.error("[OTP] Expired:", {
+        phone: phoneE164,
+        expires_at: latestOtp.expires_at
+      })
+      return redirect(
+        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=expired_code`
+      )
     }
-    console.error("Verify OTP Error:", error)
-    return redirect(`/login?method=phone&error=auth_failed`)
+
+    // ۲. اعتبارسنجی OTP
+    console.log(`[OTP] Verifying OTP for phone: ${phoneE164}`)
+    const isValid = await bcrypt.compare(otp, latestOtp.hashed_otp)
+    if (!isValid) {
+      console.error("[OTP] Invalid OTP provided:", { phone: phoneE164 })
+      return redirect(
+        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
+      )
+    }
+
+    // ۳. حذف کد OTP مصرف‌شده
+    console.log(`[OTP] Deleting OTP for phone: ${phoneE164}`)
+    const { error: deleteError } = await supabase
+      .from("otp_codes")
+      .delete()
+      .eq("id", latestOtp.id)
+    if (deleteError) {
+      console.error("[OTP] Failed to delete OTP:", {
+        phone: phoneE164,
+        error: deleteError.message,
+        code: deleteError.code
+      })
+      throw new Error(`Failed to delete OTP: ${deleteError.message}`)
+    }
+
+    // ۴. پیدا کردن کاربر در auth.users
+    console.log(`[USER] Fetching users for phone: ${phoneE164}`)
+    const { data: users, error: listError } =
+      await supabaseAdmin.auth.admin.listUsers()
+    if (listError) {
+      console.error("[USER] List users error:", {
+        phone: phoneE164,
+        error: listError.message,
+        code: listError.code
+      })
+      throw new Error(`Failed to list users: ${listError.message}`)
+    }
+
+    const normalizedPhone = normalizePhone(phoneE164)
+    const user = users.users.find(
+      u => u.phone === phoneE164 || u.phone === normalizedPhone
+    )
+    if (!user) {
+      console.log(
+        `[USER] No user found for phone: ${phoneE164} or ${normalizedPhone}`
+      )
+      return redirect(
+        `/signup?phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(
+          "اکانت پیدا نشد. ثبت‌نام کنید."
+        )}`
+      )
+    }
+
+    // ۵. بررسی وجود ایمیل کاربر
+    if (!user.email) {
+      console.error("[USER] User has no email:", {
+        userId: user.id,
+        phone: phoneE164
+      })
+      throw new Error("User has no email address")
+    }
+
+    // ۶. ساخت لینک جادویی برای سشن
+    console.log(
+      `[SESSION] Generating magic link for user: ${user.id}, email: ${user.email}`
+    )
+    const { data: session, error: sessionError } =
+      await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink",
+        email: user.email
+      })
+    if (sessionError) {
+      console.error("[SESSION] Generate magic link error:", {
+        userId: user.id,
+        phone: phoneE164,
+        error: sessionError.message,
+        code: sessionError.code
+      })
+      throw new Error(`Failed to generate magic link: ${sessionError.message}`)
+    }
+
+    // ۷. تنظیم کوکی سشن
+    console.log(`[SESSION] Setting auth cookie for user: ${user.id}`)
+    cookies().set(
+      "sb-vkwgwiiesvyfcgaemeck-auth-token",
+      session.properties?.action_link,
+      {
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      }
+    )
+
+    // ۸. ریدایرکت به صفحه چت
+    console.log(
+      `[REDIRECT] Authentication successful, redirecting to chat for user: ${user.id}`
+    )
+    return redirect(`/${user.id}/chat`)
+  } catch (error: unknown) {
+    // مدیریت خطای ریدایرکت
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      throw error // اجازه می‌دهیم ریدایرکت به درستی انجام شود
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+
+    console.error("[ERROR] Verify OTP Error:", {
+      phone: phoneE164,
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString()
+    })
+    return redirect(
+      `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=verify_failed`
+    )
   }
 }
 
@@ -207,19 +359,21 @@ export async function verifyAndUpdatePhoneAction(formData: FormData) {
       .order("created_at", { ascending: false })
       .limit(1)
       .single()
+
     if (!latestOtp)
       return redirect(
-        `/verify-phone?step=otp&phone=${phone}&error=invalid_code`
+        `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
       )
+
     if (new Date(latestOtp.expires_at) < new Date())
       return redirect(
-        `/verify-phone?step=otp&phone=${phone}&error=expired_code`
+        `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&error=expired_code`
       )
 
     const isValid = await bcrypt.compare(otp, latestOtp.hashed_otp)
     if (!isValid)
       return redirect(
-        `/verify-phone?step=otp&phone=${phone}&error=invalid_code`
+        `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
       )
 
     await supabase.from("otp_codes").delete().eq("id", latestOtp.id)
@@ -228,6 +382,7 @@ export async function verifyAndUpdatePhoneAction(formData: FormData) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
     const { error: updateError } =
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         phone: phoneE164
@@ -235,18 +390,25 @@ export async function verifyAndUpdatePhoneAction(formData: FormData) {
 
     if (updateError) {
       if (updateError.message.includes("duplicate")) {
-        return redirect(`/verify-phone?error=phone_in_use`)
+        return redirect(
+          `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&error=phone_in_use`
+        )
       }
       throw updateError
     }
+
+    // Redirect موفقیت‌آمیز بعد از تایید شماره
+    return redirect(
+      `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent("شماره موبایل با موفقیت تایید شد.")}`
+    )
   } catch (error) {
     if (typeof error === "object" && error !== null && "digest" in error) {
       if ((error as { digest: string }).digest?.startsWith("NEXT_REDIRECT"))
         throw error
     }
     console.error("Update Phone Error:", error)
-    return redirect(`/verify-phone?error=update_failed`)
+    return redirect(
+      `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&error=update_failed`
+    )
   }
-
-  return redirect("/")
 }
