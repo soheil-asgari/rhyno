@@ -24,6 +24,15 @@ const toE164 = (phone: string) => {
   }
   return phone
 }
+
+export async function clearAuthCookiesAction() {
+  const cookieStore = cookies()
+  cookieStore.getAll().forEach(cookie => {
+    if (cookie.name.startsWith("sb-vkwgwiiesvyfcgaemeck-auth-token")) {
+      cookieStore.delete(cookie.name)
+    }
+  })
+}
 // 📌 پاک کردن کوکی‌های احراز هویت supabase
 export async function clearAuthCookies() {
   const cookieStore = cookies()

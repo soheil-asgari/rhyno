@@ -37,8 +37,6 @@ export default async function LoginPage({
     phone?: string
   }
 }) {
-  await clearAuthCookies()
-
   const cookieStore = cookies()
   const session = await getSession()
 
