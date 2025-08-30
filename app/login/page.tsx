@@ -8,6 +8,8 @@ import { redirect } from "next/navigation"
 import { Metadata } from "next"
 import { sendCustomOtpAction, verifyCustomOtpAction } from "./actions"
 import OtpStep from "./OtpStep"
+import { clearAuthCookies } from "./actions"
+import Head from "next/head"
 
 export const metadata: Metadata = {
   title: "ورود | Rhyno Chat"
@@ -37,13 +39,9 @@ export default async function LoginPage({
     phone?: string
   }
 }) {
+  await clearAuthCookies()
+
   const cookieStore = cookies()
-  cookieStore.getAll().forEach(cookie => {
-    if (cookie.name.startsWith("sb-vkwgwiiesvyfcgaemeck-auth-token")) {
-      cookieStore.delete(cookie.name)
-      console.log("Deleted cookie:", cookie.name)
-    }
-  })
   const supabase = createClient(cookieStore)
   const {
     data: { session }
@@ -366,6 +364,22 @@ export default async function LoginPage({
           </p>
         )}
       </form>
+      {/* نماد اعتماد پایین صفحه */}
+      <div className="mt-6 flex justify-center">
+        <a
+          referrerPolicy="origin"
+          target="_blank"
+          rel="noopener"
+          href="https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
+        >
+          <img
+            referrerPolicy="origin"
+            src="https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
+            alt="نماد اعتماد الکترونیکی"
+            style={{ cursor: "pointer" }}
+          />
+        </a>
+      </div>
     </div>
   )
 }

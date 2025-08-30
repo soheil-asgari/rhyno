@@ -16,6 +16,16 @@ const toE164 = (phone: string) => {
   }
   return phone
 }
+// 📌 پاک کردن کوکی‌های احراز هویت supabase
+export async function clearAuthCookies() {
+  const cookieStore = cookies()
+  cookieStore.getAll().forEach(cookie => {
+    if (cookie.name.startsWith("sb-vkwgwiiesvyfcgaemeck-auth-token")) {
+      cookieStore.delete(cookie.name)
+      console.log("Deleted cookie:", cookie.name)
+    }
+  })
+}
 
 // 📌 ارسال OTP
 export async function sendCustomOtpAction(formData: FormData) {
