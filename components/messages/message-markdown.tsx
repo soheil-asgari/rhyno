@@ -19,7 +19,16 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({
 }) => {
   const cleanedContent = content.replace(/\n{2,}/g, "\n")
   return (
-    <div dir={dir} className={cn("w-full", className)} style={style}>
+    <div
+      dir={dir}
+      className={cn(
+        "w-full",
+        "scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-gray-400 max-h-[70vh] overflow-y-auto",
+        "sm:max-h-full sm:overflow-visible",
+        className
+      )}
+      style={style}
+    >
       <MessageMarkdownMemoized
         className={cn(
           "prose dark:prose-invert prose-p:leading-tight prose-pre:p-0 font-vazir min-w-full space-y-0 break-words"

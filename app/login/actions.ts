@@ -177,6 +177,7 @@ export async function verifyCustomOtpAction(formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+  console.log("supaaaaaaaaaaaaaaaaaaaaaaa")
 
   try {
     // ۱. چک کردن OTP در جدول otp_codes

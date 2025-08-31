@@ -4,5 +4,5 @@ import { IconArrowRight } from "@tabler/icons-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 export default function HomePage() {
-  redirect("/login") // مسیر دلخواهت
+  redirect("/landing") // مسیر دلخواهت
 }

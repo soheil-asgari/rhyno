@@ -358,7 +358,7 @@ export default async function LoginPage({
         )}
       </form>
       {/* نماد اعتماد پایین صفحه */}
-      <div className="mt-6 flex justify-center">
+      {/* <div className="mt-6 flex justify-center">
         <a
           referrerPolicy="origin"
           target="_blank"
@@ -372,7 +372,7 @@ export default async function LoginPage({
             style={{ cursor: "pointer" }}
           />
         </a>
-      </div>
+      </div> */}
     </div>
   )
 }

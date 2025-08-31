@@ -1,75 +1,13 @@
+/* 1. Tailwind Directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import "@fontsource/fira-code";
+
+/* 2. Font Imports */
 @import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/fira-code";
 
-::-webkit-scrollbar-track {
-  background-color: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #ccc;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: #aaa;
-}
-
-::-webkit-scrollbar-track:hover {
-  background-color: #f2f2f2;
-}
-
-::-webkit-scrollbar-corner {
-  background-color: transparent;
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-/* تغییرات برای نسخه موبایل */
-@media (max-width: 768px) {
-  body {
-    font-size: 14px;  /* تنظیم سایز فونت برای موبایل */
-    padding: 0 15px;  /* حذف padding اضافی در موبایل */
-    line-height: 1.5;  /* افزایش فاصله بین خطوط برای خوانایی بیشتر */
-  }
-
-  .container {
-    padding: 10px;
-    width: 100%;
-  }
-
-  /* منوهای کشویی (Hamburger Menu) */
-  .hamburger-menu {
-    display: block;
-    width: 30px;
-    height: 20px;
-    cursor: pointer;
-  }
-
-  .nav-links {
-    display: none;
-  }
-
-  /* تغییرات برای دکمه‌ها */
-  button, a {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 10px;
-    font-size: 16px;
-  }
-
-  /* افزایش فاصله خطوط */
-  p {
-    line-height: 1.6;  /* بهبود خوانایی متن در موبایل */
-  }
-}
-
-/* استفاده از متغیرهای سفارشی */
+/* 3. Custom CSS Variables (Theming) */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -91,7 +29,7 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --ring: 0 0% 63.9%;
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* کمی بزرگ‌تر برای ظاهر مدرن‌تر */
   }
 
   .dark {
@@ -116,55 +54,97 @@
     --ring: 0 0% 14.9%;
   }
 
+  * {
+    @apply border-border box-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-vazir min-h-screen;
+  }
+}
+
+/* 4. Utility Classes */
+@layer components {
   .font-vazir {
     font-family: "Vazirmatn", sans-serif;
   }
 
-
-  /* در فایل CSS خود */
-.rounded-image {
-  border-radius: 50%;
-}
-/* فایل CSS */
-.message-line-height {
-  line-height: 1.2; /* یا مقدار دلخواه دیگر */
-}
-/* فایل globals.css یا فایل استایل اصلی شما */
-
-/* این کد را در فایل CSS اصلی خود جایگزین کد قبلی کنید */
-
-/* ۱. استایل کلی لیست (تگ ol) */
-/* کد نهایی و کامل: لطفاً همه کدهای قبلی برای ol و li را حذف و این را جایگزین کنید */
-
-/* ۱. آماده‌سازی لیست */
-.markdown-content-rtl ol {
-  list-style: none; /* حذف شماره پیش‌فرض */
-  counter-reset: final-counter; /* تعریف شمارنده */
-  padding-right: 0;
-}
-
-/* ۲. تراز کردن آیتم با Flexbox (مهم‌ترین بخش) */
-.markdown-content-rtl ol li {
-  display: flex; /* تبدیل آیتم به فلکس‌باکس */
-  align-items: baseline; /* تراز کردن همه چیز بر اساس خط مبنای متن */
-  counter-increment: final-counter; /* افزایش شمارنده */
-  margin-bottom: 0.20rem;
-}
-
-/* ۳. ساخت و استایل‌دهی شماره */
-.markdown-content-rtl ol li::before {
-  content: counter(final-counter) ".";
-  font-weight: bold;
-  min-width: 1.5rem; /* ایجاد یک حداقل عرض ثابت برای هم‌ترازی بهتر */
-  margin-left: 0.75rem; /* ایجاد فاصله بین شماره و متن */
-}
-}
-
-@layer base {
-  * {
-    @apply border-border;
+  .rounded-image {
+    @apply rounded-full;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  .message-line-height {
+    @apply leading-tight;
+  }
+
+  /* RTL Ordered List */
+  .markdown-content-rtl ol {
+    @apply list-none pr-0;
+    counter-reset: list-counter;
+  }
+
+  .markdown-content-rtl ol li {
+    @apply flex items-baseline mb-2;
+    counter-increment: list-counter;
+  }
+
+  .markdown-content-rtl ol li::before {
+    @apply font-bold min-w-[1.5rem] ml-3;
+    content: counter(list-counter) ".";
+  }
+}
+
+/* 5. Animations */
+@layer utilities {
+  .hero-gradient {
+    @apply bg-gradient-to-br from-[#0a0a23] via-[#1e0033] to-[#004e92];
+    background-size: 200% 200%;
+    animation: gradient-hero 12s ease infinite;
+  }
+  .animate-scroll {
+    @apply animate-[scroll_30s_linear_infinite];
+  }
+.text-slide-in {
+    @apply opacity-0 translate-y-6;
+    animation: slide-in 0.8s ease-out forwards;
+  }
+  @keyframes gradient-animation {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes scroll {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
+  }
+}
+
+/* 6. Responsive Styles */
+@layer base {
+  @media (max-width: 768px) {
+    body {
+      @apply text-sm leading-relaxed;
+    }
+
+    .container {
+      @apply p-4 w-full;
+    }
+
+    .hamburger-menu {
+      @apply block w-8 h-6 cursor-pointer;
+    }
+
+    .nav-links {
+      @apply hidden;
+    }
+
+    button, a {
+      @apply min-w-[44px] min-h-[44px];
+    }
+
+    p {
+      @apply leading-relaxed;
+    }
   }
 }

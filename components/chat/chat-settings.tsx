@@ -11,16 +11,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 interface ChatSettingsProps {}
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  "gpt-3.5-turbo": "Rhyno v1",
-  "gpt-4": "Rhyno v2",
-  "gpt-4-turbo-preview": "Rhyno v3",
-  "gpt-5": "Rhyno v5",
-  "gpt-5-mini": "Rhyno v5 mini",
-  "gpt-4o": "Rhyno v4.1",
-  "gpt-4o-mini": "Rhyno v4 mini",
-  "dall-e-3": "Rhyno Image",
-  "gpt-4o-realtime-preview-2025-06-03": "Rhyno l-1",
-  "gpt-4o-mini-realtime-preview-2024-12-17": "Rhyno l-mini"
+  "gpt-3.5-turbo": "💨 Rhyno V1",
+  "gpt-4": "🧠 Rhyno V2",
+  "gpt-4-turbo-preview": "⚡ Rhyno V3 Turbo",
+  "gpt-4o": "🚀 Rhyno V4 Ultra",
+  "gpt-4o-mini": "⚡ Rhyno V4 Mini",
+  "gpt-5": "🌌 Rhyno V5 Ultra",
+  "gpt-5-mini": "✨ Rhyno V5 Mini",
+  "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
+  "dall-e-3": "🎨 Rhyno Image V1"
 }
 // git push
 // پرامپت‌های پیش‌فرض

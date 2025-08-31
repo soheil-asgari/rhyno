@@ -8,6 +8,7 @@ import { toast } from "sonner"
 export const ACCEPTED_FILE_TYPES = [
   "text/csv",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // ← اضافه شد
   "application/json",
   "text/markdown",
   "application/pdf",
