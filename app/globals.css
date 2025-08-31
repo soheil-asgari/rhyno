@@ -118,6 +118,40 @@
     from { transform: translateX(-50%); }
     to { transform: translateX(0); }
   }
+  /* فایل globals.css */
+
+.glow-text {
+  color: #fff;
+  text-align: center;
+  /* ایجاد درخشش با چندین لایه text-shadow */
+  text-shadow:
+    0 0 7px rgba(255, 255, 255, 0.8),
+    0 0 10px rgba(255, 255, 255, 0.6),
+    0 0 21px rgba(255, 255, 255, 0.4),
+    0 0 42px rgba(0, 150, 255, 0.6), /* رنگ اصلی درخشش (آبی) */
+    0 0 82px rgba(0, 150, 255, 0.4),
+    0 0 92px rgba(0, 150, 255, 0.3),
+    0 0 102px rgba(0, 150, 255, 0.2),
+    0 0 151px rgba(0, 150, 255, 0.1);
+  
+  /* اعمال انیمیشن برای حس زنده بودن */
+  animation: flicker 4s ease-in-out infinite alternate;
+}
+
+/* انیمیشن برای ایجاد حالت نبض یا سوسو زدن نور */
+@keyframes flicker {
+  to {
+    text-shadow:
+      0 0 5px rgba(255, 255, 255, 0.9),
+      0 0 8px rgba(255, 255, 255, 0.7),
+      0 0 18px rgba(255, 255, 255, 0.5),
+      0 0 38px rgba(0, 180, 255, 0.7), /* کمی درخشان‌تر */
+      0 0 70px rgba(0, 180, 255, 0.5),
+      0 0 80px rgba(0, 180, 255, 0.4),
+      0 0 90px rgba(0, 180, 255, 0.3),
+      0 0 140px rgba(0, 180, 255, 0.2);
+  }
+}
 }
 
 /* 6. Responsive Styles */
