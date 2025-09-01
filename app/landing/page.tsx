@@ -159,25 +159,26 @@ export default function MinimalLandingPage() {
         {/* 💡 بخش جدید برای نمایش عکس شما */}
         {/* این بخش بین دکمه "شروع قدرتمند" و متن "مورد اعتماد..." قرار می‌گیرد */}
         <motion.div
-          className="my-1" // ایجاد فاصله عمودی از بالا و پایین
-          initial={isMobile ? "visible" : "hidden"}
-          whileInView="visible"
+          className="my-1"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
-          variants={fadeInUp}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          whileHover={{ scale: 1.05 }} // 👈 بزرگ‌شدن هنگام هاور
         >
           <Image
-            // 👇👇👇 آدرس عکس را اینجا قرار دهید 👇👇👇
             src="/rhyno_white.png"
             alt="Rhyno AI visual representation"
-            width={1024} // عرض واقعی تصویر برای بهینه‌سازی
-            height={1024} // ارتفاع واقعی تصویر برای بهینه‌سازی
-            className="w-55 mx-auto object-cover sm:w-48 md:w-80" // از max-w-2xl به جای max-w-4xl استفاده کنید // استایل‌دهی برای نمایش بهتر
+            width={1024}
+            height={1024}
+            className="w-55 mx-auto rounded-xl object-cover sm:w-48 md:w-80"
           />
         </motion.div>
+
         {/* ================================================================ */}
 
         <section className="py-8">
-          <p className="mb-4 text-center text-sm text-gray-500">
+          <p className="mb-4 text-center text-sm font-bold text-gray-500">
             مورد اعتماد با استفاده از مدل‌های پیشرو
           </p>
           <LogoTicker />
@@ -253,13 +254,11 @@ export default function MinimalLandingPage() {
               </span>
             </p>
             <div className="mb-8 flex flex-wrap items-baseline justify-center gap-x-2">
-              <span className="text-3xl font-extrabold text-white sm:text-4xl md:text-5xl">
-                500 هزار تومان
+              <span className="text-xl font-extrabold text-white sm:text-2xl md:text-3xl">
+                برای اطلاعات بیشتر از تعرفه ها روی دکمه زیر کلیک کنید{" "}
               </span>
               {/* اصلاح شد: متن "/ ماهانه" اضافه شد */}
-              <span className="text-base text-gray-400 sm:text-lg">
-                / ماهانه
-              </span>
+              <span className="text-base text-gray-400 sm:text-lg"></span>
             </div>
             <AnimatedButton
               href="/checkout"

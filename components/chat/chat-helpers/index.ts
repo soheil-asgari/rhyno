@@ -264,20 +264,17 @@ export const fetchChatResponse = async (
   })
 
   if (!response.ok) {
-    if (response.status === 404 && !isHosted) {
-      toast.error(
-        "Model not found. Make sure you have it downloaded via Ollama."
-      )
-    }
+    // اگر پاسخ خطا بود، بدنه آن را به عنوان JSON بخوان
+    const errorData = await response.json().catch(() => {
+      // اگر بدنه JSON معتبر نبود، یک پیام خطای کلی برگردان
+      return { message: "An unknown server error occurred." }
+    })
 
-    const errorData = await response.json()
-
-    toast.error(errorData.message)
-
-    setIsGenerating(false)
-    setChatMessages(prevMessages => prevMessages.slice(0, -2))
+    // یک خطا با پیام دریافتی پرتاب کن و اجرای تابع را متوقف کن
+    throw new Error(errorData.message)
   }
 
+  // این تابع فقط در صورت موفقیت‌آمیز بودن، پاسخ را برمی‌گرداند
   return response
 }
 

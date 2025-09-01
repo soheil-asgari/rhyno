@@ -42,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
 import { TextareaAutosize } from "../ui/textarea-autosize"
 import { WithTooltip } from "../ui/with-tooltip"
 import { ThemeSwitcher } from "./theme-switcher"
+import { IconCreditCard } from "@tabler/icons-react" // آیکون جدید
 
 interface ProfileSettingsProps {}
 
@@ -55,6 +56,10 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
     availableOpenRouterModels
   } = useContext(ChatbotUIContext)
 
+  const handleNavigateToAccount = () => {
+    router.push("/account") // هدایت به صفحه پنل کاربری
+    setIsOpen(false) // بستن پنل تنظیمات
+  }
   const router = useRouter()
 
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -342,6 +347,18 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
             </TabsList>
 
             <TabsContent className="mt-4 space-y-4" value="profile">
+              {/* ✨ دکمه جدید پنل کاربری و جداکننده */}
+              <Button
+                variant="outline"
+                className="w-full justify-center"
+                onClick={handleNavigateToAccount}
+              >
+                <IconCreditCard className="mr-2" size={20} />
+                مشاهده پنل کاربری و اعتبار
+              </Button>
+
+              <div className="border-t"></div>
+              {/* ✨ پایان بخش جدید */}
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
                   <Label>Username</Label>

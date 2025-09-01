@@ -1,7 +1,8 @@
 import { Database } from "@/supabase/types"
 import { createClient } from "@supabase/supabase-js"
+import { ServerRuntime } from "next"
 
-export const runtime = "edge"
+export const runtime: ServerRuntime = "edge"
 
 export async function POST(request: Request) {
   const json = await request.json()
