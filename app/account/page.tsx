@@ -106,7 +106,7 @@ export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [loading, setLoading] = useState(true)
-  const [chargeAmount, setChargeAmount] = useState("200000")
+  const [chargeAmount, setChargeAmount] = useState("")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -169,7 +169,8 @@ export default function AccountPage() {
     console.log("  - Exchange Rate:", MANUAL_EXCHANGE_RATE)
     const balanceIRR = balanceUSD * MANUAL_EXCHANGE_RATE
     const balanceToman = balanceIRR / 10
-    return balanceToman.toLocaleString("fa-IR")
+    const rounded = Math.floor(balanceToman)
+    return rounded.toLocaleString("fa-IR")
   }
 
   const chargePresets = [200000, 500000, 1000000, 2000000]
@@ -189,11 +190,13 @@ export default function AccountPage() {
     <div className="bg-muted/20 flex w-full justify-center p-4 sm:p-8 dark:bg-black">
       <div className="animate-in fade-in-50 w-full max-w-4xl space-y-10">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">پنل کاربری</h1>
+          <h1 className="font-vazir text-3xl font-bold tracking-tight">
+            پنل کاربری
+          </h1>
           <Button
             variant="ghost"
             onClick={() => router.back()}
-            className="mt-2 self-start sm:mt-0 sm:self-center"
+            className="font-vazir mt-2 self-start sm:mt-0 sm:self-center"
           >
             <IconArrowLeft size={20} className="ml-2 rtl:ml-0 rtl:mr-2" />{" "}
             بازگشت
