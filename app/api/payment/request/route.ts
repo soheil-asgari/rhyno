@@ -1,11 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { ServerRuntime } from "next"
 
-export const runtime: ServerRuntime = "edge"
+export const runtime = "edge"
 
-// ✨ نرخ ثابت دلار به ریال
 const MANUAL_EXCHANGE_RATE = 1030000
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
 
@@ -18,30 +16,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "مبلغ نامعتبر است" }, { status: 400 })
     }
 
-    // ✨ اصلاح کلیدی: استفاده از الگوی جدید createServerClient
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: "", ...options })
-          }
-        }
-      }
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
 
     const {
       data: { user }
     } = await supabase.auth.getUser()
-
     if (!user) {
       return NextResponse.json({ message: "کاربر یافت نشد" }, { status: 401 })
     }
@@ -53,6 +37,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         amount: amountUSD,
+        amount_irr: amountIRR,
         status: "pending"
       })
       .select()
@@ -72,14 +57,13 @@ export async function POST(request: Request) {
           merchant_id: ZARINPAL_MERCHANT_ID,
           amount: amountIRR,
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payment/verify`,
-          description: `شارژ حساب کاربری به مبلغ ${amountToman.toLocaleString("fa-IR")} تومان`,
+          description: `شارژ حساب به مبلغ ${amountToman.toLocaleString("fa-IR")} تومان`,
           metadata: { transaction_id: transaction.id }
         })
       }
     )
 
     const zarinpalData = await zarinpalResponse.json()
-
     if (zarinpalData.errors.length > 0 || !zarinpalData.data.authority) {
       throw new Error("خطا در ارتباط با درگاه پرداخت")
     }

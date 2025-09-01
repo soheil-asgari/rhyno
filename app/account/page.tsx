@@ -164,6 +164,9 @@ export default function AccountPage() {
   }
 
   const formatBalance = (balanceUSD: number) => {
+    console.log("✅ [Debug] Step 3: Formatting balance.")
+    console.log("  - Input balance (USD):", balanceUSD, typeof balanceUSD)
+    console.log("  - Exchange Rate:", MANUAL_EXCHANGE_RATE)
     const balanceIRR = balanceUSD * MANUAL_EXCHANGE_RATE
     const balanceToman = balanceIRR / 10
     return balanceToman.toLocaleString("fa-IR")
