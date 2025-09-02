@@ -14,13 +14,12 @@ export const OpenAIImage: FC<OpenAIImageProps> = ({
   imageUrl = "/rhyno1.png"
 }) => {
   return (
-    <Image
-      className={className}
+    <img
       src={imageUrl}
       alt="OpenAI Image"
-      priority
       width={width}
       height={height}
+      className={className}
     />
   )
 }

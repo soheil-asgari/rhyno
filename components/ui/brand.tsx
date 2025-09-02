@@ -17,12 +17,11 @@ export const Brand: FC<BrandProps> = ({ theme = "dark" }) => {
       rel="noopener noreferrer"
     >
       <div className="mb-2">
-        <Image
+        <img
           src="/rhyno1.png"
           width={120}
           height={120}
           alt="Rhyno Logo"
-          priority // 👈 این خیلی مهمه: یعنی تصویر توی LCP جزو اولین‌ها باشه
           className="rounded-full object-cover shadow-md transition-transform duration-200 hover:scale-105"
         />
       </div>

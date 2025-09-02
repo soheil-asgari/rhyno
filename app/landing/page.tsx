@@ -41,6 +41,7 @@ const HeaderBrand: React.FC = () => (
       alt="Rhyno Logo"
       className="rounded-full object-cover"
     />
+
     <span className="text-xl font-semibold text-white">Rhyno AI</span>
   </div>
 )
@@ -166,7 +167,7 @@ export default function MinimalLandingPage() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           whileHover={{ scale: 1.05 }} // 👈 بزرگ‌شدن هنگام هاور
         >
-          <Image
+          <img
             src="/rhyno_white.png"
             alt="Rhyno AI visual representation"
             width={1024}
