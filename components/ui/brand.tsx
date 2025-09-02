@@ -17,7 +17,7 @@ export const Brand: FC<BrandProps> = ({ theme = "dark" }) => {
       rel="noopener noreferrer"
     >
       <div className="mb-2">
-        <img
+        <Image
           src="/rhyno1.png"
           width={120}
           height={120}

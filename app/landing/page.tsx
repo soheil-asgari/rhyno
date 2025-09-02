@@ -5,25 +5,19 @@ import { FiArrowRight, FiCpu, FiLock, FiRepeat, FiZap } from "react-icons/fi"
 import React, { memo, useState, useEffect } from "react"
 import AnimatedButton from "@/components/AnimatedButton"
 import Image from "next/image"
+import Head from "next/head" // ✅ اضافه شد
 
-// 💡 قدم ۱: تعریف کامل و صحیح هوک useIsMobile در همین فایل
-// این هوک به ما اجازه می‌دهد تا انیمیشن‌ها را فقط در دسکتاپ اجرا کنیم.
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(false)
-
   useEffect(() => {
-    // این کد فقط در سمت کلاینت (مرورگر) اجرا می‌شود
     const handleResize = () => setIsMobile(window.innerWidth < breakpoint)
-    // اجرای اولیه برای تنظیم حالت صحیح
     handleResize()
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
   }, [breakpoint])
-
   return isMobile
 }
 
-// کامپوننت عنوان بخش
 const SectionTitle = memo(({ children }: { children: React.ReactNode }) => (
   <h2 className="mb-8 text-center text-3xl font-bold text-white sm:text-4xl">
     {children}
@@ -31,7 +25,6 @@ const SectionTitle = memo(({ children }: { children: React.ReactNode }) => (
 ))
 SectionTitle.displayName = "SectionTitle"
 
-// کامپوننت برند در هدر
 const HeaderBrand: React.FC = () => (
   <div className="flex items-center space-x-2 rtl:space-x-reverse">
     <Image
@@ -41,13 +34,11 @@ const HeaderBrand: React.FC = () => (
       alt="Rhyno Logo"
       className="rounded-full object-cover"
     />
-
     <span className="text-xl font-semibold text-white">Rhyno AI</span>
   </div>
 )
 HeaderBrand.displayName = "HeaderBrand"
 
-// کامپوننت لوگوها
 const logos = [
   { name: "OpenAI" },
   { name: "Google AI" },
@@ -73,7 +64,6 @@ const LogoTicker = memo(() => (
 ))
 LogoTicker.displayName = "LogoTicker"
 
-// کامپوننت اصلی صفحه
 export default function MinimalLandingPage() {
   const isMobile = useIsMobile()
 
@@ -92,11 +82,78 @@ export default function MinimalLandingPage() {
   }
 
   return (
-    // 💡 قدم ۲: اضافه کردن کمربند ایمنی برای جلوگیری قطعی از سرریز افقی
     <div
       className="font-vazir bg-background min-h-screen w-full overflow-x-hidden text-gray-300"
       dir="auto"
     >
+      {/* 💡 Head Section برای SEO و Social Preview */}
+      <Head>
+        <title>Rhyno AI | مرکز فرماندهی هوش مصنوعی شما</title>
+        <meta
+          name="description"
+          content="مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
+        />
+        <meta
+          name="keywords"
+          content="AI, هوش مصنوعی, مدل‌های AI, Rhyno AI, ابزار هوش مصنوعی"
+        />
+        <meta name="robots" content="index, follow" />
+
+        {/* Open Graph / Facebook */}
+        <meta
+          property="og:title"
+          content="Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
+        />
+        <meta
+          property="og:description"
+          content="دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
+        />
+        <meta
+          property="og:image"
+          content="https://rhynoai.ir/rhyno_white.png"
+        />
+        <meta property="og:url" content="https://rhynoai.ir" />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+          name="twitter:title"
+          content="Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
+        />
+        <meta
+          name="twitter:description"
+          content="دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
+        />
+        <meta
+          name="twitter:image"
+          content="https://rhynoai.ir/rhyno_white.png"
+        />
+
+        {/* JSON-LD Schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Rhyno AI",
+              url: "https://rhynoai.ir",
+              description:
+                "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI.",
+              publisher: {
+                "@type": "Organization",
+                name: "Rhyno AI",
+                logo: {
+                  "@type": "ImageObject",
+                  url: "https://rhynoai.ir/rhyno1.png"
+                }
+              }
+            })
+          }}
+        />
+      </Head>
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -156,18 +213,16 @@ export default function MinimalLandingPage() {
           </motion.div>
         </motion.section>
 
-        {/* ================================================================ */}
-        {/* 💡 بخش جدید برای نمایش عکس شما */}
-        {/* این بخش بین دکمه "شروع قدرتمند" و متن "مورد اعتماد..." قرار می‌گیرد */}
+        {/* Hero Image */}
         <motion.div
           className="my-1"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          whileHover={{ scale: 1.05 }} // 👈 بزرگ‌شدن هنگام هاور
+          whileHover={{ scale: 1.05 }}
         >
-          <img
+          <Image
             src="/rhyno_white.png"
             alt="Rhyno AI visual representation"
             width={1024}
@@ -175,9 +230,7 @@ export default function MinimalLandingPage() {
             className="w-55 mx-auto rounded-xl object-cover sm:w-48 md:w-80"
           />
         </motion.div>
-
-        {/* ================================================================ */}
-
+        {/* Trusted Logos Section */}
         <section className="py-8">
           <p className="mb-4 text-center text-sm font-bold text-gray-500">
             مورد اعتماد با استفاده از مدل‌های پیشرو
@@ -233,7 +286,6 @@ export default function MinimalLandingPage() {
             ))}
           </div>
         </section>
-
         {/* Pricing Section */}
         <section id="pricing" className="py-16 text-center md:py-24">
           <motion.div
@@ -256,10 +308,8 @@ export default function MinimalLandingPage() {
             </p>
             <div className="mb-8 flex flex-wrap items-baseline justify-center gap-x-2">
               <span className="text-xl font-extrabold text-white sm:text-2xl md:text-3xl">
-                برای اطلاعات بیشتر از تعرفه ها روی دکمه زیر کلیک کنید{" "}
+                برای اطلاعات بیشتر از تعرفه ها روی دکمه زیر کلیک کنید
               </span>
-              {/* اصلاح شد: متن "/ ماهانه" اضافه شد */}
-              <span className="text-base text-gray-400 sm:text-lg"></span>
             </div>
             <AnimatedButton
               href="/checkout"
@@ -283,7 +333,7 @@ export default function MinimalLandingPage() {
             rel="noopener noreferrer"
             href="https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
           >
-            <img
+            <Image
               referrerPolicy="origin"
               src="https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
               alt="نماد اعتماد الکترونیکی"

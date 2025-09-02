@@ -151,8 +151,7 @@ export async function POST(request: Request) {
             model: selectedModel,
             voice: "alloy",
             instructions:
-              MODEL_PROMPTS[selectedModel] ??
-              "You are a realtime assistant speak persian and your name is rhyno voice.",
+              "You are a realtime Persian-speaking assistant. Respond in voice only",
             tools: [
               {
                 type: "function",
@@ -168,6 +167,7 @@ export async function POST(request: Request) {
           })
         }
       )
+
       if (!response.ok) {
         const errorBody = await response.json()
         throw new Error(
@@ -175,6 +175,11 @@ export async function POST(request: Request) {
         )
       }
       const session = await response.json()
+      console.log("🌐 Realtime session raw response:", session)
+      console.log("🔊 Session modalities:", session.modalities)
+      console.log("🔊 Session voice:", session.voice)
+      console.log("🔊 Session instructions:", session.instructions)
+
       const { error: insertError } = await supabase
         .from("realtime_sessions")
         .insert({

@@ -34,10 +34,10 @@ const ImagePicker: FC<ImagePickerProps> = ({
 
       const url = URL.createObjectURL(file)
 
-      const img = new window.Image()
-      img.src = url
+      const Image = new window.Image()
+      Image.src = url
 
-      img.onload = () => {
+      Image.onload = () => {
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
 
@@ -46,14 +46,14 @@ const ImagePicker: FC<ImagePickerProps> = ({
           return
         }
 
-        const size = Math.min(img.width, img.height)
+        const size = Math.min(Image.width, Image.height)
         canvas.width = size
         canvas.height = size
 
         ctx.drawImage(
-          img,
-          (img.width - size) / 2,
-          (img.height - size) / 2,
+          Image,
+          (Image.width - size) / 2,
+          (Image.height - size) / 2,
           size,
           size,
           0,

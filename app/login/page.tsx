@@ -365,7 +365,7 @@ export default async function LoginPage({
           rel="noopener"
           href="https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
         >
-          <img
+          <Image
             referrerPolicy="origin"
             src="https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
             alt="نماد اعتماد الکترونیکی"

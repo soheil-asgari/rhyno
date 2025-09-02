@@ -13,7 +13,7 @@ export const SelectedAssistant = () => {
           className="rounded"
           src={
             assistantImages.find(
-              img => img.path === selectedAssistant.image_path
+              Image => Image.path === selectedAssistant.image_path
             )?.base64
           }
           width={28}

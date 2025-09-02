@@ -78,11 +78,11 @@ export const DrawingCanvas: FC<DrawingCanvasProps> = ({ imageItem }) => {
           })
 
           setNewMessageImages(prevImages => {
-            return prevImages.map(img => {
-              if (img.url === imageItem.url) {
-                return { ...img, base64: dataURL, file: newImageFile }
+            return prevImages.map(Image => {
+              if (Image.url === imageItem.url) {
+                return { ...Image, base64: dataURL, file: newImageFile }
               }
-              return img
+              return Image
             })
           })
         })

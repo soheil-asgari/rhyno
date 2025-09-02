@@ -190,7 +190,7 @@ export const useSelectFileHandler = () => {
             duration: 10000
           })
           setNewMessageImages(prev =>
-            prev.filter(img => img.messageId !== "temp")
+            prev.filter(Image => Image.messageId !== "temp")
           )
           setNewMessageFiles(prev => prev.filter(file => file.id !== "loading"))
         }

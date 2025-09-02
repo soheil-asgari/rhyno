@@ -71,8 +71,8 @@ export default function ChatPage({
     <>
       <Toaster position="top-right" />
       {chatMessages.length === 0 ? (
-        <div className="relative flex h-full flex-col items-center justify-center">
-          <div className="top-50% left-50% absolute mb-20 -translate-x-1/2 -translate-y-1/2">
+        <div className="relative flex size-full flex-col items-center justify-center">
+          <div className="mb-20 flex size-full flex-col items-center justify-center">
             <Brand theme={theme === "dark" ? "dark" : "light"} />
           </div>
 

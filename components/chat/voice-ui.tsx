@@ -296,6 +296,7 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         }
 
         const ms = await navigator.mediaDevices.getUserMedia({ audio: true })
+        console.log("🎤 Local stream obtained:", ms)
         setUserStream(ms)
 
         ms.getAudioTracks().forEach(track => {

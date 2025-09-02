@@ -77,7 +77,7 @@ const MessageHeader: FC<{
             </div>
           }
           trigger={
-            <img
+            <Image
               src="/rhyno1.png"
               width={ICON_SIZE}
               height={ICON_SIZE}
@@ -90,7 +90,7 @@ const MessageHeader: FC<{
       )
     }
     return profile?.image_url ? (
-      <img
+      <Image
         className="size-[32px] rounded"
         src={profile.image_url}
         height={32}

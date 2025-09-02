@@ -8,17 +8,17 @@ const REALTIME_LLM_PRICING: {
   [key: string]: { input: number; output: number }
 } = {
   "gpt-4o-realtime-preview-2025-06-03": {
-    input: 2.5 / 1_000_000,
-    output: 20.0 / 1_000_000
+    input: 40 / 1_000_000,
+    output: 80 / 1_000_000
   },
   "gpt-4o-mini-realtime-preview": {
-    input: 0.6 / 1_000_000,
-    output: 2.4 / 1_000_000
+    input: 10 / 1_000_000,
+    output: 20 / 1_000_000
   },
-  "gpt-realtime": { input: 4.0 / 1_000_000, output: 16.0 / 1_000_000 }
+  "gpt-realtime": { input: 32 / 1_000_000, output: 64 / 1_000_000 }
 }
 
-const PROFIT_MARGIN = 1.4
+const PROFIT_MARGIN = 1.6
 
 export async function POST(request: NextRequest) {
   try {
