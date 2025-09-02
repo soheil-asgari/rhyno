@@ -5,6 +5,24 @@ module.exports = {
     sitemapSize: 5000,
     changefreq: 'weekly',
     priority: 0.7,
-    exclude: ['/secret'],
-    outDir: './public',// صفحات مخفی یا غیرضروری
+    outDir: './public',
+
+    exclude: ['/api/*', '/secret', '/server-sitemap.xml'],
+
+    robotsTxtOptions: {
+        policies: [
+            {
+                userAgent: '*',
+                allow: '/',
+                disallow: ['/api', '/secret'],
+            },
+        ],
+    },
+
+    // مسیرهای دستی
+    additionalPaths: async (config) => [
+        await config.transform(config, '/'),
+        await config.transform(config, '/landing'),
+        await config.transform(config, '/chat'),
+    ],
 };

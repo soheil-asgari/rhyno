@@ -1,6 +1,8 @@
 # *
 User-agent: *
 Allow: /
+Disallow: /api
+Disallow: /secret
 
 # Host
 Host: https://rhynoai.ir
