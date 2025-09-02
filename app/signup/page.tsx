@@ -119,13 +119,11 @@ export default async function SignupPage({
 
     // ارسال OTP (مثال: با Twilio یا سرویس داخلی)
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
-    await supabase
-      .from("otp_codes")
-      .insert({
-        phone,
-        code: otp,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000)
-      })
+    await supabase.from("otp_codes").insert({
+      phone,
+      code: otp,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000)
+    })
 
     const message = "کد برای شما ارسال شد ✅"
     redirect(
