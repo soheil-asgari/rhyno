@@ -1,13 +1,71 @@
 "use client"
 
-import { IconLoader2 } from "@tabler/icons-react"
-import { FC, useState, useRef, useCallback } from "react"
+import { FC, useState, useRef, useCallback, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { useAudioVisualizer } from "../../lib/hooks/use-audio-visualizer"
 
 interface VoiceUIProps {
   chatSettings: any
+}
+
+// ✨ بازنویسی شده برای رفع خطاهای import و مستقل شدن کامپوننت
+const useAudioVisualizer = (stream: MediaStream | null) => {
+  const [volume, setVolume] = useState(0)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyzerRef = useRef<AnalyserNode | null>(null)
+  const dataArrayRef = useRef<Uint8Array | null>(null)
+
+  useEffect(() => {
+    if (!stream) {
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
+      return
+    }
+
+    if (!audioContextRef.current) {
+      const audioContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)()
+      const analyzer = audioContext.createAnalyser()
+      analyzer.fftSize = 256
+      const source = audioContext.createMediaStreamSource(stream)
+      source.connect(analyzer)
+      analyzerRef.current = analyzer
+      dataArrayRef.current = new Uint8Array(analyzer.frequencyBinCount)
+      audioContextRef.current = audioContext
+    }
+    const analyze = () => {
+      const analyzer = analyzerRef.current
+      const dataArray = dataArrayRef.current
+
+      if (analyzer && dataArray) {
+        // ایجاد Uint8Array واقعی روی ArrayBuffer جدید
+        const buffer = new ArrayBuffer(dataArray.length)
+        const typedArray = new Uint8Array(buffer)
+        typedArray.set(dataArray) // کپی داده‌ها به Uint8Array جدید
+
+        analyzer.getByteFrequencyData(typedArray)
+
+        const sum = typedArray.reduce((a, b) => a + b, 0)
+        const avg = sum / typedArray.length
+        setVolume(avg)
+      }
+
+      requestAnimationFrame(analyze)
+    }
+
+    analyze()
+
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
+    }
+  }, [stream])
+
+  return volume
 }
 
 export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
@@ -15,30 +73,46 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
     "idle"
   )
 
-  // نگه‌داری استریم‌ها
+  const dataChannelRef = useRef<RTCDataChannel | null>(null)
+
   const [userStream, setUserStream] = useState<MediaStream | null>(null)
   const [modelStream, setModelStream] = useState<MediaStream | null>(null)
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
 
-  // اتصال هوک ویژوالایزر به استریم‌ها
   const userVolume = useAudioVisualizer(userStream)
   const modelVolume = useAudioVisualizer(modelStream)
   const combinedVolume = Math.max(userVolume, modelVolume)
 
   const stopRealtime = useCallback(() => {
+    if (
+      dataChannelRef.current &&
+      dataChannelRef.current.readyState === "open"
+    ) {
+      console.log("➡️ Sending session.terminate event to OpenAI...")
+      dataChannelRef.current.send(JSON.stringify({ type: "session.terminate" }))
+    }
+
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close()
+      dataChannelRef.current = null
+    }
+
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close()
       peerConnectionRef.current = null
     }
+
     if (userStream) {
       userStream.getTracks().forEach(track => track.stop())
       setUserStream(null)
     }
+
     if (modelStream) {
       modelStream.getTracks().forEach(track => track.stop())
       setModelStream(null)
     }
+
     setStatus("idle")
     console.log("🛑 Realtime session stopped")
   }, [userStream, modelStream])
@@ -67,11 +141,6 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         const pc = new RTCPeerConnection()
         peerConnectionRef.current = pc
 
-        // const dc = pc.createDataChannel("oai-events");
-        // dc.onmessage = (event) => {
-        //     console.log("📩 Event from model:", event.data);
-        // };
-        // وقتی مدل صدا می‌فرسته
         pc.ontrack = e => {
           console.log("🔊 Remote audio track received:", e.streams)
           setModelStream(e.streams[0])
@@ -93,25 +162,19 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
             })
         }
         const dc = pc.createDataChannel("oai-events")
-
+        dataChannelRef.current = dc
         dc.onopen = () => {
           console.log("📡 DataChannel opened:", dc.label)
         }
-        // به جای یک رشته، از یک Map برای نگهداری بافرهای مختلف استفاده می‌کنیم
-        // کلید: tool_call_id ، مقدار: بافر رشته‌ای JSON
 
-        // این قسمت را جایگزین تعریف‌های queryBuffer و currentToolCallId و extractQuery کنید
-        // کلید: tool_call_id ، مقدار: بافر رشته‌ای JSON
-        // برای هر tool_call یک بافر جدا
         const buffers = new Map<string, string>()
 
         dc.onmessage = async msg => {
           const data = JSON.parse(msg.data)
           console.log("📩 RAW event:", data)
 
-          // --- مرحله delta
           if (data.type === "response.function_call_arguments.delta") {
-            const id = data.tool_call_id || data.item_id // 👈 fallback
+            const id = data.tool_call_id || data.item_id
             if (!id) {
               console.warn("⚠️ No tool_call_id or item_id in delta:", data)
               return
@@ -124,9 +187,8 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
             console.log("✍️ Partial buffer for", id, ":", buffers.get(id))
           }
 
-          // --- مرحله done
           if (data.type === "response.function_call_arguments.done") {
-            const id = data.tool_call_id || data.item_id // 👈 fallback
+            const id = data.tool_call_id || data.item_id
             if (!id) {
               console.warn("⚠️ No tool_call_id or item_id in done:", data)
               return
@@ -151,7 +213,6 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
               if (!query) return
 
-              // --- صدا زدن gpt-4o-mini برای سرچ ---
               console.log("🌐 Sending query to /api/chat/search ...")
               const searchRes = await fetch("/api/chat/search", {
                 method: "POST",
@@ -168,16 +229,14 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               let payload
 
               if (data.tool_call_id) {
-                // وقتی tool_call_id داریم
                 payload = {
                   type: "response.create",
                   response: {
                     conversation: "auto",
-                    instructions: textResult // متن خروجی سرچ
+                    instructions: textResult
                   }
                 }
               } else {
-                // وقتی فقط item_id داریم → باز هم باید response.create بدی
                 payload = {
                   type: "response.create",
                   response: {
@@ -198,6 +257,33 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               console.error("❌ Error parsing JSON buffer:", buffer, err)
             }
           }
+
+          if (data.type === "response.done" && data.response?.usage) {
+            const usage = data.response.usage
+            console.log(`🔎 اطلاعات توکن برای این پاسخ:`)
+            console.log(`- ورودی: ${usage.input_tokens} توکن`)
+            console.log(`- خروجی: ${usage.output_tokens} توکن`)
+
+            // ✨ کد جدید برای ارسال اطلاعات توکن به سرور
+            try {
+              const res = await fetch("/api/webhooks/openai-realtime/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  // اینجا ID جلسه را هم ارسال می کنیم
+                  openaiSessionId: data.response.id,
+                  modelId: chatSettings.model,
+                  usage: usage
+                })
+              })
+
+              if (!res.ok) {
+                console.error("❌ Error sending usage data to temporary API.")
+              }
+            } catch (error) {
+              console.error("❌ Network error sending usage data:", error)
+            }
+          }
         }
 
         pc.onconnectionstatechange = () => {
@@ -209,11 +295,9 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
           }
         }
 
-        // گرفتن میکروفون کاربر
         const ms = await navigator.mediaDevices.getUserMedia({ audio: true })
         setUserStream(ms)
 
-        // فقط ترک‌های صوتی رو اضافه کن
         ms.getAudioTracks().forEach(track => {
           console.log("🎤 Sending audio track:", track.label, track.readyState)
           pc.addTrack(track, ms)
@@ -221,7 +305,6 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
         console.log("🎤 Local stream tracks:", ms.getTracks())
 
-        // ایجاد offer
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
 
@@ -249,9 +332,8 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         setStatus("connected")
         console.log("✅ Realtime session started")
       } catch (error) {
-        console.error("❌ Error starting realtime session:", error)
-        toast.error(
-          `Could not start voice chat: ${
+        console.error(
+          `❌ Could not start voice chat: ${
             error instanceof Error ? error.message : "Unknown error"
           }`
         )
@@ -269,18 +351,15 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
     }
   }
 
-  // ارتفاع نوارهای ویژوالایزر
   const barHeight = (multiplier: number) =>
     Math.max(4, Math.min(20, combinedVolume * multiplier))
   return (
     <>
       {status === "connected" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* بک‌گراند مشکی نیمه شفاف ولی کلیک‌گیر نیست */}
           <div className="pointer-events-none absolute inset-0 bg-black/50"></div>
 
           <div className="relative z-10 flex flex-col items-center">
-            {/* دکمه اصلی */}
             <div
               onClick={handleIconClick}
               className={cn(
@@ -314,17 +393,14 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               </div>
             </div>
 
-            {/* هاله */}
             <div className="absolute -z-10 size-48 animate-ping rounded-full bg-gradient-to-br from-[#4facfe] to-[#8e2de2]"></div>
 
-            {/* متن */}
             <p className="font-vazir mt-6 text-sm text-white">
               متصل شد! می‌توانید صحبت کنید.
             </p>
           </div>
         </div>
       ) : (
-        // حالت idle / connecting
         <div className="fixed bottom-12 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center">
           <div
             onClick={handleIconClick}
@@ -336,7 +412,20 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
             )}
           >
             {status === "connecting" ? (
-              <IconLoader2 className="animate-spin" size={32} />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="animate-spin"
+              >
+                <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
+              </svg>
             ) : (
               "••••"
             )}

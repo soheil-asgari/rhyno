@@ -350,10 +350,10 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
               {/* ✨ دکمه جدید پنل کاربری و جداکننده */}
               <Button
                 variant="outline"
-                className="w-full justify-center"
+                className="font-vazir w-full justify-center"
                 onClick={handleNavigateToAccount}
               >
-                <IconCreditCard className="mr-2" size={20} />
+                <IconCreditCard className="font-vazir mr-2" size={20} />
                 مشاهده پنل کاربری و اعتبار
               </Button>
 

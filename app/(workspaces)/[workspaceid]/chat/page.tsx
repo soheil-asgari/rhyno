@@ -4,8 +4,10 @@ import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
 import useHotkey from "@/lib/hooks/use-hotkey"
 import { useTheme } from "next-themes"
-import { useContext } from "react"
 import dynamic from "next/dynamic"
+import { useEffect, useContext } from "react"
+
+import { MODEL_PROMPTS } from "@/lib/build-prompt"
 
 const ChatHelp = dynamic(() =>
   import("@/components/chat/chat-help").then(mod => mod.ChatHelp)
@@ -36,16 +38,21 @@ export default function ChatPage({
 }: {
   params: { workspaceId: string }
 }) {
-  useHotkey("o", () => handleNewChat())
-  useHotkey("l", () => handleFocusChatInput())
-
-  const { chatMessages, chatSettings } = useContext(ChatbotUIContext)
-  const { handleNewChat, handleFocusChatInput } = useChatHandler()
   const { theme } = useTheme()
+  const { chatSettings, setChatSettings, chatMessages } =
+    useContext(ChatbotUIContext)
 
-  console.log("ChatPage params:", params)
-  console.log("ChatPage chatSettings:", JSON.stringify(chatSettings, null, 2))
-  console.log("ChatPage chatMessages:", JSON.stringify(chatMessages, null, 2))
+  // هنگام mount یا تغییر مدل، پرامپت را همواره از MODEL_PROMPTS تنظیم می‌کنیم
+  useEffect(() => {
+    if (!chatSettings) return
+    setChatSettings(prev => ({
+      ...prev,
+      prompt: MODEL_PROMPTS[prev.model] || "You are a helpful AI assistant."
+    }))
+  }, [chatSettings?.model, setChatSettings])
+
+  console.log("ChatPage chatSettings:", chatSettings)
+  console.log("ChatPage chatMessages:", chatMessages)
 
   const isRealtimeMode = chatSettings?.model?.includes("realtime") ?? false
   console.log("isRealtimeMode:", isRealtimeMode)

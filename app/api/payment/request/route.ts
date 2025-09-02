@@ -6,6 +6,7 @@ export const runtime = "edge"
 
 const MANUAL_EXCHANGE_RATE = 1030000
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
+const VAT_RATE = 0.09
 
 export async function POST(request: Request) {
   try {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       .single()
 
     if (txError) throw txError
+    const description = `شارژ حساب به مبلغ ${amountToman.toLocaleString("fa-IR")} تومان (با احتساب ۹٪ مالیات بر ارزش افزوده)`
 
     const zarinpalResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/request.json",

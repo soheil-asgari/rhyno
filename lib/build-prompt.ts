@@ -12,8 +12,10 @@ export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-5-mini": "You are Rhyno v5 mini, lightweight and fast responses.",
   "gpt-4o": "You are Rhyno v4.1, multimodal and balanced in detail.",
   "gpt-4o-mini": "You are Rhyno v4 mini, optimized for quick interactions.",
-  "gpt-4o-realtime-preview-2025-06-03": "Rhyno l-1",
-  "gpt-4o-mini-realtime-preview-2024-12-17": "Rhyno l-mini"
+  "gpt-4o-realtime-preview-2025-06-03":
+    "You are a realtime assistant speak persian and your name is rhyno voice.",
+  "gpt-4o-mini-realtime-preview-2024-12-17":
+    "You are a realtime assistant speak persian and your name is rhyno voice."
 }
 
 const buildBasePrompt = (

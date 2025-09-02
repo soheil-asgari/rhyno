@@ -1,19 +1,21 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
+import { ChatSettings, LLMID } from "@/types"
+import { ServerRuntime } from "next"
 import OpenAI from "openai"
-import {
-  ChatCompletion,
+import type {
   ChatCompletionCreateParams,
   ChatCompletionCreateParamsStreaming
 } from "openai/resources/chat/completions"
-import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
-import { ChatSettings, LLMID } from "@/types"
+import { NextResponse } from "next/server"
 import { MODEL_PROMPTS } from "@/lib/build-prompt"
+
+// ✨ ایمپورت‌های جدید برای پرداخت و احراز هویت
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
-import { ServerRuntime } from "next"
-// ✨ این خط را حذف می‌کنیم تا از Node.js Runtime استفاده شود که با سوپابیس سازگارتر است
-export const runtime: ServerRuntime = "edge"
+
+// از Node.js runtime استفاده می‌کنیم
+export const runtime: ServerRuntime = "nodejs"
 
 type ChatCompletionUsage = {
   prompt_tokens: number
@@ -23,39 +25,64 @@ type ChatCompletionUsage = {
 
 type ExtendedChatSettings = ChatSettings & {
   maxTokens?: number
+  max_tokens?: number
 }
 
+// ✨ ثابت‌ها و تابع محاسبه هزینه
 const pricingMap = new Map(
   OPENAI_LLM_LIST.map(llm => [llm.modelId, llm.pricing])
 )
-const PROFIT_MARGIN = 1.4 // 40% سود
+const PROFIT_MARGIN = 1.4
 
-// این تابع هزینه را به دلار محاسبه می‌کند
 function calculateUserCostUSD(
   modelId: LLMID,
   usage: { prompt_tokens: number; completion_tokens: number }
 ): number {
   const pricing = pricingMap.get(modelId)
-  if (!pricing?.inputCost || !pricing.outputCost) {
-    return 0
-  }
+  if (!pricing?.inputCost || !pricing.outputCost) return 0
   const promptCost = (usage.prompt_tokens / 1_000_000) * pricing.inputCost
   const completionCost =
     (usage.completion_tokens / 1_000_000) * pricing.outputCost
-  const totalOpenAICost = promptCost + completionCost
-  return totalOpenAICost * PROFIT_MARGIN
+  return (promptCost + completionCost) * PROFIT_MARGIN
+}
+
+const MODELS_NEED_MAX_COMPLETION = new Set([
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5",
+  "gpt-5-mini"
+])
+const MODELS_WITH_OPENAI_WEB_SEARCH = new Set([
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5",
+  "gpt-5-mini"
+])
+const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
+const MODELS_WITH_AUTO_SEARCH = new Set([
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5",
+  "gpt-5-mini"
+])
+
+function pickMaxTokens(cs: ExtendedChatSettings): number {
+  return Math.min(cs.maxTokens ?? cs.max_tokens ?? 10000, 12000)
 }
 
 export async function POST(request: Request) {
-  const { chatSettings, messages } = await request.json()
-
+  console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
+    const { chatSettings, messages, enableWebSearch } = await request.json()
+
+    // ✨ شروع بخش پرداخت و احراز هویت
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
+
     const {
       data: { user }
     } = await supabase.auth.getUser()
@@ -69,95 +96,328 @@ export async function POST(request: Request) {
       .single()
 
     if (walletError && walletError.code === "PGRST116") {
-      const { data: newWallet } = await supabase
-        .from("wallets")
-        .insert({ user_id: userId, balance: 0 })
-        .select("balance")
-        .single()
-      if (!newWallet || newWallet.balance <= 0) {
-        return NextResponse.json(
-          { message: "موجودی شما کافی نیست. لطفاً حساب خود را شارژ کنید." },
-          { status: 402 }
-        )
-      }
+      return NextResponse.json(
+        { message: "موجودی شما کافی نیست." },
+        { status: 402 }
+      )
     } else if (walletError) {
       throw walletError
     }
 
-    if (!wallet) return new NextResponse("Wallet not found", { status: 404 })
-
-    if (wallet.balance <= 0) {
+    if (!wallet || wallet.balance <= 0) {
       return NextResponse.json(
-        { message: "موجودی شما کافی نیست. لطفاً حساب خود را شارژ کنید." },
+        { message: "موجودی شما کافی نیست." },
         { status: 402 }
       )
     }
+    // ✨ پایان بخش پرداخت و احراز هویت
 
     const profile = await getServerProfile()
     checkApiKey(profile.openai_api_key, "OpenAI")
-    const openai = new OpenAI({ apiKey: profile.openai_api_key || "" })
-    const selectedModel = chatSettings.model as LLMID
+    const openai = new OpenAI({
+      apiKey: profile.openai_api_key || "",
+      organization: profile.openai_organization_id
+    })
 
-    // ✨ ۱. پیاده‌سازی MODEL_PROMPTS
-    // بررسی می‌کنیم آیا پیام سیستمی از قبل وجود دارد یا نه
-    const hasSystemMessage = messages.some((msg: any) => msg.role === "system")
-    let finalMessages = [...messages]
+    const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
 
-    if (!hasSystemMessage && MODEL_PROMPTS[selectedModel]) {
-      // اگر وجود نداشت، پرامپت سفارشی مدل را از ماژول اضافه می‌کنیم
-      finalMessages.unshift({
+    // ✨ مدیریت پیام سیستم
+    const finalMessages = [
+      {
         role: "system",
-        content: MODEL_PROMPTS[selectedModel]
-      })
+        content:
+          MODEL_PROMPTS[selectedModel] || "You are a helpful AI assistant."
+      },
+      ...(Array.isArray(messages) ? messages : [])
+    ]
+
+    if (selectedModel === "dall-e-3") {
+      return NextResponse.json(
+        { message: "DALL-E 3 requests should be sent to /api/dalle/route.ts" },
+        { status: 400 }
+      )
     }
 
-    const useStream = chatSettings.stream !== false
+    if (selectedModel.includes("realtime")) {
+      const response = await fetch(
+        "https://api.openai.com/v1/realtime/sessions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${profile.openai_api_key}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            voice: "alloy",
+            instructions:
+              MODEL_PROMPTS[selectedModel] ??
+              "You are a realtime assistant speak persian and your name is rhyno voice.",
+            tools: [
+              {
+                type: "function",
+                name: "web_search",
+                description: "Search the web for up-to-date information",
+                parameters: {
+                  type: "object",
+                  properties: { query: { type: "string" } },
+                  required: ["query"]
+                }
+              }
+            ]
+          })
+        }
+      )
+      if (!response.ok) {
+        const errorBody = await response.json()
+        throw new Error(
+          errorBody.error?.message || "Failed to create realtime session"
+        )
+      }
+      const session = await response.json()
+      const { error: insertError } = await supabase
+        .from("realtime_sessions")
+        .insert({
+          user_id: userId,
+          openai_session_id: session.id // یا هر فیلدی که ID جلسه در آن است
+        })
 
-    if (useStream) {
-      const payload: ChatCompletionCreateParamsStreaming = {
-        model: selectedModel,
-        messages: finalMessages, // ✨ استفاده از پیام‌های نهایی
-        stream: true,
-        temperature: chatSettings.temperature,
-        max_tokens: chatSettings.max_tokens,
-        stream_options: { include_usage: true }
+      if (insertError) {
+        console.error("Failed to save realtime session to DB:", insertError)
+        // می‌توانید اینجا خطا را مدیریت کنید
+      }
+      return NextResponse.json(session)
+    }
+
+    const cs = chatSettings as ExtendedChatSettings
+    const maxTokens = pickMaxTokens(cs)
+    const temp = typeof cs.temperature === "number" ? cs.temperature : 1
+
+    const useStream = !MODELS_THAT_SHOULD_NOT_STREAM.has(selectedModel)
+    const enableSearch =
+      typeof enableWebSearch === "boolean"
+        ? enableWebSearch
+        : MODELS_WITH_AUTO_SEARCH.has(selectedModel)
+    const useOpenAIWebSearch =
+      !!enableSearch && MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel)
+
+    // ✨ منطق Web Search
+    if (useOpenAIWebSearch) {
+      // بخش ۱: مدیریت مدل‌های غیر استریم وب‌سرچ (کد اصلی شما)
+      if (["gpt-5", "gpt-5-mini"].includes(selectedModel)) {
+        console.log(
+          "🚀 [WEB-SEARCH] Entering NON-streaming web search block for model:",
+          selectedModel
+        )
+        const response = await openai.responses.create({
+          model: selectedModel,
+          input: finalMessages.map(m =>
+            m.role === "user"
+              ? {
+                  role: "user",
+                  content: [{ type: "input_text", text: m.content as string }]
+                }
+              : m
+          ) as any,
+          tools: [{ type: "web_search" as any }],
+          temperature: temp,
+          max_output_tokens: maxTokens
+        })
+
+        // ✨ اضافه کردن منطق کسر هزینه برای حالت غیر استریم وب‌سرچ
+        const usage = response.usage
+        if (usage) {
+          const userCostUSD = calculateUserCostUSD(selectedModel, {
+            prompt_tokens: usage.input_tokens, // <-- تغییر از prompt_tokens
+            completion_tokens: usage.output_tokens // <-- تغییر از completion_tokens
+          })
+          console.log(`📊 [WEB-SEARCH] Usage data received:`, usage)
+          if (userCostUSD > 0 && wallet) {
+            console.log(
+              `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
+            )
+            await supabase.rpc("deduct_credits_and_log_usage", {
+              p_user_id: userId,
+              p_model_name: selectedModel,
+              p_prompt_tokens: usage.input_tokens, // <-- تغییر به input_tokens
+              p_completion_tokens: usage.output_tokens, // <-- تغییر به output_tokens
+              p_cost: userCostUSD
+            })
+            const { data: updatedWallet } = await supabase
+              .from("wallets")
+              .select("balance")
+              .eq("user_id", userId)
+              .single()
+            console.log(
+              `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
+            )
+          }
+        }
+
+        return new Response(response.output_text ?? "", {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        })
       }
 
-      const stream = await openai.chat.completions.create(payload)
+      // بخش ۲: مدیریت مدل‌های استریم وب‌سرچ (مثل gpt-4o-mini)
+      // این بخش فقط در صورتی اجرا می‌شود که شرط بالا برقرار نباشد
       const encoder = new TextEncoder()
-
-      const readableStream = new ReadableStream({
+      const stream = new ReadableStream({
         async start(controller) {
+          console.log(
+            "🚀 [WEB-SEARCH] Entering STREAMING web search block for model:",
+            selectedModel
+          )
           let usage: ChatCompletionUsage | undefined
+
           try {
-            for await (const chunk of stream) {
-              if (chunk.usage) usage = chunk.usage
-              const delta = chunk.choices[0]?.delta?.content || ""
-              if (delta) controller.enqueue(encoder.encode(delta))
+            const transformedInput = finalMessages.map(m => {
+              if (m.role === "user")
+                return {
+                  ...m,
+                  content: [{ type: "input_text", text: m.content as string }]
+                }
+              if (m.role === "assistant" && typeof m.content === "string")
+                return {
+                  ...m,
+                  content: [{ type: "output_text", text: m.content }]
+                }
+              return m
+            })
+
+            const oaiStream = await openai.responses.stream({
+              model: selectedModel,
+              input: transformedInput as any,
+              tools: [{ type: "web_search" as any }],
+              temperature: temp,
+              max_output_tokens: maxTokens
+            })
+
+            for await (const event of oaiStream as AsyncIterable<any>) {
+              // console.log("EVENT FROM OPENAI:", JSON.stringify(event, null, 2));
+              if (event.type === "response.output_text.delta") {
+                controller.enqueue(encoder.encode(String(event.delta || "")))
+              } else if (
+                event.type === "response.completed" &&
+                event.response?.usage
+              ) {
+                const receivedUsage = event.response.usage
+                usage = {
+                  prompt_tokens: receivedUsage.input_tokens,
+                  completion_tokens: receivedUsage.output_tokens,
+                  total_tokens: receivedUsage.total_tokens
+                }
+                // این لاگ حالا باید نمایش داده شود
+                console.log("📊 [WEB-SEARCH] Usage data received:", usage)
+              }
             }
 
             if (usage) {
               const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-              console.log(
-                `Deducting cost: $${userCostUSD.toFixed(6)} USD for user ${userId}`
-              )
-
-              // ✨ ۲. کسر هزینه به دلار از دیتابیس
-              const { error: rpcError } = await supabase.rpc(
-                "deduct_credits_and_log_usage",
-                {
+              if (userCostUSD > 0 && wallet) {
+                console.log(
+                  `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
+                )
+                await supabase.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,
                   p_model_name: selectedModel,
                   p_prompt_tokens: usage.prompt_tokens,
                   p_completion_tokens: usage.completion_tokens,
-                  p_cost: userCostUSD // ارسال هزینه به دلار
-                }
-              )
-              if (rpcError)
-                console.error("!!! Supabase RPC Error (Stream) !!!:", rpcError)
+                  p_cost: userCostUSD
+                })
+                const { data: updatedWallet } = await supabase
+                  .from("wallets")
+                  .select("balance")
+                  .eq("user_id", userId)
+                  .single()
+                console.log(
+                  `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
+                )
+              }
             }
-          } catch (error) {
-            console.error("Error during stream billing:", error)
+          } catch (err: any) {
+            console.error("❌ [WEB-SEARCH] Error in stream:", err)
+            controller.enqueue(
+              encoder.encode(
+                `❌ خطا در وب‌سرچ: ${err?.message || "خطای ناشناخته"}`
+              )
+            )
+          } finally {
+            console.log("🚪 [WEB-SEARCH] Closing stream controller.")
+            controller.close()
+          }
+        }
+      })
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no"
+        }
+      })
+    }
+    // ✨ منطق استریم مدل‌های معمولی
+    if (useStream) {
+      const payload: ChatCompletionCreateParamsStreaming = {
+        model: selectedModel,
+        messages: finalMessages,
+        stream: true,
+        temperature: temp,
+        max_tokens: maxTokens
+      }
+      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel))
+        (payload as any).max_completion_tokens = maxTokens
+
+      const stream = await openai.chat.completions.create(payload)
+      const encoder = new TextEncoder()
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
+          let usage: ChatCompletionUsage | undefined
+          try {
+            for await (const chunk of stream) {
+              if (chunk.usage) usage = chunk.usage
+              console.log("📊 [STREAM-DEBUG] Usage data received:", usage)
+              const delta = chunk.choices[0]?.delta?.content || ""
+              if (delta) controller.enqueue(encoder.encode(delta))
+            }
+            console.log(
+              "🏁 [STREAM-DEBUG] Stream loop finished. Checking for usage data..."
+            )
+            if (usage) {
+              console.log(
+                "✅ [STREAM-DEBUG] Usage data found. Proceeding with deduction logic."
+              )
+
+              const userCostUSD = calculateUserCostUSD(selectedModel, usage)
+              console.log(
+                `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
+              )
+              if (userCostUSD > 0 && wallet) {
+                await supabase.rpc("deduct_credits_and_log_usage", {
+                  p_user_id: userId,
+                  p_model_name: selectedModel,
+                  p_prompt_tokens: usage.prompt_tokens,
+                  p_completion_tokens: usage.completion_tokens,
+                  p_cost: userCostUSD
+                })
+                const { data: updatedWallet } = await supabase
+                  .from("wallets")
+                  .select("balance")
+                  .eq("user_id", userId)
+                  .single()
+
+                console.log(
+                  `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
+                )
+                console.log(
+                  "💰 Credits deducted:",
+                  userCostUSD,
+                  "for user:",
+                  userId
+                )
+              }
+            }
           } finally {
             controller.close()
           }
@@ -167,50 +427,45 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "text/event-stream; charset=utf-8" }
       })
     } else {
-      // حالت غیر استریم
       const payload: ChatCompletionCreateParams = {
         model: selectedModel,
-        messages: finalMessages, // ✨ استفاده از پیام‌های نهایی
+        messages: finalMessages,
         stream: false,
-        temperature: chatSettings.temperature,
-        max_tokens: chatSettings.max_tokens
+        temperature: temp,
+        max_tokens: maxTokens
       }
-
-      // قبل از ارسال، هزینه احتمالی را تخمین زده و موجودی را چک می‌کنیم (اختیاری اما بهتر)
+      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel))
+        (payload as any).max_completion_tokens = maxTokens
 
       const response = await openai.chat.completions.create(payload)
       const content = response.choices[0].message.content ?? ""
       const usage = response.usage
-
+      console.log("💡 Checking wallet and usage...")
       if (usage) {
+        console.log("💡 Usage exists:", usage)
         const userCostUSD = calculateUserCostUSD(selectedModel, usage)
         console.log(
-          `Deducting cost: $${userCostUSD.toFixed(6)} USD for user ${userId}`
+          `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
         )
-
-        if (wallet.balance < userCostUSD) {
-          // این حالت کم پیش می‌آید اما برای اطمینان چک می‌شود
+        if (!wallet || wallet.balance < userCostUSD)
           return NextResponse.json(
-            { message: "موجودی شما پس از این درخواست کافی نخواهد بود." },
+            { message: "موجودی شما کافی نیست." },
             { status: 402 }
           )
-        }
-
-        // ✨ ۲. کسر هزینه به دلار از دیتابیس
-        const { error: rpcError } = await supabase.rpc(
-          "deduct_credits_and_log_usage",
-          {
+        if (userCostUSD > 0) {
+          console.log("⏳ Trying to deduct credits now...")
+          await supabase.rpc("deduct_credits_and_log_usage", {
             p_user_id: userId,
             p_model_name: selectedModel,
             p_prompt_tokens: usage.prompt_tokens,
             p_completion_tokens: usage.completion_tokens,
             p_cost: userCostUSD
-          }
-        )
-        if (rpcError)
-          console.error("!!! Supabase RPC Error (Non-Stream) !!!:", rpcError)
+          })
+          console.log(
+            `✅ Credits deducted for UserID: ${userId}, CostUSD: ${userCostUSD}`
+          )
+        }
       }
-
       return new Response(content, {
         headers: { "Content-Type": "text/plain; charset=utf-8" }
       })
