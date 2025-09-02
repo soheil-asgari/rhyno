@@ -2,12 +2,12 @@
 
 import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
-import useHotkey from "@/lib/hooks/use-hotkey"
 import { useTheme } from "next-themes"
 import dynamic from "next/dynamic"
 import { useEffect, useContext } from "react"
-
+import { useSearchParams, useRouter } from "next/navigation"
 import { MODEL_PROMPTS } from "@/lib/build-prompt"
+import toast, { Toaster } from "react-hot-toast"
 
 const ChatHelp = dynamic(() =>
   import("@/components/chat/chat-help").then(mod => mod.ChatHelp)
@@ -39,10 +39,24 @@ export default function ChatPage({
   params: { workspaceId: string }
 }) {
   const { theme } = useTheme()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const welcome = searchParams.get("welcome")
   const { chatSettings, setChatSettings, chatMessages } =
     useContext(ChatbotUIContext)
 
-  // هنگام mount یا تغییر مدل، پرامپت را همواره از MODEL_PROMPTS تنظیم می‌کنیم
+  // 🔹 نمایش Toast خوش‌آمدگویی فقط یک بار
+  useEffect(() => {
+    if (welcome === "true") {
+      toast.success("🎉 ۱$ خوش‌آمدگویی به کیف پول شما اضافه شد!")
+      // پاک کردن پارامتر welcome از URL
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete("welcome")
+      router.replace(newUrl.toString())
+    }
+  }, [welcome, router])
+
+  // 🔹 تنظیم prompt مدل
   useEffect(() => {
     if (!chatSettings) return
     setChatSettings(prev => ({
@@ -51,17 +65,14 @@ export default function ChatPage({
     }))
   }, [chatSettings?.model, setChatSettings])
 
-  console.log("ChatPage chatSettings:", chatSettings)
-  console.log("ChatPage chatMessages:", chatMessages)
-
   const isRealtimeMode = chatSettings?.model?.includes("realtime") ?? false
-  console.log("isRealtimeMode:", isRealtimeMode)
 
   return (
     <>
+      <Toaster position="top-right" />
       {chatMessages.length === 0 ? (
         <div className="relative flex h-full flex-col items-center justify-center">
-          <div className="top-50% left-50% -translate-x-50% -translate-y-50% absolute mb-20">
+          <div className="top-50% left-50% absolute mb-20 -translate-x-1/2 -translate-y-1/2">
             <Brand theme={theme === "dark" ? "dark" : "light"} />
           </div>
 

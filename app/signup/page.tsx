@@ -31,43 +31,102 @@ export default async function SignupPage({
     const password = formData.get("password") as string
     const confirmPassword = formData.get("confirmPassword") as string
 
+    // ابتدا چک کن رمزها مطابقت دارند
     if (password !== confirmPassword) {
       return redirect(
-        `/signup?method=email&message=${encodeURIComponent("رمزهای عبور با یکدیگر مطابقت ندارند.")}`
+        `/signup?method=email&message=${encodeURIComponent(
+          "رمزهای عبور با یکدیگر مطابقت ندارند."
+        )}`
       )
     }
 
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
-    const { error } = await supabase.auth.signUp({ email, password })
 
-    if (error) {
+    // ثبت نام کاربر
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+      {
+        email,
+        password
+      }
+    )
+
+    if (signUpError || !signUpData.user) {
       return redirect(
-        `/signup?method=email&message=${encodeURIComponent("ثبت نام با این ایمیل امکان‌پذیر نیست.")}`
+        `/signup?method=email&message=${encodeURIComponent(
+          "ثبت نام با این ایمیل امکان‌پذیر نیست."
+        )}`
       )
     }
 
-    return redirect("/setup") // هدایت به صفحه راه‌اندازی پس از ثبت نام
+    // بعد از ثبت نام موفق، 1$ خوش آمدگویی اضافه کن
+    await supabase.from("wallets").insert({
+      user_id: signUpData.user.id,
+      amount_usd: 1,
+      description: "خوش‌آمدگویی 1$"
+    })
+
+    return redirect(`/setup?welcome=1`) // هدایت به صفحه راه‌اندازی
   }
 
   const signUpWithGoogle = async () => {
     "use server"
-    const origin = headers().get("origin")
+    const origin = headers().get("origin") || process.env.NEXT_PUBLIC_SITE_URL
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${origin}/auth/callback` }
+      options: { redirectTo: `${origin}/auth/callback` } // مسیر callback
     })
-    if (error)
+
+    if (error) {
       return redirect(`/signup?message=${encodeURIComponent(error.message)}`)
-    if (data.url) return redirect(data.url)
+    }
+
+    // کاربر هنوز به callback هدایت نشده، بنابراین اینجا نمی‌توان ۱$ اضافه کرد
+    if (data.url) {
+      return redirect(data.url)
+    }
   }
 
   const sendOtpForSignUp = async (formData: FormData) => {
     "use server"
     const phone = formData.get("phone") as string
-    // ... منطق ارسال کد ...
+
+    // اعتبارسنجی شماره
+    if (!/^09\d{9}$/.test(phone)) {
+      return redirect(
+        `/signup?method=phone&message=${encodeURIComponent("شماره موبایل نامعتبر است")}`
+      )
+    }
+
+    const cookieStore = cookies()
+    const supabase = createClient(cookieStore)
+
+    // بررسی تکراری نبودن شماره
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single()
+
+    if (existingUser) {
+      return redirect(
+        `/signup?method=phone&message=${encodeURIComponent("این شماره قبلاً ثبت شده است")}`
+      )
+    }
+
+    // ارسال OTP (مثال: با Twilio یا سرویس داخلی)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    await supabase
+      .from("otp_codes")
+      .insert({
+        phone,
+        code: otp,
+        expires_at: new Date(Date.now() + 5 * 60 * 1000)
+      })
+
     const message = "کد برای شما ارسال شد ✅"
     redirect(
       `/signup?method=phone&step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(message)}`
@@ -76,13 +135,40 @@ export default async function SignupPage({
 
   const verifyOtpForSignUp = async (formData: FormData) => {
     "use server"
-    // ... منطق تایید کد ...
-    const data = { success: true }
-    if (data.success) return redirect(`/setup`)
     const phone = formData.get("phone") as string
+
+    // ✅ منطق تایید کد خودت اینجا
+    const isOtpValid = true // فرض کنیم OTP معتبر است
+    if (isOtpValid) {
+      const cookieStore = cookies()
+      const supabase = createClient(cookieStore)
+
+      // گرفتن اطلاعات کاربر بعد از تایید OTP
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single()
+
+      if (!userError && userData) {
+        // اضافه کردن 1$ خوش‌آمدگویی
+        await supabase.from("wallets").insert({
+          user_id: userData.id,
+          amount_usd: 1,
+          description: "خوش‌آمدگویی 1$"
+        })
+      }
+
+      // هدایت به صفحه setup با پارامتر toast
+      return redirect(`/setup?welcome=1`)
+    }
+
+    // اگر OTP اشتباه بود
     const message = "کد واردشده نادرست است ❌"
-    redirect(
-      `/signup?method=phone&step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(message)}`
+    return redirect(
+      `/signup?method=phone&step=otp&phone=${encodeURIComponent(
+        phone
+      )}&message=${encodeURIComponent(message)}`
     )
   }
 
