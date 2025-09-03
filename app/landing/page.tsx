@@ -337,7 +337,10 @@ export default function MinimalLandingPage() {
               referrerPolicy="origin"
               src="https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT"
               alt="نماد اعتماد الکترونیکی"
+              width={125}
+              height={125}
               className="h-12 cursor-pointer"
+              unoptimized
             />
           </a>
         </div>

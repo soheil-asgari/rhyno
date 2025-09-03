@@ -26,6 +26,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "**",
       },
+      {
+        protocol: 'https',
+        hostname: 'trustseal.enamad.ir',
+      },
     ],
   },
   experimental: {
