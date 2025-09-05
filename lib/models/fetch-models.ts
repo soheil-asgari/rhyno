@@ -52,36 +52,39 @@ export const fetchHostedModels = async (profile: Tables<"profiles">) => {
   }
 }
 
-export const fetchOllamaModels = async () => {
-  try {
-    const response = await fetch(
-      process.env.NEXT_PUBLIC_OLLAMA_URL + "/api/tags"
-    )
+// export const fetchOllamaModels = async () => {
+//   try {
+//     const response = await fetch(
+//       process.env.NEXT_PUBLIC_OLLAMA_URL + "/api/tags"
+//     )
 
-    if (!response.ok) {
-      throw new Error(`Ollama server is not responding.`)
-    }
+//     if (!response.ok) {
+//       throw new Error(`Ollama server is not responding.`)
+//     }
 
-    const data = await response.json()
+//     const data = await response.json()
 
-    const localModels: LLM[] = data.models.map((model: any) => ({
-      modelId: model.name as LLMID,
-      modelName: model.name,
-      provider: "ollama",
-      hostedId: model.name,
-      platformLink: "https://ollama.ai/library",
-      imageInput: false
-    }))
+//     const localModels: LLM[] = data.models.map((model: any) => ({
+//       modelId: model.name as LLMID,
+//       modelName: model.name,
+//       provider: "ollama",
+//       hostedId: model.name,
+//       platformLink: "https://ollama.ai/library",
+//       imageInput: false
+//     }))
 
-    return localModels
-  } catch (error) {
-    console.warn("Error fetching Ollama models: " + error)
-  }
-}
+//     return localModels
+//   } catch (error) {
+//     console.warn("Error fetching Ollama models: " + error)
+//   }
+// }
 
 export const fetchOpenRouterModels = async () => {
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/models")
+    const response = await fetch("https://openrouter.ai/api/v1/models", {
+      cache: "no-store", // جلوگیری از کش قدیمی
+      next: { revalidate: 10 } // اگر SSR هست
+    })
 
     if (!response.ok) {
       throw new Error(`OpenRouter server is not responding.`)
@@ -89,7 +92,7 @@ export const fetchOpenRouterModels = async () => {
 
     const { data } = await response.json()
 
-    const openRouterModels = data.map(
+    return data.map(
       (model: {
         id: string
         name: string
@@ -104,10 +107,11 @@ export const fetchOpenRouterModels = async () => {
         maxContext: model.context_length
       })
     )
-
-    return openRouterModels
   } catch (error) {
     console.error("Error fetching Open Router models: " + error)
-    toast.error("Error fetching Open Router models: " + error)
+    toast.error("OpenRouter models not available. Using default list.")
+
+    // fallback به لیست خالی یا مدل‌های از قبل تعریف‌شده
+    return []
   }
 }

@@ -14,34 +14,32 @@ const nextConfig = {
   reactStrictMode: false,
   images: {
     remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
-      {
-        protocol: "http",
-        hostname: "127.0.0.1",
-      },
-      {
-        protocol: "https",
-        hostname: "**",
-      },
-      {
-        protocol: 'https',
-        hostname: 'trustseal.enamad.ir',
-      },
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "http", hostname: "127.0.0.1" },
+      { protocol: "https", hostname: "**" },
+      { protocol: "https", hostname: "trustseal.enamad.ir" },
     ],
   },
   experimental: {
     serverComponentsExternalPackages: ["sharp", "onnxruntime-node"],
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          { type: 'host', value: 'rhynoai.ir' }, // نسخه بدون www
+        ],
+        destination: 'https://www.rhynoai.ir/:path*', // هدایت به www
+        permanent: true, // 301 دائمی
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // این خط برای جلوگیری از خطا امن‌تر شده است
       const ignored = Array.isArray(config.watchOptions.ignored)
         ? config.watchOptions.ignored
         : [];
-
       config.watchOptions.ignored = [
         ...ignored,
         /public\/sw\.js$/,

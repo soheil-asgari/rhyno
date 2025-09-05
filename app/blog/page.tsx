@@ -16,7 +16,15 @@ type Post = {
   excerpt: string
   category: string
 }
-
+export const metadata: Metadata = {
+  title: "بلاگ هوش مصنوعی Rhyno AI | مقالات، آموزش‌ها و اخبار AI",
+  description:
+    "جدیدترین تحلیل‌ها، آموزش‌ها و اخبار دنیای هوش مصنوعی را در بلاگ Rhyno AI دنبال کنید.",
+  robots: "index, follow",
+  alternates: {
+    canonical: "https://yourdomain.com/blog"
+  }
+}
 // کامپوننت کارت مقاله با RTL و اندازه تصویر مناسب
 const BlogCard = ({ post }: { post: Post }) => {
   const postDate = post.date

@@ -1,3 +1,5 @@
+// فایل: ChatFilesDisplay.tsx (نسخه اصلاح شده)
+
 import { ChatbotUIContext } from "@/context/context"
 import { getFileFromStorage } from "@/db/storage/files"
 import useHotkey from "@/lib/hooks/use-hotkey"
@@ -42,6 +44,15 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
     setChatFiles,
     setUseRetrieval
   } = useContext(ChatbotUIContext)
+  console.log(
+    "%c--- ChatFilesDisplay Component Rendered ---",
+    "color: orange; font-weight: bold;"
+  )
+  console.log(
+    "1. State right after render -> newMessageFiles:",
+    newMessageFiles
+  )
+  console.log("2. State right after render -> chatFiles:", chatFiles)
 
   const [selectedFile, setSelectedFile] = useState<ChatFile | null>(null)
   const [selectedImage, setSelectedImage] = useState<MessageImage | null>(null)
@@ -71,6 +82,17 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
     const link = await getFileFromStorage(fileRecord.file_path)
     window.open(link, "_blank")
   }
+  // ================= START: لاگ‌های جدید را اینجا اضافه کنید =================
+  console.log(
+    "3. Calculated array to be rendered -> combinedChatFiles:",
+    combinedChatFiles
+  )
+  console.log("4. Condition check -> showFilesDisplay:", showFilesDisplay)
+  console.log(
+    "5. Condition check -> combinedMessageFiles.length:",
+    combinedMessageFiles.length
+  )
+  // ================= END: پایان لاگ‌های جدید =================
 
   return showFilesDisplay && combinedMessageFiles.length > 0 ? (
     <>
@@ -105,9 +127,7 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
             onClick={() => setShowFilesDisplay(false)}
           >
             <RetrievalToggle />
-
             <div>Hide files</div>
-
             <div onClick={e => e.stopPropagation()}>
               <ChatRetrievalSettings />
             </div>
@@ -123,14 +143,14 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
               >
                 <Image
                   className="rounded"
-                  // Force the image to be 56px by 56px
                   style={{
                     minWidth: "56px",
                     minHeight: "56px",
                     maxHeight: "56px",
-                    maxWidth: "56px"
+                    maxWidth: "56px",
+                    objectFit: "cover"
                   }}
-                  src={image.base64} // Preview images will always be base64
+                  src={image.base64}
                   alt="File image"
                   width={56}
                   height={56}
@@ -139,7 +159,6 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
                     setShowPreview(true)
                   }}
                 />
-
                 <IconX
                   className="bg-muted-foreground border-primary absolute right-[-6px] top-[-2px] flex size-5 cursor-pointer items-center justify-center rounded-full border-DEFAULT text-[10px] hover:border-red-500 hover:bg-white hover:text-red-500"
                   onClick={e => {
@@ -166,7 +185,6 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
                   <div className="rounded bg-blue-500 p-2">
                     <IconLoader2 className="animate-spin" />
                   </div>
-
                   <div className="truncate text-sm">
                     <div className="truncate">{file.name}</div>
                     <div className="truncate opacity-50">{file.type}</div>
@@ -178,30 +196,45 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
                   className="relative flex h-[64px] cursor-pointer items-center space-x-4 rounded-xl border-2 px-4 py-3 hover:opacity-50"
                   onClick={() => getLinkAndView(file)}
                 >
-                  <div className="rounded bg-blue-500 p-2">
-                    {(() => {
-                      let fileExtension = file.type.includes("/")
-                        ? file.type.split("/")[1]
-                        : file.type
+                  {/* START: بخش اصلاح شده برای نمایش پیش‌نمایش */}
+                  {file.preview && file.preview.startsWith("data:image/") ? (
+                    <img
+                      src={file.preview || ""}
+                      alt={`Preview of ${file.name}`}
+                      className="rounded"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        objectFit: "cover"
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded bg-blue-500 p-2">
+                      {(() => {
+                        let fileExtension = file.type.includes("/")
+                          ? file.type.split("/")[1]
+                          : file.type
 
-                      switch (fileExtension) {
-                        case "pdf":
-                          return <IconFileTypePdf />
-                        case "markdown":
-                          return <IconMarkdown />
-                        case "txt":
-                          return <IconFileTypeTxt />
-                        case "json":
-                          return <IconJson />
-                        case "csv":
-                          return <IconFileTypeCsv />
-                        case "docx":
-                          return <IconFileTypeDocx />
-                        default:
-                          return <IconFileFilled />
-                      }
-                    })()}
-                  </div>
+                        switch (fileExtension) {
+                          case "pdf":
+                            return <IconFileTypePdf />
+                          case "markdown":
+                            return <IconMarkdown />
+                          case "txt":
+                            return <IconFileTypeTxt />
+                          case "json":
+                            return <IconJson />
+                          case "csv":
+                            return <IconFileTypeCsv />
+                          case "vnd.openxmlformats-officedocument.wordprocessingml.document":
+                            return <IconFileTypeDocx />
+                          default:
+                            return <IconFileFilled />
+                        }
+                      })()}
+                    </div>
+                  )}
+                  {/* END: پایان بخش اصلاح شده */}
 
                   <div className="truncate text-sm">
                     <div className="truncate">{file.name}</div>
@@ -232,13 +265,11 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
           onClick={() => setShowFilesDisplay(true)}
         >
           <RetrievalToggle />
-
           <div>
             {" "}
             View {combinedMessageFiles.length} file
             {combinedMessageFiles.length > 1 ? "s" : ""}
           </div>
-
           <div onClick={e => e.stopPropagation()}>
             <ChatRetrievalSettings />
           </div>
@@ -248,6 +279,7 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
   )
 }
 
+// ... بقیه کد بدون تغییر ...
 const RetrievalToggle = ({}) => {
   const { useRetrieval, setUseRetrieval } = useContext(ChatbotUIContext)
 

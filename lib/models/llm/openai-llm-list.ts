@@ -33,6 +33,64 @@ const GPT4Turbo: LLM = {
     outputCost: 30.0
   }
 }
+const GPT35Turbo16K: LLM = {
+  modelId: "gpt-3.5-turbo-16k",
+  modelName: "GPT-3.5 Turbo 16K",
+  provider: "openai",
+  hostedId: "gpt-3.5-turbo-16k",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: false,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 3.0,
+    outputCost: 6.0
+  }
+}
+
+const DallE3: LLM = {
+  modelId: "dall-e-3",
+  modelName: "DALL-E 3",
+  provider: "openai",
+  hostedId: "dall-e-3",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 20.0,
+    outputCost: 20.0
+  }
+}
+const GPT5Nano: LLM = {
+  modelId: "gpt-5-nano",
+  modelName: "GPT-5 Nano",
+  provider: "openai",
+  hostedId: "gpt-5-nano",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: false, // چون GPT-5 Nano قابلیت تولید تصویر نداره
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.05, // فرضی، می‌تونی مقدار واقعی رو جایگزین کنی
+    outputCost: 0.4
+  }
+}
+
+const GPT4_1: LLM = {
+  modelId: "gpt-4.1",
+  modelName: "GPT-4.1 Code",
+  provider: "openai",
+  hostedId: "gpt-4.1",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: false,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 12.0,
+    outputCost: 24.0
+  }
+}
 
 // GPT-5 (Standard tier in your table: input $1.25, output $10.00)
 const GPT5: LLM = {
@@ -156,8 +214,8 @@ const GPT4oRealtime: LLM = {
   pricing: {
     currency: "USD",
     unit: "1M tokens (approx, realtime session)",
-    inputCost: 5.0,
-    outputCost: 20.0
+    inputCost: 40.0,
+    outputCost: 80.0
   }
 }
 
@@ -172,21 +230,25 @@ const GPT4oMiniRealtime: LLM = {
   pricing: {
     currency: "USD",
     unit: "1M tokens (approx, realtime session)",
-    inputCost: 0.6,
-    outputCost: 2.4
+    inputCost: 10.0,
+    outputCost: 20.0
   }
 }
 
 export const OPENAI_LLM_LIST: LLM[] = [
+  GPT3_5Turbo,
+  GPT35Turbo16K,
+  GPT4,
   GPT4o,
+  GPT4oMini,
   GPT4Turbo,
   GPT4Vision,
-  GPT4,
-  GPT3_5Turbo,
   GPT5,
   GPT5Mini,
-  GPT4oMini,
-  DALL_E_3,
   GPT4oRealtime,
-  GPT4oMiniRealtime
+  GPT4oMiniRealtime,
+  DallE3,
+  DALL_E_3,
+  GPT4_1,
+  GPT5Nano // اگر نیاز دارید نسخه متفاوتی
 ]

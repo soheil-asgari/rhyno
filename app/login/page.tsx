@@ -10,6 +10,7 @@ import { sendCustomOtpAction, verifyCustomOtpAction } from "./actions"
 import OtpStep from "./OtpStep"
 import { clearAuthCookies, getSession } from "./actions"
 import Head from "next/head"
+import { ChangePassword } from "@/components/utility/change-password"
 
 export const metadata: Metadata = {
   title: "ورود | Rhyno Chat"
@@ -62,6 +63,24 @@ export default async function LoginPage({
     return redirect(`/login?error=${encodeURIComponent("invalid_params")}`)
   }
 
+  const handleResetPassword = async (formData: FormData) => {
+    "use server"
+
+    const origin = headers().get("origin")
+    const email = formData.get("email") as string
+    const cookieStore = cookies()
+    const supabase = createClient(cookieStore)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?next=/login/password`
+    })
+
+    if (error) {
+      return redirect(`/login?message=${error.message}`)
+    }
+
+    return redirect("/login?message=Check email to reset password")
+  }
   const displayMessage = error
     ? errorMessages[error] || "یک خطای ناشناخته رخ داد."
     : searchParams.message
@@ -290,6 +309,15 @@ export default async function LoginPage({
           >
             ورود
           </SubmitButton>
+          <div className="text-muted-foreground mt-1 flex justify-center text-sm">
+            <span className="mr-1">Forgot your password?</span>
+            <button
+              formAction={handleResetPassword}
+              className="text-primary ml-1 underline hover:opacity-80"
+            >
+              Reset
+            </button>
+          </div>
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">حساب کاربری ندارید؟ </span>
             <a href="/signup" className="font-bold underline hover:opacity-80">

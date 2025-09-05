@@ -31,12 +31,12 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({
     >
       <MessageMarkdownMemoized
         className={cn(
-          "prose dark:prose-invert prose-p:leading-tight prose-pre:p-0 font-vazir min-w-full space-y-0 break-words"
+          "chat-markdown-content font-vazir min-w-full break-words"
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-0 leading-tight">{children}</p>
+            return <p className="mb-2 leading-relaxed last:mb-0">{children}</p>
           },
 
           img({ node, ...props }) {

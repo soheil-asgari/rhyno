@@ -36,15 +36,20 @@ const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-3.5-turbo": "💨 Rhyno V1",
+  "gpt-3.5-turbo-16k": "💨 Rhyno V1 Pro",
   "gpt-4": "🧠 Rhyno V2",
-  "gpt-4-turbo-preview": "⚡ Rhyno V3 Turbo",
+  "gpt-4-turbo": "⚡ Rhyno V3 Turbo",
+  "gpt-4-turbo-preview": "⚡ Rhyno V3 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
+  "gpt-5-nano": "🔹 Rhyno V5 Nano", // 🔥 اضافه شد
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
-  "dall-e-3": "🎨 Rhyno Image V1"
+  "dall-e-3": "🎨 Rhyno Image V1",
+  "gpt-4.1": "💻 Rhyno Code V1"
+  // "gpt-5-code": "💻 Rhyno Code V2"
 }
 
 // =================================================================
@@ -82,6 +87,7 @@ const MessageHeader: FC<{
               width={ICON_SIZE}
               height={ICON_SIZE}
               loading="lazy"
+              // priority
               alt="Model Icon"
               className="rounded object-cover"
             />
@@ -94,6 +100,7 @@ const MessageHeader: FC<{
         className="size-[32px] rounded"
         src={profile.image_url}
         height={32}
+        loading="lazy"
         width={32}
         alt="user image"
       />
@@ -203,6 +210,16 @@ const MessageBody: FC<{
     }
 
     // در غیر این صورت، محتوا را به عنوان مارک‌داون نمایش بده
+    if (message.role === "user") {
+      // کلاس whitespace-pre-wrap برای حفظ فاصله‌ها و خطوط جدید ضروری است
+      return (
+        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed text-white">
+          {content}
+        </div>
+      )
+    }
+
+    // در غیر این صورت (اگر پیام از طرف دستیار بود)، آن را با کامپوننت مارک‌داون رندر کن
     return (
       <MessageMarkdown
         content={content}
@@ -210,7 +227,6 @@ const MessageBody: FC<{
         dir="rtl"
       />
     )
-
     // ---- پایان تغییرات ----
   }
 )

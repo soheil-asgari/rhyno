@@ -17,6 +17,11 @@ import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
 
+function isImageRequest(prompt: string): boolean {
+  const keywords = ["عکس", "تصویر", "picture", "image", "generate image"]
+  return keywords.some(word => prompt.toLowerCase().includes(word))
+}
+
 type ChatCompletionUsage = {
   prompt_tokens: number
   completion_tokens: number
@@ -50,12 +55,14 @@ const MODELS_NEED_MAX_COMPLETION = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
+  "gpt-5-nano",
   "gpt-5-mini"
 ])
 const MODELS_WITH_OPENAI_WEB_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
+  "gpt-5-nano",
   "gpt-5-mini"
 ])
 const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
@@ -63,11 +70,24 @@ const MODELS_WITH_AUTO_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
+  "gpt-5-nano",
   "gpt-5-mini"
 ])
 
-function pickMaxTokens(cs: ExtendedChatSettings): number {
-  return Math.min(cs.maxTokens ?? cs.max_tokens ?? 10000, 12000)
+const MODEL_MAX_TOKENS: Record<string, number> = {
+  "gpt-4o": 8192,
+  "gpt-4o-mini": 4096,
+  "gpt-5": 12000,
+  "gpt-5-mini": 12000,
+  "gpt-3.5-turbo": 4096,
+  "gpt-3.5-turbo-16k": 16384
+  // سایر مدل‌ها را اضافه کن
+}
+function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
+  const requestedTokens = cs.maxTokens ?? cs.max_tokens ?? 1000
+  const modelLimit = MODEL_MAX_TOKENS[modelId] ?? 4096
+  // مقدار نهایی نباید از سقف مدل بیشتر شود
+  return Math.min(requestedTokens, modelLimit)
 }
 
 export async function POST(request: Request) {
@@ -150,8 +170,14 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             model: selectedModel,
             voice: "alloy",
-            instructions:
-              "You are a realtime Persian-speaking assistant. Respond in voice only",
+            instructions: `
+  You are Rhyno, a realtime Persian-speaking assistant.
+  ✅ Always respond in Persian (Farsi).
+  ✅ Only speak in voice (no text output).
+  ✅ Introduce yourself as Rhyno when asked.
+  ✅ Keep your answers short and concise. Do not over-explain.
+`,
+
             tools: [
               {
                 type: "function",
@@ -195,16 +221,22 @@ export async function POST(request: Request) {
     }
 
     const cs = chatSettings as ExtendedChatSettings
-    const maxTokens = pickMaxTokens(cs)
+    const maxTokens = pickMaxTokens(cs, selectedModel)
     const temp = typeof cs.temperature === "number" ? cs.temperature : 1
-
+    const hasImage = messages.some(
+      (message: any) =>
+        Array.isArray(message.content) &&
+        message.content.some((part: any) => part.type === "image_url")
+    )
     const useStream = !MODELS_THAT_SHOULD_NOT_STREAM.has(selectedModel)
     const enableSearch =
       typeof enableWebSearch === "boolean"
         ? enableWebSearch
         : MODELS_WITH_AUTO_SEARCH.has(selectedModel)
     const useOpenAIWebSearch =
-      !!enableSearch && MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel)
+      !!enableSearch &&
+      MODELS_WITH_OPENAI_WEB_SEARCH.has(selectedModel) &&
+      !hasImage // ✨
 
     // ✨ منطق Web Search
     if (useOpenAIWebSearch) {
@@ -361,23 +393,30 @@ export async function POST(request: Request) {
         }
       })
     }
+    const userPrompt = finalMessages[finalMessages.length - 1]
+      ?.content as string
+
     // ✨ منطق استریم مدل‌های معمولی
     if (useStream) {
       const payload: ChatCompletionCreateParamsStreaming = {
         model: selectedModel,
         messages: finalMessages,
         stream: true,
-        temperature: temp,
-        max_tokens: maxTokens
+        temperature: temp
       }
-      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel))
-        (payload as any).max_completion_tokens = maxTokens
+
+      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+        ;(payload as any).max_completion_tokens = maxTokens
+      } else {
+        payload.max_tokens = maxTokens
+      }
 
       const stream = await openai.chat.completions.create(payload)
       const encoder = new TextEncoder()
       const readableStream = new ReadableStream({
         async start(controller) {
           console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
+
           let usage: ChatCompletionUsage | undefined
           try {
             for await (const chunk of stream) {
@@ -422,6 +461,56 @@ export async function POST(request: Request) {
                   userId
                 )
               }
+            } else {
+              // 📌 fallback وقتی usage از استریم نیاد
+              console.log(
+                "⚠️ No usage data from stream. Trying fallback non-stream request..."
+              )
+
+              const usageResponse = await openai.chat.completions.create({
+                model: selectedModel,
+                messages: finalMessages,
+                temperature: temp,
+                stream: false,
+                max_tokens: maxTokens
+              })
+
+              if (usageResponse.usage) {
+                const userCostUSD = calculateUserCostUSD(
+                  selectedModel,
+                  usageResponse.usage
+                )
+                console.log(
+                  "📊 Usage from fallback request:",
+                  usageResponse.usage
+                )
+                console.log(
+                  `💰 [FALLBACK] Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
+                )
+
+                if (userCostUSD > 0 && wallet) {
+                  await supabase.rpc("deduct_credits_and_log_usage", {
+                    p_user_id: userId,
+                    p_model_name: selectedModel,
+                    p_prompt_tokens: usageResponse.usage.prompt_tokens,
+                    p_completion_tokens: usageResponse.usage.completion_tokens,
+                    p_cost: userCostUSD
+                  })
+                  console.log(
+                    `✅ Credits deducted with fallback | User: ${userId}`
+                  )
+
+                  const { data: updatedWallet } = await supabase
+                    .from("wallets")
+                    .select("balance")
+                    .eq("user_id", userId)
+                    .single()
+
+                  console.log(
+                    `✅ [FALLBACK] عملیات موفق! | کاربر: ${userId} | هزینه: ${userCostUSD} | موجودی جدید: ${updatedWallet?.balance}`
+                  )
+                }
+              }
             }
           } finally {
             controller.close()
@@ -436,12 +525,13 @@ export async function POST(request: Request) {
         model: selectedModel,
         messages: finalMessages,
         stream: false,
-        temperature: temp,
-        max_tokens: maxTokens
+        temperature: temp
       }
-      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel))
-        (payload as any).max_completion_tokens = maxTokens
-
+      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+        ;(payload as any).max_completion_tokens = maxTokens
+      } else {
+        payload.max_tokens = maxTokens
+      }
       const response = await openai.chat.completions.create(payload)
       const content = response.choices[0].message.content ?? ""
       const usage = response.usage

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
 import { createClient } from "@/lib/supabase/server"
+import jwt from "jsonwebtoken"
+import { randomUUID } from "crypto"
 
 export async function getSession() {
   const cookieStore = cookies()
@@ -161,8 +163,32 @@ export async function sendCustomOtpAction(formData: FormData) {
   }
 }
 
+function generateStrongPassword(length = 16): string {
+  const lower = "abcdefghijklmnopqrstuvwxyz"
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  const numbers = "0123456789"
+  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+  // اطمینان از وجود حداقل یک کاراکتر از هر نوع
+  let password = ""
+  password += lower[Math.floor(Math.random() * lower.length)]
+  password += upper[Math.floor(Math.random() * upper.length)]
+  password += numbers[Math.floor(Math.random() * numbers.length)]
+  password += symbols[Math.floor(Math.random() * symbols.length)]
+
+  // پر کردن بقیه طول رمز عبور با کاراکترهای تصادفی
+  const allChars = lower + upper + numbers + symbols
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)]
+  }
+
+  // بر زدن رشته نهایی تا جای کاراکترها قابل پیش‌بینی نباشد
+  return password
+    .split("")
+    .sort(() => 0.5 - Math.random())
+    .join("")
+}
 const normalizePhone = (phone: string) => {
-  // شماره تلفن بدون "+" برای مقایسه
   return phone.startsWith("+") ? phone.slice(1) : phone
 }
 
@@ -177,10 +203,9 @@ export async function verifyCustomOtpAction(formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-  console.log("supaaaaaaaaaaaaaaaaaaaaaaa")
 
   try {
-    // ۱. چک کردن OTP در جدول otp_codes
+    // مراحل ۱ تا ۳: اعتبارسنجی OTP شما
     const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -189,98 +214,81 @@ export async function verifyCustomOtpAction(formData: FormData) {
       .limit(1)
       .maybeSingle()
 
-    if (otpError) {
-      console.error("[OTP] Fetch error:", {
-        phone: phoneE164,
-        error: otpError.message
-      })
+    if (otpError || !latestOtp) {
       return redirect(
-        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=otp_fetch_failed`
+        `${refererPath}?step=otp&phone=${phone}&error=invalid_code`
       )
     }
-
-    if (!latestOtp) {
-      console.error("[OTP] No OTP found for phone:", { phone: phoneE164 })
-      return redirect(
-        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
-      )
-    }
-
     if (new Date(latestOtp.expires_at) < new Date()) {
-      console.error("[OTP] Expired:", {
-        phone: phoneE164,
-        expires_at: latestOtp.expires_at
-      })
       return redirect(
-        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=expired_code`
+        `${refererPath}?step=otp&phone=${phone}&error=expired_code`
       )
     }
-
-    // ۲. اعتبارسنجی OTP
     const isValid = await bcrypt.compare(otp, latestOtp.hashed_otp)
     if (!isValid) {
-      console.error("[OTP] Invalid OTP provided:", { phone: phoneE164 })
       return redirect(
-        `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=invalid_code`
+        `${refererPath}?step=otp&phone=${phone}&error=invalid_code`
       )
     }
-
-    // ۳. حذف کد OTP مصرف‌شده
     await supabase.from("otp_codes").delete().eq("id", latestOtp.id)
 
-    // ۴. پیدا کردن کاربر در auth.users (روش اصلی شما که درست است)
+    // مرحله ۴: پیدا کردن کاربر
     const { data: users, error: listError } =
       await supabaseAdmin.auth.admin.listUsers()
-    if (listError) {
-      throw new Error(`Failed to list users: ${listError.message}`)
-    }
+    if (listError) throw new Error(`Failed to list users: ${listError.message}`)
 
-    const normalizedPhone = normalizePhone(phoneE164)
+    const normalizedPhoneE164 = normalizePhone(phoneE164)
     const user = users.users.find(
-      u => u.phone === phoneE164 || u.phone === normalizedPhone
+      u => u.phone === phoneE164 || u.phone === normalizedPhoneE164
     )
 
     if (!user) {
       return redirect(
-        `/signup?phone=${encodeURIComponent(phone)}&message=${encodeURIComponent("اکانت پیدا نشد. ثبت‌نام کنید.")}`
+        `/signup?phone=${phone}&message=${encodeURIComponent("اکانت پیدا نشد. ثبت‌نام کنید.")}`
       )
     }
+    if (!user.email) throw new Error("User has no email address")
 
-    // ۵. بررسی وجود ایمیل کاربر
-    if (!user.email) {
-      throw new Error("User has no email address")
-    }
+    // مرحله ۵: ایجاد نشست با استفاده از رمز عبور موقت و قوی
+    const temporaryPassword = generateStrongPassword() // ✅ استفاده از تابع جدید
 
-    // ۶. ساخت لینک جادویی برای سشن
-    const { data, error: sessionError } =
-      await supabaseAdmin.auth.admin.generateLink({
-        type: "magiclink",
-        email: user.email,
-        options: {
-          // این آدرس را به صفحه‌ای که می‌خواهید کاربر بعد از لاگین برود تغییر دهید
-          redirectTo: "/chat"
-        }
+    const { error: updateError } =
+      await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        password: temporaryPassword
       })
+    if (updateError)
+      throw new Error(
+        `Security Fail: Could not set temporary password. ${updateError.message}`
+      )
 
-    if (sessionError) {
-      throw new Error(`Failed to generate magic link: ${sessionError.message}`)
-    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: temporaryPassword
+    })
 
-    // ۷. کاربر را به لینک جادویی هدایت کنید
-    return redirect(data.properties.action_link)
+    // پاکسازی رمز عبور موقت برای امنیت
+    await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...user.user_metadata,
+        last_otp_login_at: new Date().toISOString()
+      }
+    })
+
+    if (signInError)
+      throw new Error(
+        `Sign-in failed after setting temp password: ${signInError.message}`
+      )
+
+    console.log(`[SESSION] Session created successfully for user: ${user.id}`)
+    return redirect("/chat")
   } catch (error: unknown) {
-    // ✅ بلوک catch که حذف شده بود
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
-      throw error
-    }
-
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("[ERROR] Verify OTP Error:", {
       phone: phoneE164,
       message: errorMessage
     })
     return redirect(
-      `${refererPath}?step=otp&phone=${encodeURIComponent(phone)}&error=verify_failed`
+      `${refererPath}?step=otp&phone=${phone}&error=verify_failed`
     )
   }
 }

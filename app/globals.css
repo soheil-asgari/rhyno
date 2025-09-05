@@ -1,184 +1,202 @@
-/* 1. Tailwind Directives */
+/* ==========================================================================
+   ۱. دستورات اصلی Tailwind (Tailwind Directives)
+   ========================================================================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 2. Font Imports */
+/* ==========================================================================
+   ۲. وارد کردن فونت‌ها (Font Imports)
+   ========================================================================== */
 @import "@fontsource/vazirmatn/400.css";
 @import "@fontsource/fira-code";
 
-/* 3. Custom CSS Variables (Theming) */
+/* ==========================================================================
+   ۳. لایه پایه و متغیرهای پوسته (Base Layer & Theming)
+   ========================================================================== */
 @layer base {
+  /* متغیرهای پوسته روشن (Light Theme) */
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 3.9%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
     --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
     --accent: 0 0% 96.1%;
     --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
     --ring: 0 0% 63.9%;
-    --radius: 0.75rem; /* کمی بزرگ‌تر برای ظاهر مدرن‌تر */
+    --radius: 0.75rem;
   }
 
+  /* متغیرهای پوسته تاریک (Dark Theme) */
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 0 0% 9%;
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
     --ring: 0 0% 14.9%;
   }
 
+  /* استایل‌های پایه برای کل صفحه */
   * {
-    @apply border-border box-border;
+    @apply box-border border-border;
   }
 
   body {
-    @apply bg-background text-foreground font-vazir min-h-screen;
+    @apply min-h-screen bg-background font-vazir text-foreground;
   }
+
+  /* استایل‌های ریسپانسیو پایه */
+  @media (max-width: 768px) {
+    body {
+      @apply text-sm;
+    }
+
+    /* افزایش اندازه المان‌های قابل کلیک برای دسترسی بهتر در موبایل */
+    button,
+    a {
+      @apply min-h-[44px] min-w-[44px];
+    }
+  }
+  
 }
 
-/* 4. Utility Classes */
+/* ==========================================================================
+   ۴. کامپوننت‌ها و کلاس‌های سفارشی (Custom Components & Classes)
+   ========================================================================== */
 @layer components {
+  /* کلاس برای اعمال فونت وزیرمتن */
   .font-vazir {
     font-family: "Vazirmatn", sans-serif;
   }
 
+  /* کلاس برای گرد کردن کامل تصاویر */
   .rounded-image {
     @apply rounded-full;
   }
 
+  /* کلاس برای کنترل فاصله خطوط در پیام‌ها */
   .message-line-height {
-    @apply leading-tight;
+    @apply leading-relaxed;
   }
 
-  /* RTL Ordered List */
+  /* استایل سفارشی برای لیست‌های شماره‌دار راست‌چین در Markdown */
   .markdown-content-rtl ol {
     @apply list-none pr-0;
     counter-reset: list-counter;
   }
 
   .markdown-content-rtl ol li {
-    @apply flex items-baseline mb-2;
-    counter-increment: list-counter;
+   counter-increment: list-counter;
+   @apply mb-2;
   }
 
   .markdown-content-rtl ol li::before {
-    @apply font-bold min-w-[1.5rem] ml-3;
     content: counter(list-counter) ".";
+    @apply ml-3 min-w-[1.5rem] font-bold;
   }
 }
 
-/* 5. Animations */
+/* ==========================================================================
+   ۵. انیمیشن‌ها و کلاس‌های کاربردی (Animations & Utilities)
+   ========================================================================== */
 @layer utilities {
+  /* گرادینت متحرک برای پس‌زمینه */
   .hero-gradient {
-    @apply bg-gradient-to-br from-[#0a0a23] via-[#1e0033] to-[#004e92];
     background-size: 200% 200%;
     animation: gradient-hero 12s ease infinite;
+    @apply bg-gradient-to-br from-[#0a0a23] via-[#1e0033] to-[#004e92];
   }
+
+  /* انیمیشن برای اسکرول افقی بی‌نهایت */
   .animate-scroll {
     @apply animate-[scroll_30s_linear_infinite];
   }
-.text-slide-in {
-    @apply opacity-0 translate-y-6;
+
+  /* انیمیشن برای ظاهر شدن متن با حرکت به بالا */
+  .text-slide-in {
     animation: slide-in 0.8s ease-out forwards;
+    @apply translate-y-6 opacity-0;
   }
-  @keyframes gradient-animation {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+
+  /* متن درخشان با انیمیشن سوسو زدن */
+  .glow-text {
+    text-shadow:
+      0 0 7px rgba(255, 255, 255, 0.8),
+      0 0 10px rgba(255, 255, 255, 0.6),
+      0 0 21px rgba(255, 255, 255, 0.4),
+      0 0 42px rgba(0, 150, 255, 0.6),
+      0 0 82px rgba(0, 150, 255, 0.4),
+      0 0 92px rgba(0, 150, 255, 0.3),
+      0 0 102px rgba(0, 150, 255, 0.2),
+      0 0 151px rgba(0, 150, 255, 0.1);
+    animation: flicker 4s ease-in-out infinite alternate;
+    @apply text-center text-white;
+  }
+
+  /* فریم‌های کلیدی انیمیشن‌ها */
+  @keyframes gradient-hero {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
   }
 
   @keyframes scroll {
-    from { transform: translateX(-50%); }
-    to { transform: translateX(0); }
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
-  /* فایل globals.css */
 
-.glow-text {
-  color: #fff;
-  text-align: center;
-  /* ایجاد درخشش با چندین لایه text-shadow */
-  text-shadow:
-    0 0 7px rgba(255, 255, 255, 0.8),
-    0 0 10px rgba(255, 255, 255, 0.6),
-    0 0 21px rgba(255, 255, 255, 0.4),
-    0 0 42px rgba(0, 150, 255, 0.6), /* رنگ اصلی درخشش (آبی) */
-    0 0 82px rgba(0, 150, 255, 0.4),
-    0 0 92px rgba(0, 150, 255, 0.3),
-    0 0 102px rgba(0, 150, 255, 0.2),
-    0 0 151px rgba(0, 150, 255, 0.1);
-  
-  /* اعمال انیمیشن برای حس زنده بودن */
-  animation: flicker 4s ease-in-out infinite alternate;
-}
-
-/* انیمیشن برای ایجاد حالت نبض یا سوسو زدن نور */
-@keyframes flicker {
-  to {
-    text-shadow:
-      0 0 5px rgba(255, 255, 255, 0.9),
-      0 0 8px rgba(255, 255, 255, 0.7),
-      0 0 18px rgba(255, 255, 255, 0.5),
-      0 0 38px rgba(0, 180, 255, 0.7), /* کمی درخشان‌تر */
-      0 0 70px rgba(0, 180, 255, 0.5),
-      0 0 80px rgba(0, 180, 255, 0.4),
-      0 0 90px rgba(0, 180, 255, 0.3),
-      0 0 140px rgba(0, 180, 255, 0.2);
+  @keyframes slide-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-}
-}
 
-/* 6. Responsive Styles */
-@layer base {
-  @media (max-width: 768px) {
-    body {
-      @apply text-sm leading-relaxed;
-    }
-
-    .container {
-      @apply p-4 w-full;
-    }
-
-    .hamburger-menu {
-      @apply block w-8 h-6 cursor-pointer;
-    }
-
-    .nav-links {
-      @apply hidden;
-    }
-
-    button, a {
-      @apply min-w-[44px] min-h-[44px];
-    }
-
-    p {
-      @apply leading-relaxed;
+  @keyframes flicker {
+    to {
+      text-shadow:
+        0 0 5px rgba(255, 255, 255, 0.9),
+        0 0 8px rgba(255, 255, 255, 0.7),
+        0 0 18px rgba(255, 255, 255, 0.5),
+        0 0 38px rgba(0, 180, 255, 0.7),
+        0 0 70px rgba(0, 180, 255, 0.5),
+        0 0 80px rgba(0, 180, 255, 0.4),
+        0 0 90px rgba(0, 180, 255, 0.3),
+        0 0 140px rgba(0, 180, 255, 0.2);
     }
   }
 }

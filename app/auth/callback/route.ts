@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
   const origin = requestUrl.origin
+  const nextUrl = requestUrl.searchParams.get("next") // <-- اضافه شد
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?message=No code provided`)
@@ -30,6 +31,11 @@ export async function GET(request: NextRequest) {
 
   if (!session || !user) {
     return NextResponse.redirect(`${origin}/login?message=No session found`)
+  }
+
+  // اگر لینک reset password بود و next مشخص شده
+  if (nextUrl) {
+    return NextResponse.redirect(`${origin}${nextUrl}`)
   }
 
   // بررسی اینکه آیا کاربر جدید است (برای اضافه کردن 1$ خوش‌آمدگویی)

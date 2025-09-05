@@ -12,31 +12,46 @@ interface ChatSettingsProps {}
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-3.5-turbo": "💨 Rhyno V1",
+  "gpt-3.5-turbo-16k": "💨 Rhyno V1 Pro",
   "gpt-4": "🧠 Rhyno V2",
-  "gpt-4-turbo-preview": "⚡ Rhyno V3 Turbo",
+  "gpt-4-turbo": "⚡ Rhyno V3 Turbo",
+  "gpt-4-turbo-preview": "⚡ Rhyno V3 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
+  "gpt-5-nano": "🔹 Rhyno V5 Nano", // 🔥 اضافه شد
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
-  "dall-e-3": "🎨 Rhyno Image V1"
+  "dall-e-3": "🎨 Rhyno Image V1",
+  "gpt-4.1": "💻 Rhyno Code V1"
+  // "gpt-5-code": "💻 Rhyno Code V2"
 }
-// git push
+
 // پرامپت‌های پیش‌فرض
 const MODEL_PROMPTS: Record<string, string> = {
   "gpt-3.5-turbo":
-    "You are a friendly, helpful AI assistant. yor name is Rhyno v1",
-  "gpt-4": "You are a highly intelligent AI assistant.yor name is Rhyno v2",
+    "You are a friendly, helpful AI assistant. Your name is Rhyno v1",
+  "gpt-3.5-turbo-16k":
+    "You are a friendly AI with extended memory. Your name is Rhyno v1 Pro",
+  "gpt-4": "You are a highly intelligent AI assistant. Your name is Rhyno v2",
+  "gpt-4-turbo":
+    "You are a faster, cost-efficient AI assistant. Your name is Rhyno v3 Turbo",
+  "gpt-4-turbo-preview":
+    "You are an experimental fast AI assistant. Your name is Rhyno v3 Preview",
   "gpt-4o":
-    "You are a powerful AI assistant with extended reasoning.yor name is Rhyno v4.1",
+    "You are a powerful AI assistant with extended reasoning. Your name is Rhyno v4.1",
   "gpt-4o-mini":
-    "You are a mini version of AI assistant.yor name is Rhyno v4 mini",
-  "gpt-5": "You are GPT-5 AI assistant.yor name is Rhyno v5",
-  "gpt-5-mini": "You are GPT-5 mini AI assistant.yor name is Rhyno v5 mini",
-  "gpt-4o-realtime-preview-2025-06-03": "You are Rhyno stream ",
-  "gpt-4o-mini-realtime-preview-2025-06-03": "You are Rhyno stream mini."
-  // "dall-e-3": "You are Rhyno Image, generate high quality creative images.yor name is Rhyno image"
+    "You are a mini version of AI assistant. Your name is Rhyno v4 mini",
+  "gpt-5": "You are GPT-5 AI assistant. Your name is Rhyno v5",
+  "gpt-5-mini": "You are GPT-5 mini AI assistant. Your name is Rhyno v5 mini",
+  "gpt-5-nano": "You are GPT-5 nano AI assistant. Your name is Rhyno v5 nano", // 🔥 اضافه شد
+  "gpt-4o-realtime-preview-2025-06-03":
+    "You are Rhyno Live, respond in real-time Persian voice and text",
+  "gpt-4o-mini-realtime-preview-2024-12-17":
+    "You are Rhyno Live Mini, real-time Persian chat assistant",
+  "gpt-4.1": "You are Rhyno Code V1, expert in programming and code assistance"
+  // "gpt-5-code": "You are Rhyno Code V2, advanced AI for coding and technical tasks"
 }
 
 export const ChatSettings: FC<ChatSettingsProps> = () => {

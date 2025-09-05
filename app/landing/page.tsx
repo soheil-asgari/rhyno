@@ -31,6 +31,7 @@ const HeaderBrand: React.FC = () => (
       src="/rhyno1.png"
       width={40}
       height={40}
+      priority
       alt="Rhyno Logo"
       className="rounded-full object-cover"
     />
@@ -93,11 +94,13 @@ export default function MinimalLandingPage() {
           name="description"
           content="مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
         />
+
         <meta
           name="keywords"
           content="AI, هوش مصنوعی, مدل‌های AI, Rhyno AI, ابزار هوش مصنوعی"
         />
         <meta name="robots" content="index, follow" />
+        <link rel="icon" href="/favicon.ico" />
 
         {/* Open Graph / Facebook */}
         <meta
