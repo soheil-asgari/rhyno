@@ -174,6 +174,7 @@ export const useChatHandler = () => {
     chatMessages: ChatMessage[],
     isRegeneration: boolean
   ) => {
+    console.log("🚀 handleSendMessage HAS BEEN CALLED! 🚀")
     const startingInput = messageContent
 
     try {
@@ -261,11 +262,57 @@ export const useChatHandler = () => {
       // =================================================================
 
       let generatedText = ""
+      console.log(
+        "🔴 CRITICAL DEBUG: Model is ==> ",
+        payload.chatSettings.model
+      )
+      // ✅ شرط جدید برای شناسایی مدل‌های TTS
+      if (payload.chatSettings.model.includes("-tts")) {
+        setToolInUse("TTS") // ابزار در حال استفاده را مشخص کنید
 
-      if (payload.chatSettings.model === "dall-e-3") {
+        // فرض می‌کنیم یک endpoint جدید برای TTS ساخته‌اید یا از endpoint فعلی استفاده می‌کنید
+        const response = await fetch("/api/chat/openai", {
+          // یا هر endpoint دیگری
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            chatSettings: payload.chatSettings,
+            messages: [{ role: "user", content: messageContent }]
+          }),
+          signal: newAbortController.signal
+        })
+
+        setToolInUse("none")
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`TTS generation failed: ${errorText}`)
+        }
+
+        const audioBlob = await response.blob()
+        const audioUrl = URL.createObjectURL(audioBlob)
+        console.log("✅ [Chat Handler] Audio URL created:", audioUrl)
+
+        // به‌روزرسانی پیام دستیار در UI
+        setChatMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.message.id === tempAssistantChatMessage.message.id
+              ? {
+                  ...msg,
+                  message: {
+                    ...msg.message,
+                    content: audioUrl // URL صوتی را مستقیماً در محتوای پیام قرار می‌دهیم
+                  }
+                }
+              : msg
+          )
+        )
+      } else if (payload.chatSettings.model === "dall-e-3") {
         setToolInUse("drawing")
 
-        const response = await fetch("/api/chat/dalle", {
+        const response = await fetch("/api/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"

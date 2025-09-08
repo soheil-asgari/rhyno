@@ -17,14 +17,23 @@ export const getHomeWorkspaceByUserId = async (userId: string) => {
 }
 
 export const getWorkspaceById = async (workspaceId: string) => {
+  // اگر ورودی یک UUID معتبر نیست، اصلاً به دیتابیس درخواست نزن
+  const uuidRegex =
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+  if (!uuidRegex.test(workspaceId)) {
+    return null
+  }
+
   const { data: workspace, error } = await supabase
     .from("workspaces")
     .select("*")
     .eq("id", workspaceId)
     .single()
 
-  if (!workspace) {
-    throw new Error(error.message)
+  // اگر خطایی وجود داشت یا workspace پیدا نشد، null برگردان
+  if (error || !workspace) {
+    console.error("Error fetching workspace by ID:", error?.message)
+    return null
   }
 
   return workspace

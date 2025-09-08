@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       throw new Error("خطای سیستمی در ثبت پرداخت")
     }
 
-    return NextResponse.redirect(`${siteUrl}/account?payment=success`)
+    return NextResponse.redirect(`${siteUrl}/payment/success?ref_id=${refID}`)
   } catch (error: any) {
     console.error("Zarinpal Verify Error:", error)
     return NextResponse.redirect(

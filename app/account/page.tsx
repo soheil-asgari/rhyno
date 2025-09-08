@@ -1,7 +1,7 @@
 "use client"
 
 import { supabase } from "@/lib/supabase/browser-client"
-import { Tables } from "@/lib/supabase/types"
+import { Tables } from "@/supabase/types"
 import {
   IconArrowLeft,
   IconCheck,

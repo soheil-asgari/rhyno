@@ -19,11 +19,26 @@ const GPT4o: LLM = {
 }
 
 // GPT-4 Turbo (mapped to legacy/standard entry gpt-4-turbo-2024-04-09 / similar): input $10, output $30
-const GPT4Turbo: LLM = {
+const GPT4TurboPreview: LLM = {
   modelId: "gpt-4-turbo-preview",
   modelName: "GPT-4 Turbo",
   provider: "openai",
   hostedId: "gpt-4-turbo-preview",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 10.0,
+    outputCost: 30.0
+  }
+}
+
+const GPT4Turbo: LLM = {
+  modelId: "gpt-4-turbo",
+  modelName: "GPT-4 Turbo",
+  provider: "openai",
+  hostedId: "gpt-4-turbo",
   platformLink: OPENAI_PLATFORM_LINK,
   imageInput: true,
   pricing: {
@@ -95,7 +110,7 @@ const GPT4_1: LLM = {
 // GPT-5 (Standard tier in your table: input $1.25, output $10.00)
 const GPT5: LLM = {
   modelId: "gpt-5",
-  modelName: "gpt-5",
+  modelName: "GPT-5",
   provider: "openai",
   hostedId: "gpt-5",
   platformLink: OPENAI_PLATFORM_LINK,
@@ -126,7 +141,7 @@ const DALL_E_3: LLM = {
 // GPT-5 Mini (Standard: input $0.25, output $2.00)
 const GPT5Mini: LLM = {
   modelId: "gpt-5-mini",
-  modelName: "gpt-5-mini",
+  modelName: "GPT-5 mini",
   provider: "openai",
   hostedId: "gpt-5-mini",
   platformLink: OPENAI_PLATFORM_LINK,
@@ -234,6 +249,34 @@ const GPT4oMiniRealtime: LLM = {
     outputCost: 20.0
   }
 }
+const ComputerUsePreview: LLM = {
+  modelId: "computer-use-preview",
+  modelName: "Computer Use Preview",
+  provider: "openai",
+  hostedId: "computer-use-preview",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: false, // ورودی متن هست، نه تصویر
+  pricing: {
+    currency: "USD",
+    unit: "per million tokens",
+    inputCost: 3.0, // $3.00 per million input tokens
+    outputCost: 12.0 // $12.00 per million output tokens
+  }
+}
+const GPT4oMiniTTS: LLM = {
+  modelId: "gpt-4o-mini-tts",
+  modelName: "GPT-4o Mini TTS",
+  provider: "openai",
+  hostedId: "gpt-4o-mini-tts",
+  platformLink: OPENAI_PLATFORM_LINK,
+  imageInput: false, // ورودی متن هست، نه تصویر
+  pricing: {
+    currency: "USD",
+    unit: "per minute of audio (approx)",
+    inputCost: 0.015, // حدودی: معادل $0.015 / دقیقه
+    outputCost: 0.24 // حدودی: معادل $0.24 / دقیقه
+  }
+}
 
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT3_5Turbo,
@@ -242,6 +285,7 @@ export const OPENAI_LLM_LIST: LLM[] = [
   GPT4o,
   GPT4oMini,
   GPT4Turbo,
+  GPT4TurboPreview,
   GPT4Vision,
   GPT5,
   GPT5Mini,
@@ -250,5 +294,7 @@ export const OPENAI_LLM_LIST: LLM[] = [
   DallE3,
   DALL_E_3,
   GPT4_1,
-  GPT5Nano // اگر نیاز دارید نسخه متفاوتی
+  GPT5Nano,
+  ComputerUsePreview,
+  GPT4oMiniTTS
 ]

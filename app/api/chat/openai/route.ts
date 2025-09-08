@@ -13,6 +13,7 @@ import { MODEL_PROMPTS } from "@/lib/build-prompt"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
+import { handleTTS } from "@/app/api/chat/handlers/tts"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -62,7 +63,6 @@ const MODELS_WITH_OPENAI_WEB_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
-  "gpt-5-nano",
   "gpt-5-mini"
 ])
 const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
@@ -70,7 +70,6 @@ const MODELS_WITH_AUTO_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
-  "gpt-5-nano",
   "gpt-5-mini"
 ])
 
@@ -84,7 +83,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   // سایر مدل‌ها را اضافه کن
 }
 function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
-  const requestedTokens = cs.maxTokens ?? cs.max_tokens ?? 1000
+  const requestedTokens = cs.maxTokens ?? cs.max_tokens ?? 4096
   const modelLimit = MODEL_MAX_TOKENS[modelId] ?? 4096
   // مقدار نهایی نباید از سقف مدل بیشتر شود
   return Math.min(requestedTokens, modelLimit)
@@ -140,7 +139,34 @@ export async function POST(request: Request) {
     })
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    // اگر مدل انتخاب شده برای تبدیل متن به گفتار است، آن را به کنترل‌کننده مربوطه بفرست
+    if (selectedModel === "gpt-4o-mini-tts") {
+      console.log("🔊 درخواست TTS شناسایی شد. ارسال به handleTTS...")
 
+      // آخرین پیام کاربر را به عنوان ورودی در نظر بگیر
+      const input = messages[messages.length - 1]?.content || ""
+      if (!input) {
+        return NextResponse.json(
+          { message: "Input text is required for TTS." },
+          { status: 400 }
+        )
+      }
+
+      // بدنه درخواست را برای handleTTS بساز
+      const ttsBody = {
+        input,
+        voice: chatSettings.voice || "coral",
+        speed: chatSettings.speed || 1.0, // استفاده از صدای پیش‌فرض در صورت عدم وجود
+        model: selectedModel
+      }
+
+      // درخواست را به کنترل‌کننده TTS ارسال کرده و نتیجه را بازگردان
+      return await handleTTS({
+        body: ttsBody,
+        user,
+        supabase
+      })
+    }
     // ✨ مدیریت پیام سیستم
     const finalMessages = [
       {
@@ -466,15 +492,30 @@ export async function POST(request: Request) {
               console.log(
                 "⚠️ No usage data from stream. Trying fallback non-stream request..."
               )
-
-              const usageResponse = await openai.chat.completions.create({
+              const usageResponsePayload: ChatCompletionCreateParams = {
                 model: selectedModel,
                 messages: finalMessages,
                 temperature: temp,
-                stream: false,
-                max_tokens: maxTokens
-              })
+                stream: false
+              }
 
+              if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+                ;(usageResponsePayload as any).max_completion_tokens = maxTokens
+              } else {
+                usageResponsePayload.max_tokens = maxTokens
+              }
+
+              const usageResponse =
+                await openai.chat.completions.create(usageResponsePayload)
+
+              console.log(
+                "✅ FALLBACK RESPONSE:",
+                JSON.stringify(usageResponse, null, 2)
+              )
+              const content = usageResponse.choices[0]?.message?.content
+              if (content) {
+                controller.enqueue(encoder.encode(content))
+              }
               if (usageResponse.usage) {
                 const userCostUSD = calculateUserCostUSD(
                   selectedModel,
@@ -512,7 +553,14 @@ export async function POST(request: Request) {
                 }
               }
             }
+          } catch (err: any) {
+            // ++ این بلوک CATCH اضافه شده است ++
+            console.error("❌ ERROR INSIDE STREAM/FALLBACK:", err)
+            const errorMessage = `خطای سرور: ${err.message || "خطای ناشناخته"}`
+            controller.enqueue(encoder.encode(errorMessage))
           } finally {
+            // شروع FINALLY
+            console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
             controller.close()
           }
         }

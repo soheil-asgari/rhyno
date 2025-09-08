@@ -9,9 +9,12 @@ import {
   IconCaretDownFilled,
   IconCaretRightFilled,
   IconCircleFilled,
+  IconDownload,
   IconFileText,
   IconMoodSmile,
-  IconPencil
+  IconPencil,
+  IconPlayerPlayFilled,
+  IconRefresh
 } from "@tabler/icons-react"
 import Image from "next/image"
 import React, {
@@ -23,7 +26,14 @@ import React, {
   useRef,
   useState
 } from "react"
-import { ModelIcon } from "../models/model-icon"
+// ✨ ایمپورت‌های کامپوننت‌های UI اضافه شد
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { Button } from "../ui/button"
 import { FileIcon } from "../ui/file-icon"
 import { FilePreview } from "../ui/file-preview"
@@ -42,16 +52,65 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4-turbo-preview": "⚡ Rhyno V3 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
+  "gpt-4o-mini-tts": "🎤 Rhyno TTS",
+  "gpt-4o-transcribe": "🎙️ Rhyno Transcribe",
+  "computer-use-preview": "🖥️ Rhyno Auto",
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
-  "gpt-5-nano": "🔹 Rhyno V5 Nano", // 🔥 اضافه شد
+  "gpt-5-nano": "🔹 Rhyno V5 Nano",
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
   "gpt-4.1": "💻 Rhyno Code V1"
-  // "gpt-5-code": "💻 Rhyno Code V2"
 }
 
+const MODEL_PROMPTS: Record<string, string> = {
+  "gpt-3.5-turbo":
+    "You are a friendly, helpful AI assistant. Your name is Rhyno v1",
+  "gpt-3.5-turbo-16k":
+    "You are a friendly AI with extended memory. Your name is Rhyno v1 Pro",
+  "gpt-4": "You are a highly intelligent AI assistant. Your name is Rhyno v2",
+  "gpt-4-turbo":
+    "You are a faster, cost-efficient AI assistant. Your name is Rhyno v3 Turbo",
+  "gpt-4-turbo-preview":
+    "You are an experimental fast AI assistant. Your name is Rhyno v3 Preview",
+  "gpt-4o":
+    "You are a powerful AI assistant with extended reasoning. Your name is Rhyno v4.1",
+  "gpt-4o-mini":
+    "You are a mini version of AI assistant. Your name is Rhyno v4 mini",
+  // "gpt-4o-mini-tts":
+  //   "You are Rhyno TTS, an AI that converts text to natural speech",
+  // "gpt-4o-transcribe":
+  //   "You are Rhyno Transcribe, an AI that converts speech to text accurately",
+  "computer-use-preview":
+    "You are Rhyno Auto, an AI that can interact with computer interfaces and automate tasks",
+  "gpt-5": "You are GPT-5 AI assistant. Your name is Rhyno v5",
+  "gpt-5-mini": "You are GPT-5 mini AI assistant. Your name is Rhyno v5 mini",
+  "gpt-5-nano": "You are GPT-5 nano AI assistant. Your name is Rhyno v5 nano",
+  "gpt-4o-realtime-preview-2025-06-03":
+    "You are Rhyno Live, respond in real-time Persian voice and text",
+  "gpt-4o-mini-realtime-preview-2024-12-17":
+    "You are Rhyno Live Mini, real-time Persian chat assistant",
+  "gpt-4.1": "You are Rhyno Code V1, expert in programming and code assistance"
+}
+
+// ✨ صداهای موجود برای TTS اضافه شد
+const TTS_VOICES = [
+  { id: "alloy", name: "Alloy" },
+  { id: "echo", name: "Echo" },
+  { id: "fable", name: "Fable" },
+  { id: "onyx", name: "Onyx" },
+  { id: "nova", name: "Nova" },
+  { id: "shimmer", name: "Shimmer" },
+  { id: "coral", name: "Coral" }
+]
+
+const TTS_SPEEDS = [
+  { id: 0.75, name: "Slow (0.75x)" },
+  { id: 1.0, name: "Normal (1.0x)" },
+  { id: 1.25, name: "Fast (1.25x)" },
+  { id: 1.5, name: "Very Fast (1.5x)" }
+]
 // =================================================================
 // 1. Helper Components (کامپوننت‌های کمکی)
 // =================================================================
@@ -87,7 +146,6 @@ const MessageHeader: FC<{
               width={ICON_SIZE}
               height={ICON_SIZE}
               loading="lazy"
-              // priority
               alt="Model Icon"
               className="rounded object-cover"
             />
@@ -124,7 +182,7 @@ const MessageHeader: FC<{
   )
 })
 MessageHeader.displayName = "MessageHeader"
-
+// ✨ Props کامپوننت MessageBody اصلاح شد
 const MessageBody: FC<{
   message: Tables<"messages">
   isEditing: boolean
@@ -135,6 +193,14 @@ const MessageBody: FC<{
   editedMessage: string
   setEditedMessage: (value: string) => void
   editInputRef: React.RefObject<HTMLTextAreaElement>
+  onRegenerateTTS: (voice: string) => void
+  onDownloadTTS: () => void
+  selectedVoice: string
+  setSelectedVoice: (voice: string) => void
+  audioUrl: string | null
+  setAudioUrl: (url: string | null) => void
+  selectedSpeed: number
+  setSelectedSpeed: (speed: number) => void
 }> = memo(
   ({
     message,
@@ -145,18 +211,36 @@ const MessageBody: FC<{
     toolInUse,
     editedMessage,
     setEditedMessage,
-    editInputRef
+    editInputRef,
+    onRegenerateTTS,
+    onDownloadTTS,
+    selectedVoice,
+    setSelectedVoice,
+    selectedSpeed,
+    setSelectedSpeed,
+    setAudioUrl,
+    audioUrl
   }) => {
-    // ---- شروع تغییرات ----
+    console.log(
+      ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
+      audioUrl
+    ) // <--- این خط را اضافه کنید
+    const content = message.content
+    const isTTSMessage = message.model === "gpt-4o-mini-tts"
+    const audioContent = isTTSMessage ? audioUrl : null
+    console.log(
+      ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
+      audioContent
+    ) // <--- این خط را اضافه کنید
+    const audioRef = useRef<HTMLAudioElement>(null)
 
-    // ابتدا بررسی می‌کنیم که در حال لودینگ یا ویرایش نباشیم
     if (
       !firstTokenReceived &&
       isGenerating &&
       isLast &&
-      message.role === "assistant"
+      message.role === "assistant" &&
+      !isTTSMessage // حالت لودینگ برای پیام‌های غیر TTS
     ) {
-      // ... (این بخش کد شما برای نمایش حالت لودینگ بدون تغییر باقی می‌ماند)
       switch (toolInUse) {
         case "retrieval":
           return (
@@ -178,7 +262,6 @@ const MessageBody: FC<{
     }
 
     if (isEditing) {
-      // ... (این بخش کد شما برای ویرایش هم بدون تغییر باقی می‌ماند)
       return (
         <TextareaAutosize
           textareaRef={editInputRef}
@@ -190,28 +273,7 @@ const MessageBody: FC<{
         />
       )
     }
-
-    // ⭐ منطق اصلی اینجاست ⭐
-    const content = message.content
-    const isBase64Image =
-      typeof content === "string" && content.startsWith("data:image")
-
-    if (isBase64Image) {
-      // اگر محتوا عکس بود، کامپوننت Image نکست را نمایش بده
-      return (
-        <Image
-          src={content}
-          alt="Uploaded content"
-          width={512} // می‌توانید اندازه را به دلخواه تغییر دهید
-          height={512}
-          className="rounded-lg object-contain"
-        />
-      )
-    }
-
-    // در غیر این صورت، محتوا را به عنوان مارک‌داون نمایش بده
     if (message.role === "user") {
-      // کلاس whitespace-pre-wrap برای حفظ فاصله‌ها و خطوط جدید ضروری است
       return (
         <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed text-white">
           {content}
@@ -219,7 +281,101 @@ const MessageBody: FC<{
       )
     }
 
-    // در غیر این صورت (اگر پیام از طرف دستیار بود)، آن را با کامپوننت مارک‌داون رندر کن
+    const isBase64Image =
+      typeof content === "string" && content.startsWith("data:image")
+
+    if (isBase64Image) {
+      return (
+        <Image
+          src={content}
+          alt="Uploaded content"
+          width={512}
+          height={512}
+          className="rounded-lg object-contain"
+        />
+      )
+    }
+    if (isTTSMessage) {
+      if (isGenerating && isLast) {
+        return (
+          <div className="flex animate-pulse items-center space-x-2">
+            <IconPlayerPlayFilled size={20} />
+            <div>Generating speech...</div>
+          </div>
+        )
+      }
+
+      if (audioContent) {
+        return (
+          <div className="flex flex-col space-y-4">
+            {audioContent && (
+              <audio
+                ref={audioRef}
+                controls
+                src={audioContent}
+                className="w-full"
+              ></audio>
+            )}
+            <div className="flex items-center space-x-2">
+              <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                <SelectTrigger className="font-vazir w-[180px] text-right">
+                  <SelectValue placeholder="انتخاب صدا" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TTS_VOICES.map(voice => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      {voice.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(selectedSpeed)}
+                onValueChange={value => setSelectedSpeed(parseFloat(value))}
+              >
+                <SelectTrigger className="font-vazir w-[180px] text-right">
+                  <SelectValue placeholder="انتخاب سرعت" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TTS_SPEEDS.map(speed => (
+                    <SelectItem key={speed.id} value={String(speed.id)}>
+                      {speed.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onRegenerateTTS(selectedVoice)}
+                title="ساخت دوباره"
+              >
+                <IconRefresh />
+              </Button>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onDownloadTTS}
+                title="دانلود"
+              >
+                <IconDownload />
+              </Button>
+            </div>
+          </div>
+        )
+      }
+
+      return (
+        <MessageMarkdown
+          content={content}
+          className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
+          dir="rtl"
+        />
+      )
+    }
+
     return (
       <MessageMarkdown
         content={content}
@@ -227,7 +383,6 @@ const MessageBody: FC<{
         dir="rtl"
       />
     )
-    // ---- پایان تغییرات ----
   }
 )
 MessageBody.displayName = "MessageBody"
@@ -238,11 +393,9 @@ const MessageSources: FC<{
   onFileItemClick: (fileItem: Tables<"file_items">) => void
 }> = memo(({ fileItems, fileSummary, onFileItemClick }) => {
   const [viewSources, setViewSources] = useState(false)
-
   const sourceCount = fileItems.length
-  const fileCount = Object.keys(fileSummary).length
-
   if (sourceCount === 0) return null
+  const fileCount = Object.keys(fileSummary).length
 
   return (
     <div className="border-primary mt-6 border-t pt-4 font-bold">
@@ -301,9 +454,6 @@ const MessageImages: FC<{
     <div className="mt-3 flex flex-wrap gap-2">
       {message.image_paths.map((path, index) => {
         const item = chatImages.find(image => image.path === path)
-        console.log("message.image_paths:", message.image_paths)
-        console.log("chatImages:", chatImages)
-
         const src = path.startsWith("data") ? path : item?.base64 || ""
         return (
           <Image
@@ -363,6 +513,7 @@ export const Message: FC<MessageProps> = ({
     availableLocalModels,
     availableOpenRouterModels,
     chatMessages,
+    setChatMessages, // ✨ اضافه شد
     selectedAssistant,
     chatImages,
     assistantImages,
@@ -370,7 +521,7 @@ export const Message: FC<MessageProps> = ({
     files,
     models
   } = useContext(ChatbotUIContext)
-
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const { handleSendMessage } = useChatHandler()
   const editInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -381,6 +532,40 @@ export const Message: FC<MessageProps> = ({
   const [showFileItemPreview, setShowFileItemPreview] = useState(false)
   const [selectedFileItem, setSelectedFileItem] =
     useState<Tables<"file_items"> | null>(null)
+
+  // ✨ وضعیت و رفرنس برای مدیریت فایل صوتی اضافه شد
+  const [selectedVoice, setSelectedVoice] = useState<string>("coral")
+  const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0)
+  const audioUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    console.log(
+      " M [Message Component] useEffect triggered for message ID:",
+      message.id
+    ) // <--- این خط را اضافه کنید
+    console.log(" M [Message Component] Model:", message.model) // <--- این خط را اضافه کنید
+    console.log(" M [Message Component] Content:", message.content)
+
+    // اگر پیام از نوع TTS بود و محتوای آن یک Blob URL بود
+    if (
+      message.model === "gpt-4o-mini-tts" &&
+      message.content.startsWith("blob:")
+    ) {
+      console.log(" M [Message Component] Conditions met! Setting audio URL.") // <--- این خط را اضافه کنید
+      setAudioUrl(message.content) // استیت محلی را آپدیت کن
+      audioUrlRef.current = message.content // رف را هم برای دانلود آپدیت کن
+    }
+  }, [message.content, message.model]) // این افکت با تغییر محتوای پیام اجرا می‌شود
+
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  // وقتی audioUrl تغییر کرد، فقط آماده پخش کن
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+  }, [audioUrl])
 
   const modelData = useMemo(
     () =>
@@ -438,7 +623,20 @@ export const Message: FC<MessageProps> = ({
     [fileItems, files]
   )
 
-  const handleCopy = () => navigator.clipboard.writeText(message.content)
+  const handleCopy = () => {
+    if (message.model === "gpt-4o-mini-tts") {
+      // برای پیام‌های صوتی، آخرین پیام کاربر را کپی می‌کنیم
+      const lastUserMessage = chatMessages.findLast(
+        m => m.message.role === "user"
+      )
+      if (lastUserMessage) {
+        navigator.clipboard.writeText(lastUserMessage.message.content)
+      }
+    } else {
+      navigator.clipboard.writeText(message.content)
+    }
+  }
+
   const handleSendEdit = () => {
     onSubmitEdit(editedMessage, message.sequence_number)
     onCancelEdit()
@@ -446,16 +644,92 @@ export const Message: FC<MessageProps> = ({
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (isEditing && event.key === "Enter" && event.metaKey) handleSendEdit()
   }
-  const handleRegenerate = async () => {
+
+  // ✨ تابع ساخت مجدد صدا
+  const handleRegenerateTTS = async (
+    voiceId: string = selectedVoice,
+    speedValue: number = selectedSpeed
+  ) => {
     setIsGenerating(true)
-    await handleSendMessage(
-      editedMessage || chatMessages[chatMessages.length - 2].message.content,
-      chatMessages,
-      true
+    const lastUserMessage = chatMessages.findLast(
+      m => m.message.role === "user"
     )
+    if (!lastUserMessage) {
+      console.error("No user message found to regenerate speech.")
+      setIsGenerating(false)
+      return
+    }
+
+    try {
+      const response = await fetch("/api/chat/openai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatSettings: {
+            model: "gpt-4o-mini-tts",
+            voice: voiceId,
+            speed: speedValue
+          },
+          messages: [
+            {
+              role: "user",
+              content: lastUserMessage.message.content
+            }
+          ]
+        })
+      })
+      if (!response.ok) throw new Error("Failed to regenerate audio.")
+
+      const audioBlob = await response.blob()
+      const newAudioUrl = URL.createObjectURL(audioBlob)
+
+      // ⚡ آپدیت همزمان state و ref
+      console.log(newAudioUrl)
+      setAudioUrl(newAudioUrl)
+      audioUrlRef.current = newAudioUrl
+
+      setChatMessages(prev =>
+        prev.map(chatMsg =>
+          chatMsg.message.id === message.id
+            ? {
+                ...chatMsg,
+                message: { ...chatMsg.message, content: newAudioUrl }
+              }
+            : chatMsg
+        )
+      )
+    } catch (error) {
+      console.error("Error regenerating TTS:", error)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
-  // Define the click handlers for file items and images
+  // ✨ در handleDownloadTTS
+  const handleDownloadTTS = () => {
+    const url = audioUrlRef.current || audioUrl
+    if (!url) return
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `rhyno-tts-${Date.now()}.mp3`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+  // ✨ تابع handleRegenerate برای پشتیبانی از TTS اصلاح شد
+  const handleRegenerate = async () => {
+    if (message.model === "gpt-4o-mini-tts") {
+      await handleRegenerateTTS(selectedVoice, selectedSpeed)
+    } else {
+      setIsGenerating(true)
+      await handleSendMessage(
+        chatMessages[chatMessages.length - 2].message.content,
+        chatMessages,
+        true
+      )
+    }
+  }
+
   const handleFileItemClick = (fileItem: Tables<"file_items">) => {
     setSelectedFileItem(fileItem)
     setShowFileItemPreview(true)
@@ -478,7 +752,8 @@ export const Message: FC<MessageProps> = ({
           "relative w-full max-w-2xl transition-all duration-200",
           message.role === "user"
             ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]"
-            : "assistant-message border-none bg-transparent px-0 py-2"
+            : "assistant-message border-none bg-transparent px-0 py-2",
+          message.model === "gpt-4o-mini-tts" && "px-6 py-5" // استایل بهتر برای پیام صوتی
         )}
       >
         <div className="absolute right-5 top-7 sm:right-0">
@@ -511,6 +786,15 @@ export const Message: FC<MessageProps> = ({
             editedMessage={editedMessage}
             setEditedMessage={setEditedMessage}
             editInputRef={editInputRef}
+            selectedSpeed={selectedSpeed}
+            setSelectedSpeed={setSelectedSpeed}
+            // ✨ Props مربوط به TTS پاس داده شد
+            onRegenerateTTS={handleRegenerateTTS}
+            onDownloadTTS={handleDownloadTTS}
+            selectedVoice={selectedVoice}
+            setSelectedVoice={setSelectedVoice}
+            audioUrl={audioUrl}
+            setAudioUrl={setAudioUrl}
           />
         </div>
 

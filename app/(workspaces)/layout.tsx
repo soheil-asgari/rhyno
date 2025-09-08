@@ -9,19 +9,17 @@ import { getFoldersByWorkspaceId } from "@/db/folders"
 import { getModelWorkspacesByWorkspaceId } from "@/db/models"
 import { getPresetWorkspacesByWorkspaceId } from "@/db/presets"
 import { getPromptWorkspacesByWorkspaceId } from "@/db/prompts"
-import { getAssistantImageFromStorage } from "@/db/storage/assistant-images"
 import { getToolWorkspacesByWorkspaceId } from "@/db/tools"
 import { getWorkspaceById } from "@/db/workspaces"
-import { convertBlobToBase64 } from "@/lib/blob-to-b64"
 import { supabase } from "@/lib/supabase/browser-client"
-import { ChatMessage, LLMID } from "@/types"
-import { useParams } from "next/navigation"
+import { ChatMessage } from "@/types"
 import { ReactNode, useContext, useEffect, useState, useCallback } from "react"
 import Loading from "../loading"
 import dynamic from "next/dynamic"
-
+import { useParams, useRouter, notFound } from "next/navigation"
 import { getChatById } from "@/db/chats"
 import { getMessagesByChatId } from "@/db/messages"
+import { Tables, TablesUpdate } from "@/supabase/types"
 
 const Dashboard = dynamic(
   () => import("@/components/ui/dashboard").then(mod => mod.Dashboard),
@@ -34,10 +32,12 @@ interface WorkspaceLayoutProps {
 
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const params = useParams()
+  const router = useRouter()
 
-  // ✨ اصلاح کلیدی: استفاده از نام پارامتر با حروف کوچک دقیقاً مطابق نام پوشه
-  const workspaceId = params.workspaceid as string
-  const chatId = params.chatid as string | undefined
+  // ✅ اصلاح شد: از نام‌گذاری استاندارد camelCase استفاده می‌کنیم
+  // ‼️ توجه: مطمئن شوید نام پوشه‌های داینامیک شما [workspaceId] و [chatId] باشد
+  const workspaceid = params.workspaceid as string
+  const chatId = params.chatId as string | undefined
 
   const context = useContext(ChatbotUIContext)
   if (!context) {
@@ -45,33 +45,55 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   const {
-    setChatSettings,
+    workspaces, // ✅ برای بهینه‌سازی، لیست workspaces را از کانتکست می‌خوانیم
     setAssistants,
-    setAssistantImages,
     setChats,
     setCollections,
     setFolders,
     setFiles,
+    setModels,
     setPresets,
     setPrompts,
     setTools,
-    setModels,
     setSelectedWorkspace,
     setSelectedChat,
     setChatMessages
   } = context
 
   const [loading, setLoading] = useState(true)
+  const [isValidWorkspace, setIsValidWorkspace] = useState(false)
 
-  const fetchWorkspaceData = useCallback(async (id: string) => {
-    try {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser()
-      if (!user) return
+  useEffect(() => {
+    const validateAndFetchData = async () => {
+      // اگر شناسه workspace از URL نیامده بود، آن را نامعتبر تلقی کن
+      if (!workspaceid) {
+        setIsValidWorkspace(false)
+        setLoading(false)
+        return
+      }
 
+      // ابتدا در لیستی که از قبل داریم جستجو کن
+      let workspace: Tables<"workspaces"> | null | undefined
+
+      // اگر در لیست نبود، از دیتابیس بپرس
+      if (!workspace) {
+        workspace = await getWorkspaceById(workspaceid)
+      }
+
+      // حالا کد بدون خطای تایپ‌اسکریپت کار می‌کند
+      if (workspace) {
+        setSelectedWorkspace(workspace)
+        setIsValidWorkspace(true)
+      } else {
+        setIsValidWorkspace(false)
+      }
+
+      // ✅ اگر workspace پیدا شد، آن را معتبر علامت زده و در state قرار بده
+      setIsValidWorkspace(true)
+      setSelectedWorkspace(workspace)
+
+      // حالا بقیه اطلاعات مربوط به این workspace معتبر را واکشی کن
       const [
-        workspace,
         assistants,
         chats,
         collections,
@@ -82,21 +104,17 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         tools,
         models
       ] = await Promise.all([
-        getWorkspaceById(id),
-        getAssistantWorkspacesByWorkspaceId(id),
-        getChatsByWorkspaceId(id),
-        getCollectionWorkspacesByWorkspaceId(id),
-        getFoldersByWorkspaceId(id),
-        getFileWorkspacesByWorkspaceId(id),
-        getPresetWorkspacesByWorkspaceId(id),
-        getPromptWorkspacesByWorkspaceId(id),
-        getToolWorkspacesByWorkspaceId(id),
-        getModelWorkspacesByWorkspaceId(id)
+        getAssistantWorkspacesByWorkspaceId(workspaceid),
+        getChatsByWorkspaceId(workspaceid),
+        getCollectionWorkspacesByWorkspaceId(workspaceid),
+        getFoldersByWorkspaceId(workspaceid),
+        getFileWorkspacesByWorkspaceId(workspaceid),
+        getPresetWorkspacesByWorkspaceId(workspaceid),
+        getPromptWorkspacesByWorkspaceId(workspaceid),
+        getToolWorkspacesByWorkspaceId(workspaceid),
+        getModelWorkspacesByWorkspaceId(workspaceid)
       ])
 
-      if (!workspace) return // از کرش کردن جلوگیری می‌کند اگر ورک‌اسپیس پیدا نشود
-
-      setSelectedWorkspace(workspace)
       setAssistants(assistants.assistants || [])
       setChats(chats || [])
       setCollections(collections.collections || [])
@@ -106,44 +124,64 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       setPrompts(prompts.prompts || [])
       setTools(tools.tools || [])
       setModels(models.models || [])
-    } catch (error) {
-      console.error("Failed to fetch workspace data:", error)
+
+      setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+
+    validateAndFetchData()
+  }, [
+    workspaceid,
+    workspaces,
+    setSelectedWorkspace,
+    setAssistants,
+    setChats,
+    setCollections,
+    setFolders,
+    setFiles,
+    setModels,
+    setPresets,
+    setPrompts,
+    setTools
+  ])
 
   useEffect(() => {
-    if (workspaceId) {
-      setLoading(true)
-      fetchWorkspaceData(workspaceId).finally(() => setLoading(false))
+    // این useEffect مسئول هدایت کاربر در صورت نامعتبر بودن workspace است
+    if (!loading && !isValidWorkspace) {
+      router.push("/landing")
     }
-  }, [workspaceId, fetchWorkspaceData])
+  }, [loading, isValidWorkspace, router])
 
   useEffect(() => {
+    // این useEffect مسئول واکشی پیام‌های یک چت خاص است
     const fetchChatMessages = async () => {
       if (chatId) {
-        try {
-          const chat = await getChatById(chatId)
-          const dbMessages = await getMessagesByChatId(chatId)
-          const formattedMessages: ChatMessage[] = dbMessages.map(
-            dbMessage => ({ message: dbMessage, fileItems: [] })
-          )
-          setSelectedChat(chat)
-          setChatMessages(formattedMessages)
-        } catch (error) {
-          console.error(`Failed to fetch messages for chat ${chatId}:`, error)
-        }
+        const chat = await getChatById(chatId)
+        if (!chat) return notFound()
+
+        const messages = await getMessagesByChatId(chatId)
+        const formattedMessages: ChatMessage[] = messages.map(msg => ({
+          message: msg,
+          fileItems: []
+        }))
+        setSelectedChat(chat)
+        setChatMessages(formattedMessages)
       } else {
         setSelectedChat(null)
         setChatMessages([])
       }
     }
-    fetchChatMessages()
-  }, [chatId])
 
-  if (loading) {
+    // فقط در صورتی پیام‌ها را واکشی کن که در یک workspace معتبر باشیم
+    if (isValidWorkspace) {
+      fetchChatMessages()
+    }
+  }, [chatId, isValidWorkspace, setSelectedChat, setChatMessages])
+
+  // تا زمانی که در حال بررسی هستیم یا workspace نامعتبر است و در حال هدایت شدن است، صفحه لودینگ را نمایش بده
+  if (loading || !isValidWorkspace) {
     return <Loading />
   }
 
+  // فقط اگر workspace معتبر بود، داشبورد و محتوای صفحه را نمایش بده
   return <Dashboard>{children}</Dashboard>
 }

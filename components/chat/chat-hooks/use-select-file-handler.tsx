@@ -174,7 +174,50 @@ export const useSelectFileHandler = () => {
     console.log("File Selected:", { name: file.name, type: file.type })
     setShowFilesDisplay(true)
     setUseRetrieval(true)
+    try {
+      // 1. ساخت یک FormData برای ارسال فایل
+      const formData = new FormData()
+      formData.append("file", file)
 
+      // 2. ارسال فایل به یک API endpoint جدید در سرور
+      // شما باید این endpoint را بسازید (مثلاً /api/file/upload)
+      const response = await fetch("/api/file/upload", {
+        method: "POST",
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || "File upload failed")
+      }
+
+      // 3. دریافت نتیجه از سرور (که باید شامل file_id باشد)
+      const result = await response.json()
+      const { fileId } = result // فرض می‌کنیم سرور fileId را برمی‌گرداند
+
+      if (!fileId) {
+        throw new Error("Server did not return a file ID.")
+      }
+
+      // حالا که فایل با موفقیت در سرور پردازش شده، آن را به state اضافه می‌کنیم
+      // ... (کدهای مربوط به ساخت پیش‌نمایش را اینجا قرار دهید)
+
+      setNewMessageFiles(prev => [
+        ...prev,
+        {
+          id: fileId, // <-- از ID واقعی که از سرور آمده استفاده می‌کنیم
+          name: file.name,
+          type: file.type,
+          file: file,
+          preview: preview // پیش‌نمایشی که ساخته‌اید
+        }
+      ])
+    } catch (error: any) {
+      toast.error(error.message)
+      console.error("Error uploading file:", error)
+      // در صورت خطا، فایل به لیست اضافه نمی‌شود
+      return
+    }
     if (file.type.startsWith("image/")) {
       const reader = new FileReader()
       reader.readAsDataURL(file)

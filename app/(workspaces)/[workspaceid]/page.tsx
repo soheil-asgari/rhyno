@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 export default function WorkspacePage({
   params
 }: {
-  params: { workspaceId: string }
+  params: { workspaceid: string }
 }) {
   const { selectedWorkspace } = useContext(ChatbotUIContext)
   const router = useRouter()
@@ -21,9 +21,9 @@ export default function WorkspacePage({
   // ریدایرکت به /chat اگر selectedWorkspace وجود ندارد
   if (!selectedWorkspace) {
     console.log(
-      "WorkspacePage: No selectedWorkspace, redirecting to /:workspaceId/chat"
+      "WorkspacePage: No selectedWorkspace, redirecting to /:workspaceid/chat"
     )
-    router.push(`/${params.workspaceId}/chat`)
+    router.push(`/${params.workspaceid}/chat`)
     return null
   }
 

@@ -312,7 +312,6 @@ export type Database = {
           embeddings_provider: string
           folder_id: string | null
           id: string
-          image_data: string | null
           include_profile_context: boolean
           include_workspace_instructions: boolean
           model: string
@@ -331,7 +330,6 @@ export type Database = {
           embeddings_provider: string
           folder_id?: string | null
           id?: string
-          image_data?: string | null
           include_profile_context: boolean
           include_workspace_instructions: boolean
           model: string
@@ -350,7 +348,6 @@ export type Database = {
           embeddings_provider?: string
           folder_id?: string | null
           id?: string
-          image_data?: string | null
           include_profile_context?: boolean
           include_workspace_instructions?: boolean
           model?: string
@@ -1165,6 +1162,30 @@ export type Database = {
           }
         ]
       }
+      realtime_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          openai_session_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          openai_session_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          openai_session_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           key: string
@@ -1275,6 +1296,7 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
+          amount_irr: number | null
           created_at: string
           id: string
           payment_gateway_ref: string | null
@@ -1283,6 +1305,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          amount_irr?: number | null
           created_at?: string
           id?: string
           payment_gateway_ref?: string | null
@@ -1291,6 +1314,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_irr?: number | null
           created_at?: string
           id?: string
           payment_gateway_ref?: string | null
@@ -1388,10 +1412,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      add_user_credits: {
-        Args: { p_amount_usd: number; p_user_id: string }
-        Returns: undefined
-      }
       create_duplicate_messages_for_new_chat: {
         Args: { new_chat_id: string; new_user_id: string; old_chat_id: string }
         Returns: undefined
@@ -1429,6 +1449,13 @@ export type Database = {
       delete_storage_object_from_bucket: {
         Args: { bucket_name: string; object_path: string }
         Returns: Record<string, unknown>
+      }
+      finalize_payment: {
+        Args: { p_authority_code: string; p_ref_id: string }
+        Returns: {
+          message: string
+          success: boolean
+        }[]
       }
       match_file_items_local: {
         Args: {

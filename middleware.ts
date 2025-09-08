@@ -65,10 +65,10 @@ export async function middleware(request: NextRequest) {
   // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
 
   const { pathname } = request.nextUrl;
-  const publicRoutes = ['/login', '/signup'];
+  const publicRoutes = ['/login', '/signup', '/payment/success', 'landing', 'blog'];
 
-  const workspaceIdPattern = /^[0-9a-fA-F-]{36}$/;
-  if (user && user.phone && workspaceIdPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
+  const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
+  if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
     // console.log("Middleware: Redirecting from", pathname, "to", `${pathname}/chat`);
     return NextResponse.redirect(new URL(`${pathname}/chat`, request.url));
   }

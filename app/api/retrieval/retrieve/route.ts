@@ -1,4 +1,3 @@
-import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
 import { createClient } from "@supabase/supabase-js"
@@ -6,93 +5,73 @@ import OpenAI from "openai"
 
 export async function POST(request: Request) {
   const json = await request.json()
-  const { userInput, fileIds, embeddingsProvider, sourceCount } = json as {
+  const { userInput, fileIds, sourceCount } = json as {
     userInput: string
     fileIds: string[]
-    embeddingsProvider: "openai" | "local"
     sourceCount: number
   }
 
   const uniqueFileIds = [...new Set(fileIds)]
 
   try {
+    console.log("Initializing Supabase client...")
     const supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    console.log("Fetching server profile...")
     const profile = await getServerProfile()
+    console.log("Server profile fetched:", profile)
 
-    if (embeddingsProvider === "openai") {
-      if (profile.use_azure_openai) {
-        checkApiKey(profile.azure_openai_api_key, "Azure OpenAI")
-      } else {
-        checkApiKey(profile.openai_api_key, "OpenAI")
-      }
+    // بررسی کلید API برای OpenAI
+    console.log("Checking API key for OpenAI...")
+    checkApiKey(profile.openai_api_key, "OpenAI")
+    console.log("API key valid for OpenAI.")
+
+    // فقط از OpenAI برای تولید امبدینگ استفاده می‌کنیم
+    console.log("Initializing OpenAI API client...")
+    const openai = new OpenAI({
+      apiKey: profile.openai_api_key || "",
+      organization: profile.openai_organization_id
+    })
+    console.log("OpenAI API client initialized.")
+
+    console.log("Generating embeddings for user input...")
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userInput
+    })
+    console.log("Embeddings generated:", response.data)
+
+    const openaiEmbedding = response.data.map(item => item.embedding)[0]
+    console.log("First embedding:", openaiEmbedding)
+
+    console.log("Matching file items using Supabase RPC...")
+    const { data: openaiFileItems, error: openaiError } =
+      await supabaseAdmin.rpc("match_file_items_openai", {
+        query_embedding: openaiEmbedding as any,
+        match_count: sourceCount,
+        file_ids: uniqueFileIds
+      })
+
+    if (openaiError) {
+      console.error("Error during file matching:", openaiError)
+      throw openaiError
     }
 
-    let chunks: any[] = []
+    console.log("File items matched:", openaiFileItems)
 
-    let openai
-    if (profile.use_azure_openai) {
-      openai = new OpenAI({
-        apiKey: profile.azure_openai_api_key || "",
-        baseURL: `${profile.azure_openai_endpoint}/openai/deployments/${profile.azure_openai_embeddings_id}`,
-        defaultQuery: { "api-version": "2023-12-01-preview" },
-        defaultHeaders: { "api-key": profile.azure_openai_api_key }
-      })
-    } else {
-      openai = new OpenAI({
-        apiKey: profile.openai_api_key || "",
-        organization: profile.openai_organization_id
-      })
-    }
-
-    if (embeddingsProvider === "openai") {
-      const response = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: userInput
-      })
-
-      const openaiEmbedding = response.data.map(item => item.embedding)[0]
-
-      const { data: openaiFileItems, error: openaiError } =
-        await supabaseAdmin.rpc("match_file_items_openai", {
-          query_embedding: openaiEmbedding as any,
-          match_count: sourceCount,
-          file_ids: uniqueFileIds
-        })
-
-      if (openaiError) {
-        throw openaiError
-      }
-
-      chunks = openaiFileItems
-    } else if (embeddingsProvider === "local") {
-      const localEmbedding = await generateLocalEmbedding(userInput)
-
-      const { data: localFileItems, error: localFileItemsError } =
-        await supabaseAdmin.rpc("match_file_items_local", {
-          query_embedding: localEmbedding as any,
-          match_count: sourceCount,
-          file_ids: uniqueFileIds
-        })
-
-      if (localFileItemsError) {
-        throw localFileItemsError
-      }
-
-      chunks = localFileItems
-    }
-
-    const mostSimilarChunks = chunks?.sort(
+    const mostSimilarChunks = openaiFileItems?.sort(
       (a, b) => b.similarity - a.similarity
     )
+    console.log("Sorted most similar chunks:", mostSimilarChunks)
 
     return new Response(JSON.stringify({ results: mostSimilarChunks }), {
       status: 200
     })
   } catch (error: any) {
+    console.error("Error occurred:", error)
     const errorMessage = error.error?.message || "An unexpected error occurred"
     const errorCode = error.status || 500
     return new Response(JSON.stringify({ message: errorMessage }), {

@@ -203,7 +203,7 @@ export const handleHostedChat = async (
 ) => {
   const provider =
     modelData.provider === "openai" && profile.use_azure_openai
-      ? "openai" // یا مقدار دیگری که Azure نباشه
+      ? "azure"
       : modelData.provider
 
   let draftMessages = await buildFinalMessages(payload, profile, chatImages)
@@ -264,17 +264,20 @@ export const fetchChatResponse = async (
   })
 
   if (!response.ok) {
-    // اگر پاسخ خطا بود، بدنه آن را به عنوان JSON بخوان
-    const errorData = await response.json().catch(() => {
-      // اگر بدنه JSON معتبر نبود، یک پیام خطای کلی برگردان
-      return { message: "An unknown server error occurred." }
-    })
+    if (response.status === 404 && !isHosted) {
+      toast.error(
+        "Model not found. Make sure you have it downloaded via Ollama."
+      )
+    }
 
-    // یک خطا با پیام دریافتی پرتاب کن و اجرای تابع را متوقف کن
-    throw new Error(errorData.message)
+    const errorData = await response.json()
+
+    toast.error(errorData.message)
+
+    setIsGenerating(false)
+    setChatMessages(prevMessages => prevMessages.slice(0, -2))
   }
 
-  // این تابع فقط در صورت موفقیت‌آمیز بودن، پاسخ را برمی‌گرداند
   return response
 }
 

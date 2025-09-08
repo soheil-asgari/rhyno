@@ -71,24 +71,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // ✨ ۴. کسر هزینه از حساب کاربر *قبل* از ساخت تصویر
+    console.log("💰 موجودی قبل از کسر:", wallet.balance, "USD")
+
     const { error: rpcError } = await supabase.rpc(
       "deduct_credits_and_log_usage",
       {
         p_user_id: userId,
         p_model_name: "dall-e-3",
         p_prompt_tokens: 0,
-        p_completion_tokens: 1, // به معنی ۱ تصویر
+        p_completion_tokens: 1,
         p_cost: userCostUSD
       }
     )
 
     if (rpcError) {
-      console.error("!!! Supabase RPC Error (DALL-E) !!!:", rpcError)
-      return NextResponse.json(
-        { message: "خطا در پردازش پرداخت." },
-        { status: 500 }
-      )
+      console.error("❌ خطا در کسر هزینه:", rpcError)
+    } else {
+      // گرفتن موجودی جدید برای تایید
+      const { data: updatedWallet } = await supabase
+        .from("wallets")
+        .select("balance")
+        .eq("user_id", userId)
+        .single()
+
+      console.log("💵 موجودی بعد از کسر:", updatedWallet?.balance, "USD")
     }
 
     // ✨ ۵. ساخت تصویر و مدیریت خطا (با قابلیت بازگشت وجه)
