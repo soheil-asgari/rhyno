@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect, type ChangeEvent } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
-
+// این خط را به جای خط حذفی اضافه کنید
+import { supabase } from "@/lib/supabase/client"
 // --- ایمپورت کامپوننت‌های UI ---
 import { Button } from "@/components/ui/button"
 import {
@@ -39,15 +39,13 @@ export default function AdminPage() {
   const [replyContent, setReplyContent] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const supabase = createClientComponentClient<Database>()
-
   // 1. در اولین بارگذاری، اطلاعات کاربر لاگین کرده را می‌گیرد
   useEffect(() => {
     const getUserSession = async () => {
       const {
         data: { user }
       } = await supabase.auth.getUser()
-      console.log("SESSION CHECK: User object:", user) // لاگ برای بررسی session
+      console.log("BROWSER LOG: User object from Supabase:", user)
       setUser(user)
       setLoading(false)
     }
@@ -58,7 +56,8 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchTickets = async () => {
       try {
-        const res = await fetch("app/api/admin/route.ts")
+        // app/admin/page.tsx -> useEffect
+        const res = await fetch("/api/admin") // ✔️ این آدرس URL صحیح برای API شماست
         console.log(
           "FETCH STATUS: Response from /api/admin:",
           res.status,
@@ -77,9 +76,13 @@ export default function AdminPage() {
           ) // لاگ برای دیدن متن خطا
         }
       } catch (error) {
-        console.error("FETCH CRITICAL ERROR: Error during fetch call:", error)
+        console.error("Error fetching tickets:", error)
       }
     }
+    console.log("BROWSER LOG: Checking admin access...")
+    console.log("Comparing user email:", user?.email)
+    console.log("With ADMIN_EMAIL:", ADMIN_EMAIL)
+    console.log("Are they equal?", user?.email === ADMIN_EMAIL)
 
     if (user?.email === ADMIN_EMAIL) {
       console.log("AUTH CHECK: User is admin. Fetching tickets...")
@@ -91,7 +94,8 @@ export default function AdminPage() {
   const fetchMessages = async (ticketId: string) => {
     setLoadingMessages(true)
     setMessages([])
-    const res = await fetch(`/api/admin?ticketId=${ticketId}`)
+    // app/admin/page.tsx -> fetchMessages
+    const res = await fetch(`/api/admin?ticketId=${ticketId}`) // ✔️ این آدرس هم صحیح است و نیازی به تغییر ندارد
     if (res.ok) {
       const data = (await res.json()) as TicketMessage[]
       setMessages(data)
@@ -161,18 +165,18 @@ export default function AdminPage() {
   return (
     <div className="grid grid-cols-1 gap-6 p-4 md:grid-cols-3">
       <div className="col-span-1">
-        <h2 className="mb-4 text-lg font-bold">لیست تیکت‌ها</h2>
+        <h2 className="font-vazir mb-4 text-lg font-bold">لیست تیکت‌ها</h2>
         <div className="space-y-2">
           {tickets.length > 0 ? (
-            tickets.map(ticket => (
+            tickets.map((ticket: FormattedTicket) => (
               <div
                 key={ticket.id}
                 className={`cursor-pointer rounded-lg border p-3 transition-colors ${selectedTicket?.id === ticket.id ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-muted/50"}`}
                 onClick={() => handleSelectTicket(ticket)}
               >
-                <p className="font-semibold">{ticket.subject}</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <p className="text-muted-foreground text-xs">
+                <p className="font-vazir font-semibold">{ticket.subject}</p>
+                <div className=" font-vazir mt-1 flex items-center justify-between">
+                  <p className="font-vazir text-muted-foreground text-xs">
                     {ticket.user?.email || "کاربر نامشخص"}
                   </p>
                   {getStatusBadge(ticket.status)}
@@ -180,7 +184,7 @@ export default function AdminPage() {
               </div>
             ))
           ) : (
-            <p className="text-muted-foreground text-center text-sm">
+            <p className="font-vazir text-muted-foreground text-center text-sm">
               هیچ تیکتی یافت نشد.
             </p>
           )}
@@ -198,7 +202,7 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-muted/50 mb-4 h-96 space-y-4 overflow-y-auto rounded-md border p-4">
+              <div className="font-vazir bg-muted/50 mb-4 h-96 space-y-4 overflow-y-auto rounded-md border p-4">
                 {loadingMessages ? (
                   <p className="text-center">در حال بارگذاری پیام‌ها...</p>
                 ) : messages.length > 0 ? (
@@ -207,7 +211,7 @@ export default function AdminPage() {
                       key={msg.id}
                       className={`flex flex-col rounded-lg p-3 ${msg.is_admin_reply ? "items-start bg-blue-900/50" : "bg-card items-end"}`}
                     >
-                      <p className="text-sm font-bold">
+                      <p className="font-vazir text-sm font-bold">
                         {msg.is_admin_reply ? "شما (پشتیبانی)" : "کاربر"}
                       </p>
                       <p className="whitespace-pre-wrap text-sm">
@@ -219,7 +223,7 @@ export default function AdminPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-muted-foreground py-8 text-center">
+                  <p className="font-vazir text-muted-foreground py-8 text-center">
                     هیچ پیامی یافت نشد.
                   </p>
                 )}
@@ -243,8 +247,8 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-muted/50 flex h-full items-center justify-center rounded-lg">
-            <p className="text-muted-foreground">
+          <div className="font-vazir bg-muted/50 flex h-full items-center justify-center rounded-lg">
+            <p className="font-vazir text-muted-foreground">
               یک تیکت را برای مشاهده جزئیات انتخاب کنید.
             </p>
           </div>

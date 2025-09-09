@@ -1,10 +1,13 @@
+// app/tickets/page.tsx
+
 "use client"
 
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "../../lib/supabase/client" // ✔️ استفاده از کلاینت متمرکز و صحیح
 import type { User } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+// --- کامپوننت‌های UI ---
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,135 +22,33 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { Tables } from "@/supabase/types"
+import type { Tables } from "@/supabase/types"
 
-// --- کامپوننت‌های آیکون به صورت SVG داخلی ---
-// این کار باعث می‌شود به پکیج @tabler/icons-react نیازی نباشد
+// --- ایمپورت آیکون‌ها از فایل جداگانه ---
+import {
+  IconArrowLeft,
+  IconMessageCircle,
+  IconPlus,
+  IconSend,
+  IconTicket
+} from "./icons"
 
-const IconArrowLeft = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M5 12l14 0" />
-    <path d="M5 12l6 6" />
-    <path d="M5 12l6 -6" />
-  </svg>
-)
-
-const IconMessageCircle = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M3 20l1.3 -3.9a9 8 0 1 1 3.4 2.9l-4.7 1" />
-  </svg>
-)
-
-const IconPlus = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M12 5l0 14" />
-    <path d="M5 12l14 0" />
-  </svg>
-)
-
-const IconSend = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M10 14l11 -11" />
-    <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
-  </svg>
-)
-
-const IconTicket = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M15 5l0 2" />
-    <path d="M15 11l0 2" />
-    <path d="M15 17l0 2" />
-    <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2" />
-  </svg>
-)
-
-// --- پایان بخش آیکون‌ها ---
-
-// اتصال به Supabase
-// لطفاً این مقادیر را با اطلاعات پروژه خود در فایل env. جایگزین کنید
-// یا فایل browser-client خود را به درستی وارد کنید
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "YOUR_SUPABASE_URL"
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "YOUR_SUPABASE_ANON_KEY"
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
+// --- تعریف Type ها ---
 type Ticket = Tables<"tickets">
 type TicketMessage = Tables<"ticket_messages">
-type TicketWithUser = Ticket & { users?: { email: string } }
 
 export default function TicketsPage() {
   const [user, setUser] = useState<User | null>(null)
-  const [tickets, setTickets] = useState<TicketWithUser[]>([])
-  const [selectedTicket, setSelectedTicket] = useState<TicketWithUser | null>(
-    null
-  )
-
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [messages, setMessages] = useState<TicketMessage[]>([])
-
   const [view, setView] = useState<"list" | "details" | "create">("list")
   const [loading, setLoading] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
   const [newTicketSubject, setNewTicketSubject] = useState("")
   const [newTicketContent, setNewTicketContent] = useState("")
   const [replyContent, setReplyContent] = useState("")
-  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -158,31 +59,39 @@ export default function TicketsPage() {
       setUser(user)
 
       if (user) {
-        // اضافه کن برای ادمین
-        if (user.email === "soheil2833@gmail.com") {
-          setIsAdmin(true)
-        }
-
-        // گرفتن تیکت‌ها
+        // به لطف RLS، این کوئری به صورت خودکار فقط تیکت‌های کاربر لاگین کرده را برمی‌گرداند
         const { data, error } = await supabase
           .from("tickets")
-          .select(
-            `
-    *,
-    users!inner(email)
-  `
-          )
+          .select("*")
           .order("updated_at", { ascending: false })
 
-        if (!isAdmin && user) {
-          setTickets(data?.filter(t => t.user_id === user.id) || [])
+        if (error) {
+          toast.error("خطا در دریافت تیکت‌ها.")
+          console.error("Fetch tickets error:", error)
         } else {
-          setTickets((data || []) as TicketWithUser[])
+          setTickets(data || [])
         }
       }
       setLoading(false)
     }
+
     fetchInitialData()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user
+        setUser(currentUser ?? null)
+        if (!currentUser) {
+          // اگر کاربر خارج شد
+          setTickets([])
+          setView("list")
+        }
+      }
+    )
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
   }, [])
 
   const fetchMessages = async (ticketId: string) => {
@@ -195,65 +104,34 @@ export default function TicketsPage() {
 
     if (error) {
       toast.error("خطا در دریافت پیام‌ها")
-      console.error("Error fetching messages:", error)
     } else {
       setMessages(data || [])
     }
     setLoadingMessages(false)
   }
-  useEffect(() => {
-    setLoading(true)
 
-    // گرفتن کاربر فعلی
-    const getUser = async () => {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser()
-      setUser(user || null)
-      setLoading(false)
-    }
-    getUser()
-
-    // گوش دادن به تغییرات ورود/خروج
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null)
-      }
-    )
-
-    return () => {
-      listener.subscription.unsubscribe()
-    }
-  }, [])
-
-  const handleSelectTicket = (ticket: TicketWithUser) => {
+  const handleSelectTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket)
     fetchMessages(ticket.id)
     setView("details")
   }
 
   const handleCreateTicket = async () => {
-    // اصلاح: trim کردن و جدا کردن مقادیر
-    const subject = newTicketSubject.trim()
-    const content = newTicketContent.trim()
-
     if (!user) {
       toast.error("لطفاً ابتدا وارد شوید.")
       return
     }
-
-    if (!subject || !content) {
+    if (!newTicketSubject.trim() || !newTicketContent.trim()) {
       toast.error("لطفاً موضوع و متن تیکت را وارد کنید.")
       return
     }
-
     setIsSubmitting(true)
 
     const { data: newTicket, error: ticketError } = await supabase
       .from("tickets")
       .insert({
         user_id: user.id,
-        subject,
+        subject: newTicketSubject.trim(),
         status: "open"
       })
       .select()
@@ -261,7 +139,6 @@ export default function TicketsPage() {
 
     if (ticketError || !newTicket) {
       toast.error("خطا در ایجاد تیکت جدید.")
-      console.error("Error creating ticket:", ticketError)
       setIsSubmitting(false)
       return
     }
@@ -271,19 +148,23 @@ export default function TicketsPage() {
       .insert({
         ticket_id: newTicket.id,
         user_id: user.id,
-        content
+        content: newTicketContent.trim()
       })
 
     if (messageError) {
       toast.error("خطا در ثبت اولین پیام تیکت.")
-      console.error("Error creating first message:", messageError)
       await supabase.from("tickets").delete().eq("id", newTicket.id)
       setIsSubmitting(false)
       return
     }
 
     toast.success("تیکت شما با موفقیت ثبت شد.")
-    setTickets([newTicket, ...tickets])
+    setTickets(prev =>
+      [newTicket, ...prev].sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      )
+    )
     setNewTicketSubject("")
     setNewTicketContent("")
     setView("list")
@@ -291,9 +172,7 @@ export default function TicketsPage() {
   }
 
   const handleSendReply = async () => {
-    if (!user || !selectedTicket || !replyContent.trim()) {
-      return
-    }
+    if (!user || !selectedTicket || !replyContent.trim()) return
     setIsSubmitting(true)
 
     const { data: newMessage, error } = await supabase
@@ -301,45 +180,40 @@ export default function TicketsPage() {
       .insert({
         ticket_id: selectedTicket.id,
         user_id: user.id,
-        content: replyContent,
-        is_admin_reply: isAdmin // اضافه کن
+        content: replyContent.trim(),
+        is_admin_reply: false
       })
       .select()
       .single()
 
     if (error || !newMessage) {
       toast.error("خطا در ارسال پاسخ.")
-      console.error("Error sending reply:", error)
       setIsSubmitting(false)
       return
     }
 
     const { data: updatedTicket } = await supabase
       .from("tickets")
-      .update({ updated_at: new Date().toISOString(), status: "in-progress" })
+      .update({ updated_at: new Date().toISOString(), status: "open" })
       .eq("id", selectedTicket.id)
       .select()
       .single()
 
     if (updatedTicket) {
-      const ticketWithUser = updatedTicket as TicketWithUser
-      setSelectedTicket(ticketWithUser)
-      setTickets(
-        tickets.map(t => (t.id === ticketWithUser.id ? ticketWithUser : t))
+      setSelectedTicket(updatedTicket)
+      setTickets(prev =>
+        prev
+          .map(t => (t.id === updatedTicket.id ? updatedTicket : t))
+          .sort(
+            (a, b) =>
+              new Date(b.updated_at).getTime() -
+              new Date(a.updated_at).getTime()
+          )
       )
     }
 
-    setMessages([...messages, newMessage])
+    setMessages(prev => [...prev, newMessage])
     setReplyContent("")
-    if (updatedTicket) {
-      setSelectedTicket(updatedTicket as TicketWithUser)
-      setTickets(
-        tickets.map(t =>
-          t.id === updatedTicket.id ? (updatedTicket as TicketWithUser) : t
-        )
-      )
-    }
-
     toast.success("پاسخ شما ارسال شد.")
     setIsSubmitting(false)
   }
@@ -347,16 +221,44 @@ export default function TicketsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "open":
-        return <Badge className="bg-green-500 hover:bg-green-600">باز</Badge>
+        return (
+          <Badge className="font-vazir bg-green-500 hover:bg-green-600">
+            باز
+          </Badge>
+        )
       case "in-progress":
         return (
-          <Badge className="bg-blue-500 hover:bg-blue-600">در حال بررسی</Badge>
+          <Badge className="font-vazir bg-blue-500 hover:bg-blue-600">
+            پاسخ داده شد
+          </Badge>
         )
       case "closed":
         return <Badge variant="secondary">بسته شده</Badge>
       default:
         return <Badge>{status}</Badge>
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="font-vazir flex h-screen items-center justify-center">
+        <p>در حال بارگذاری...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="font-vazir flex h-screen flex-col items-center justify-center">
+        <h1 className="font-vazir mb-4 text-2xl">لطفا وارد شوید</h1>
+        <p className="font-vazir mb-4">
+          برای دسترسی به تیکت‌ها، باید وارد حساب کاربری خود شوید.
+        </p>
+        <Button asChild>
+          <a href="/login">صفحه ورود</a>
+        </Button>
+      </div>
+    )
   }
 
   const renderContent = () => {
@@ -366,61 +268,55 @@ export default function TicketsPage() {
         return (
           <Card>
             <CardHeader>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="mb-1">
-                    {selectedTicket.subject}
-                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setView("list")}
+                    className="mb-4"
+                  >
+                    <IconArrowLeft />
+                  </Button>
+                  <CardTitle>{selectedTicket.subject}</CardTitle>
                   <CardDescription>
-                    تاریخ ایجاد:{" "}
-                    {new Date(selectedTicket.created_at).toLocaleString(
+                    آخرین بروزرسانی:{" "}
+                    {new Date(selectedTicket.updated_at).toLocaleString(
                       "fa-IR"
                     )}
                   </CardDescription>
-                  {isAdmin && (
-                    <p className="text-muted-foreground text-sm">
-                      کاربر: {selectedTicket.users?.email || "ناشناخته"}
-                    </p>
-                  )}
                 </div>
                 {getStatusBadge(selectedTicket.status)}
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-muted/50 max-h-[400px] space-y-4 overflow-y-auto rounded-md border p-4">
+            <CardContent>
+              <div className="font-vazir bg-muted/50 max-h-[400px] space-y-4 overflow-y-auto rounded-md border p-4">
                 {loadingMessages ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                  </div>
+                  <Skeleton className="h-24 w-full" />
                 ) : messages.length > 0 ? (
                   messages.map(msg => (
                     <div
                       key={msg.id}
-                      className={`flex flex-col rounded-lg p-3 ${
-                        msg.is_admin_reply
-                          ? "bg-background items-start"
-                          : "items-end bg-blue-50 dark:bg-blue-900/30"
-                      }`}
+                      className={`flex flex-col rounded-lg p-3 ${msg.is_admin_reply ? "bg-background items-start" : "items-end bg-blue-50 dark:bg-blue-900/30"}`}
                     >
                       <p className="whitespace-pre-wrap text-sm">
                         {msg.content}
                       </p>
-                      <span className="text-muted-foreground mt-2 text-xs">
+                      <span className="font-vazir text-muted-foreground mt-2 text-xs">
                         {new Date(msg.created_at).toLocaleString("fa-IR")}
-                        {msg.is_admin_reply ? " - (پشتیبانی)" : ""}
+                        {msg.is_admin_reply ? " - (پشتیبانی)" : " - (شما)"}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-muted-foreground py-8 text-center text-sm">
+                  <p className="font-vazir text-muted-foreground py-8 text-center">
                     هنوز پیامی در این تیکت وجود ندارد.
                   </p>
                 )}
               </div>
             </CardContent>
             {selectedTicket.status !== "closed" && (
-              <CardFooter className="flex flex-col items-start gap-4">
+              <CardFooter className="font-vazir flex flex-col items-stretch gap-2">
                 <Textarea
                   placeholder="پاسخ خود را اینجا بنویسید..."
                   value={replyContent}
@@ -431,18 +327,25 @@ export default function TicketsPage() {
                   onClick={handleSendReply}
                   disabled={isSubmitting || !replyContent.trim()}
                 >
-                  <IconSend height={16} width={16} className="ml-2" />
+                  <IconSend className="ml-2 size-4" />
                   {isSubmitting ? "در حال ارسال..." : "ارسال پاسخ"}
                 </Button>
               </CardFooter>
             )}
           </Card>
         )
-
       case "create":
         return (
           <Card>
             <CardHeader>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setView("list")}
+                className="mb-4"
+              >
+                <IconArrowLeft />
+              </Button>
               <CardTitle>ایجاد تیکت جدید</CardTitle>
               <CardDescription>
                 مشکل یا سوال خود را با جزئیات کامل مطرح کنید.
@@ -471,40 +374,30 @@ export default function TicketsPage() {
             </CardContent>
             <CardFooter>
               <Button
-                type="button"
                 onClick={handleCreateTicket}
                 disabled={
                   isSubmitting ||
                   !newTicketSubject.trim() ||
                   !newTicketContent.trim()
                 }
-                className="w-full sm:w-auto"
               >
-                <IconSend height={16} width={16} className="ml-2" />
+                <IconSend className="ml-2 size-4" />
                 {isSubmitting ? "در حال ارسال..." : "ارسال تیکت"}
               </Button>
             </CardFooter>
           </Card>
         )
-
-      case "list":
-      default:
+      default: // 'list' view
         return (
           <Card>
             <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="font-vazir flex items-center justify-between">
                 <div>
-                  <CardTitle>
-                    {isAdmin ? "تمام تیکت‌ها" : "تیکت‌های شما"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isAdmin
-                      ? "لیست همه تیکت‌ها"
-                      : "لیست تیکت‌های پشتیبانی شما."}
-                  </CardDescription>
+                  <CardTitle>تیکت‌های شما</CardTitle>
+                  <CardDescription>لیست تیکت‌های پشتیبانی شما.</CardDescription>
                 </div>
                 <Button onClick={() => setView("create")}>
-                  <IconPlus height={16} width={16} className="ml-2" />
+                  <IconPlus className="ml-2 size-4" />
                   ایجاد تیکت جدید
                 </Button>
               </div>
@@ -516,10 +409,10 @@ export default function TicketsPage() {
                     <div
                       key={ticket.id}
                       onClick={() => handleSelectTicket(ticket)}
-                      className="hover:bg-muted/50 flex cursor-pointer items-start justify-between rounded-lg border p-4 transition-all sm:items-center"
+                      className="font-vazir hover:bg-muted/50 flex cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center">
-                        <IconTicket className="text-muted-foreground ml-4 mt-1 sm:mt-0" />
+                      <div className="font-vazir flex items-center gap-4">
+                        <IconTicket className="font-vazir text-muted-foreground" />
                         <div>
                           <p className="font-semibold">{ticket.subject}</p>
                           <p className="text-muted-foreground text-sm">
@@ -528,11 +421,6 @@ export default function TicketsPage() {
                               "fa-IR"
                             )}
                           </p>
-                          {isAdmin && (
-                            <p className="text-muted-foreground text-sm">
-                              کاربر:{ticket.users?.email || "ناشناخته"}
-                            </p>
-                          )}
                         </div>
                       </div>
                       {getStatusBadge(ticket.status)}
@@ -540,12 +428,8 @@ export default function TicketsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-muted-foreground py-12 text-center">
-                  <IconMessageCircle
-                    width={48}
-                    height={48}
-                    className="mx-auto mb-4"
-                  />
+                <div className="font-vazir text-muted-foreground py-12 text-center">
+                  <IconMessageCircle className="font-vazir mx-auto mb-4 size-12" />
                   <p>هیچ تیکتی برای نمایش وجود ندارد.</p>
                   <p className="mt-1 text-sm">
                     برای شروع، یک تیکت جدید ایجاد کنید.
@@ -557,5 +441,8 @@ export default function TicketsPage() {
         )
     }
   }
-  return <div className="p-4">{renderContent()}</div>
+
+  return (
+    <div className="container mx-auto max-w-4xl p-4">{renderContent()}</div>
+  )
 }
