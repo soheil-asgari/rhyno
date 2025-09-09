@@ -28,6 +28,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
+import { IconTicket } from "@tabler/icons-react"
+
 type Wallet = Tables<"wallets">
 type Transaction = Tables<"transactions">
 
@@ -247,6 +249,7 @@ export default function AccountPage() {
                     }}
                   />
                 </div>
+
                 <Button
                   onClick={handleCharge}
                   className="font-vazir w-full"
@@ -315,6 +318,16 @@ export default function AccountPage() {
                   <span className="font-mono">{user.phone || "ثبت نشده"}</span>
                 </div>
               </CardContent>
+            </Card>
+            <Card className="font-vazir flex h-20 items-center justify-center">
+              <Button
+                onClick={() => router.push("/tickets")}
+                className="px-6 py-3"
+                variant="default"
+              >
+                <IconTicket className="ml-2" />
+                مشاهده تیکت‌ها
+              </Button>
             </Card>
           </div>
         </div>
