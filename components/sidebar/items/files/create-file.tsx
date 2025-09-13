@@ -61,7 +61,7 @@ export const CreateFile: FC<CreateFileProps> = ({ isOpen, onOpenChange }) => {
             <Input
               type="file"
               onChange={handleSelectedFile}
-              accept={ACCEPTED_FILE_TYPES.join(",")}
+              accept={ACCEPTED_FILE_TYPES}
             />
           </div>
 

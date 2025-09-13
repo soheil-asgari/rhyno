@@ -13,7 +13,7 @@ import { ReactNode } from "react"
 import dynamic from "next/dynamic"
 import "./globals.css"
 
-// ✨ FIX: Dynamically import our new client-side wrapper component
+// ✨ Dynamically import toaster (client only)
 const ClientToaster = dynamic(
   () => import("@/components/utility/client-toaster"),
   {
@@ -22,14 +22,25 @@ const ClientToaster = dynamic(
 )
 
 const inter = Inter({ subsets: ["latin"] })
-const APP_NAME = "Rhyno Chat"
-const APP_DEFAULT_TITLE = "Rhyno Chat"
-// ... (بقیه متادیتا و viewport بدون تغییر باقی می‌ماند)
+
+// 📌 SEO + App defaults
+const APP_NAME = "Rhyno AI"
+const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
+const APP_DESCRIPTION =
+  "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
 
 export const metadata: Metadata = {
-  applicationName: APP_NAME
-  // ...
+  title: {
+    default: APP_DEFAULT_TITLE,
+    template: "%s | Rhyno AI"
+  },
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  icons: {
+    icon: "/favicon.ico"
+  }
 }
+
 export const viewport: Viewport = {
   themeColor: "#000000"
 }
@@ -73,7 +84,7 @@ export default async function RootLayout({
   const { resources } = translationResponse
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale || "fa"} suppressHydrationWarning>
       <body className={inter.className}>
         <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
@@ -81,7 +92,6 @@ export default async function RootLayout({
             locale={locale}
             resources={resources}
           >
-            {/* ✨ کامپوننت پوششی جدید را اینجا رندر می‌کنیم */}
             <ClientToaster />
             <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
               {session ? <GlobalState>{children}</GlobalState> : children}

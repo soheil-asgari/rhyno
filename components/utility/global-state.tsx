@@ -1,5 +1,3 @@
-// TODO: Separate into multiple contexts, keeping simple for now
-
 "use client"
 
 import { ChatbotUIContext } from "@/context/context"
@@ -9,7 +7,6 @@ import { getWorkspacesByUserId } from "@/db/workspaces"
 import { convertBlobToBase64 } from "@/lib/blob-to-b64"
 import {
   fetchHostedModels,
-  // fetchOllamaModels,
   fetchOpenRouterModels
 } from "@/lib/models/fetch-models"
 import { supabase } from "@/lib/supabase/browser-client"
@@ -26,7 +23,7 @@ import {
 import { AssistantImage } from "@/types/images/assistant-image"
 import { VALID_ENV_KEYS } from "@/types/valid-keys"
 import { useRouter } from "next/navigation"
-import { FC, useEffect, useState } from "react"
+import { FC, useEffect, useMemo, useState } from "react"
 
 interface GlobalStateProps {
   children: React.ReactNode
@@ -35,9 +32,9 @@ interface GlobalStateProps {
 export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const router = useRouter()
 
+  // All your useState hooks remain exactly the same
   // PROFILE STORE
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null)
-
   // ITEMS STORE
   const [assistants, setAssistants] = useState<Tables<"assistants">[]>([])
   const [collections, setCollections] = useState<Tables<"collections">[]>([])
@@ -49,7 +46,6 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const [prompts, setPrompts] = useState<Tables<"prompts">[]>([])
   const [tools, setTools] = useState<Tables<"tools">[]>([])
   const [workspaces, setWorkspaces] = useState<Tables<"workspaces">[]>([])
-
   // MODELS STORE
   const [envKeyMap, setEnvKeyMap] = useState<Record<string, VALID_ENV_KEYS>>({})
   const [availableHostedModels, setAvailableHostedModels] = useState<LLM[]>([])
@@ -57,22 +53,18 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const [availableOpenRouterModels, setAvailableOpenRouterModels] = useState<
     OpenRouterLLM[]
   >([])
-
   // WORKSPACE STORE
   const [selectedWorkspace, setSelectedWorkspace] =
     useState<Tables<"workspaces"> | null>(null)
   const [workspaceImages, setWorkspaceImages] = useState<WorkspaceImage[]>([])
-
   // PRESET STORE
   const [selectedPreset, setSelectedPreset] =
     useState<Tables<"presets"> | null>(null)
-
   // ASSISTANT STORE
   const [selectedAssistant, setSelectedAssistant] =
     useState<Tables<"assistants"> | null>(null)
   const [assistantImages, setAssistantImages] = useState<AssistantImage[]>([])
   const [openaiAssistants, setOpenaiAssistants] = useState<any[]>([])
-
   // PASSIVE CHAT STORE
   const [userInput, setUserInput] = useState<string>("")
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -87,13 +79,11 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   })
   const [selectedChat, setSelectedChat] = useState<Tables<"chats"> | null>(null)
   const [chatFileItems, setChatFileItems] = useState<Tables<"file_items">[]>([])
-
   // ACTIVE CHAT STORE
   const [isGenerating, setIsGenerating] = useState<boolean>(false)
   const [firstTokenReceived, setFirstTokenReceived] = useState<boolean>(false)
   const [abortController, setAbortController] =
     useState<AbortController | null>(null)
-
   // CHAT INPUT COMMAND STORE
   const [isPromptPickerOpen, setIsPromptPickerOpen] = useState(false)
   const [slashCommand, setSlashCommand] = useState("")
@@ -107,33 +97,28 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const [focusAssistant, setFocusAssistant] = useState(false)
   const [atCommand, setAtCommand] = useState("")
   const [isAssistantPickerOpen, setIsAssistantPickerOpen] = useState(false)
-
   // ATTACHMENTS STORE
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
   const [chatImages, setChatImages] = useState<MessageImage[]>([])
   const [newMessageFiles, setNewMessageFiles] = useState<ChatFile[]>([])
   const [newMessageImages, setNewMessageImages] = useState<MessageImage[]>([])
   const [showFilesDisplay, setShowFilesDisplay] = useState<boolean>(false)
-
   // RETIEVAL STORE
   const [useRetrieval, setUseRetrieval] = useState<boolean>(true)
   const [sourceCount, setSourceCount] = useState<number>(4)
-
   // TOOL STORE
   const [selectedTools, setSelectedTools] = useState<Tables<"tools">[]>([])
   const [toolInUse, setToolInUse] = useState<string>("none")
 
+  // The fetchStartingData useEffect remains the same
   useEffect(() => {
     ;(async () => {
       const profile = await fetchStartingData()
-
       if (profile) {
         const hostedModelRes = await fetchHostedModels(profile)
         if (!hostedModelRes) return
-
         setEnvKeyMap(hostedModelRes.envKeyMap)
         setAvailableHostedModels(hostedModelRes.hostedModels)
-
         if (
           profile["openrouter_api_key"] ||
           hostedModelRes.envKeyMap["openrouter"]
@@ -143,44 +128,30 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
           setAvailableOpenRouterModels(openRouterModels)
         }
       }
-
-      // if (process.env.NEXT_PUBLIC_OLLAMA_URL) {
-      //   const localModels = await fetchOllamaModels()
-      //   if (!localModels) return
-      //   setAvailableLocalModels(localModels)
-      // }
     })()
   }, [])
 
   const fetchStartingData = async () => {
     const session = (await supabase.auth.getSession()).data.session
-
     if (session) {
       const user = session.user
-
       const profile = await getProfileByUserId(user.id)
       setProfile(profile)
-
       if (!profile.has_onboarded) {
         return router.push("/setup")
       }
-
       const workspaces = await getWorkspacesByUserId(user.id)
       setWorkspaces(workspaces)
-
       for (const workspace of workspaces) {
         let workspaceImageUrl = ""
-
         if (workspace.image_path) {
           workspaceImageUrl =
             (await getWorkspaceImageFromStorage(workspace.image_path)) || ""
         }
-
         if (workspaceImageUrl) {
           const response = await fetch(workspaceImageUrl)
           const blob = await response.blob()
           const base64 = await convertBlobToBase64(blob)
-
           setWorkspaceImages(prev => [
             ...prev,
             {
@@ -192,139 +163,171 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
           ])
         }
       }
-
       return profile
     }
   }
 
+  // ✅ Use useMemo to create a stable context value
+  const contextValue = useMemo(
+    () => ({
+      profile,
+      setProfile,
+      assistants,
+      setAssistants,
+      collections,
+      setCollections,
+      chats,
+      setChats,
+      files,
+      setFiles,
+      folders,
+      setFolders,
+      models,
+      setModels,
+      presets,
+      setPresets,
+      prompts,
+      setPrompts,
+      tools,
+      setTools,
+      workspaces,
+      setWorkspaces,
+      envKeyMap,
+      setEnvKeyMap,
+      availableHostedModels,
+      setAvailableHostedModels,
+      availableLocalModels,
+      setAvailableLocalModels,
+      availableOpenRouterModels,
+      setAvailableOpenRouterModels,
+      selectedWorkspace,
+      setSelectedWorkspace,
+      workspaceImages,
+      setWorkspaceImages,
+      selectedPreset,
+      setSelectedPreset,
+      selectedAssistant,
+      setSelectedAssistant,
+      assistantImages,
+      setAssistantImages,
+      openaiAssistants,
+      setOpenaiAssistants,
+      userInput,
+      setUserInput,
+      chatMessages,
+      setChatMessages,
+      chatSettings,
+      setChatSettings,
+      selectedChat,
+      setSelectedChat,
+      chatFileItems,
+      setChatFileItems,
+      isGenerating,
+      setIsGenerating,
+      firstTokenReceived,
+      setFirstTokenReceived,
+      abortController,
+      setAbortController,
+      isPromptPickerOpen,
+      setIsPromptPickerOpen,
+      slashCommand,
+      setSlashCommand,
+      isFilePickerOpen,
+      setIsFilePickerOpen,
+      hashtagCommand,
+      setHashtagCommand,
+      isToolPickerOpen,
+      setIsToolPickerOpen,
+      toolCommand,
+      setToolCommand,
+      focusPrompt,
+      setFocusPrompt,
+      focusFile,
+      setFocusFile,
+      focusTool,
+      setFocusTool,
+      focusAssistant,
+      setFocusAssistant,
+      atCommand,
+      setAtCommand,
+      isAssistantPickerOpen,
+      setIsAssistantPickerOpen,
+      chatFiles,
+      setChatFiles,
+      chatImages,
+      setChatImages,
+      newMessageFiles,
+      setNewMessageFiles,
+      newMessageImages,
+      setNewMessageImages,
+      showFilesDisplay,
+      setShowFilesDisplay,
+      useRetrieval,
+      setUseRetrieval,
+      sourceCount,
+      setSourceCount,
+      selectedTools,
+      setSelectedTools,
+      toolInUse,
+      setToolInUse
+    }),
+    // Add ALL state variables to the dependency array
+    [
+      profile,
+      assistants,
+      collections,
+      chats,
+      files,
+      folders,
+      models,
+      presets,
+      prompts,
+      tools,
+      workspaces,
+      envKeyMap,
+      availableHostedModels,
+      availableLocalModels,
+      availableOpenRouterModels,
+      selectedWorkspace,
+      workspaceImages,
+      selectedPreset,
+      selectedAssistant,
+      assistantImages,
+      openaiAssistants,
+      userInput,
+      chatMessages,
+      chatSettings,
+      selectedChat,
+      chatFileItems,
+      isGenerating,
+      firstTokenReceived,
+      abortController,
+      isPromptPickerOpen,
+      slashCommand,
+      isFilePickerOpen,
+      hashtagCommand,
+      isToolPickerOpen,
+      toolCommand,
+      focusPrompt,
+      focusFile,
+      focusTool,
+      focusAssistant,
+      atCommand,
+      isAssistantPickerOpen,
+      chatFiles,
+      chatImages,
+      newMessageFiles,
+      newMessageImages,
+      showFilesDisplay,
+      useRetrieval,
+      sourceCount,
+      selectedTools,
+      toolInUse
+    ]
+  )
+
   return (
-    <ChatbotUIContext.Provider
-      value={{
-        // PROFILE STORE
-        profile,
-        setProfile,
-
-        // ITEMS STORE
-        assistants,
-        setAssistants,
-        collections,
-        setCollections,
-        chats,
-        setChats,
-        files,
-        setFiles,
-        folders,
-        setFolders,
-        models,
-        setModels,
-        presets,
-        setPresets,
-        prompts,
-        setPrompts,
-        tools,
-        setTools,
-        workspaces,
-        setWorkspaces,
-
-        // MODELS STORE
-        envKeyMap,
-        setEnvKeyMap,
-        availableHostedModels,
-        setAvailableHostedModels,
-        availableLocalModels,
-        setAvailableLocalModels,
-        availableOpenRouterModels,
-        setAvailableOpenRouterModels,
-
-        // WORKSPACE STORE
-        selectedWorkspace,
-        setSelectedWorkspace,
-        workspaceImages,
-        setWorkspaceImages,
-
-        // PRESET STORE
-        selectedPreset,
-        setSelectedPreset,
-
-        // ASSISTANT STORE
-        selectedAssistant,
-        setSelectedAssistant,
-        assistantImages,
-        setAssistantImages,
-        openaiAssistants,
-        setOpenaiAssistants,
-
-        // PASSIVE CHAT STORE
-        userInput,
-        setUserInput,
-        chatMessages,
-        setChatMessages,
-        chatSettings,
-        setChatSettings,
-        selectedChat,
-        setSelectedChat,
-        chatFileItems,
-        setChatFileItems,
-
-        // ACTIVE CHAT STORE
-        isGenerating,
-        setIsGenerating,
-        firstTokenReceived,
-        setFirstTokenReceived,
-        abortController,
-        setAbortController,
-
-        // CHAT INPUT COMMAND STORE
-        isPromptPickerOpen,
-        setIsPromptPickerOpen,
-        slashCommand,
-        setSlashCommand,
-        isFilePickerOpen,
-        setIsFilePickerOpen,
-        hashtagCommand,
-        setHashtagCommand,
-        isToolPickerOpen,
-        setIsToolPickerOpen,
-        toolCommand,
-        setToolCommand,
-        focusPrompt,
-        setFocusPrompt,
-        focusFile,
-        setFocusFile,
-        focusTool,
-        setFocusTool,
-        focusAssistant,
-        setFocusAssistant,
-        atCommand,
-        setAtCommand,
-        isAssistantPickerOpen,
-        setIsAssistantPickerOpen,
-
-        // ATTACHMENT STORE
-        chatFiles,
-        setChatFiles,
-        chatImages,
-        setChatImages,
-        newMessageFiles,
-        setNewMessageFiles,
-        newMessageImages,
-        setNewMessageImages,
-        showFilesDisplay,
-        setShowFilesDisplay,
-
-        // RETRIEVAL STORE
-        useRetrieval,
-        setUseRetrieval,
-        sourceCount,
-        setSourceCount,
-
-        // TOOL STORE
-        selectedTools,
-        setSelectedTools,
-        toolInUse,
-        setToolInUse
-      }}
-    >
+    <ChatbotUIContext.Provider value={contextValue}>
       {children}
     </ChatbotUIContext.Provider>
   )

@@ -36,7 +36,7 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-2 leading-relaxed last:mb-0">{children}</p>
+            return <p className="mb-0 leading-relaxed last:mb-0">{children}</p>
           },
 
           img({ node, ...props }) {

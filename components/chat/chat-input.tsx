@@ -58,7 +58,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     isToolPickerOpen,
     isAssistantPickerOpen,
     chatSettings,
-    newMessageImages
+    newMessageImages,
+    newMessageFiles
   } = context
 
   const { handleInputChange } = usePromptAndCommand()
@@ -301,7 +302,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       <div className="flex flex-col flex-wrap justify-center gap-2">
         {(context.chatFiles.length > 0 ||
           newMessageImages.length > 0 ||
-          context.newMessageFiles.length > 0) && <ChatFilesDisplay />}
+          newMessageFiles.length > 0) && <ChatFilesDisplay />}
         {context.selectedTools.length > 0 && <SelectedTools />}
         {selectedAssistant && <SelectedAssistant />}
       </div>

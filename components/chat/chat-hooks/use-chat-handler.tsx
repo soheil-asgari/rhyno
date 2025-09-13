@@ -312,7 +312,7 @@ export const useChatHandler = () => {
       } else if (payload.chatSettings.model === "dall-e-3") {
         setToolInUse("drawing")
 
-        const response = await fetch("/api/chat", {
+        const response = await fetch("/api/chat/dalle", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"

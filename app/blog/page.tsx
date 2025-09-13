@@ -1,21 +1,19 @@
-// app/blog/page.tsx
+// FILE: app/blog/page.tsx
 
 import type { Metadata } from "next"
 import Link from "next/link"
-import Image from "next/image"
 import { FiArrowLeft, FiCalendar, FiUser } from "react-icons/fi"
 import { getAllPosts } from "@/lib/posts"
 
-// 💡 نوع مشخص برای داده‌های پست
 type Post = {
   slug: string
   title: string
   date: string
   author: string
-  image: string
   excerpt: string
   category: string
 }
+
 export const metadata: Metadata = {
   title: "بلاگ هوش مصنوعی Rhyno AI | مقالات، آموزش‌ها و اخبار AI",
   description:
@@ -25,7 +23,8 @@ export const metadata: Metadata = {
     canonical: "https://yourdomain.com/blog"
   }
 }
-// کامپوننت کارت مقاله با RTL و اندازه تصویر مناسب
+
+// کارت مقاله بدون تصویر
 const BlogCard = ({ post }: { post: Post }) => {
   const postDate = post.date
     ? new Date(post.date).toLocaleDateString("fa-IR", {
@@ -36,19 +35,10 @@ const BlogCard = ({ post }: { post: Post }) => {
     : new Date().toLocaleDateString("fa-IR")
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20">
-      <Link href={`/blog/${post.slug}`} className="block overflow-hidden">
-        <Image
-          src={post.image || "/rhyno1.png"}
-          alt={`تصویر مقاله ${post.title}`}
-          width={400}
-          height={250}
-          className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
-      </Link>
-      <div className="flex flex-1 flex-col p-5" dir="rtl">
+    <article className="group flex flex-col rounded-xl border border-gray-800 bg-gray-900/50 p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20">
+      <div className="flex flex-col" dir="rtl">
         {post.category && (
-          <span className="mb-3 rounded-full bg-blue-600/20 px-3 py-1 text-xs font-semibold text-blue-400">
+          <span className="mb-2 inline-block rounded-full bg-blue-600/20 px-3 py-1 text-xs font-semibold text-blue-400">
             {post.category}
           </span>
         )}
@@ -87,11 +77,6 @@ export default function BlogPage() {
   const featuredPost = allPosts[0]
   const otherPosts = allPosts.slice(1)
 
-  const featuredTitle =
-    featuredPost.title.length > 30
-      ? featuredPost.title.slice(0, 30) + "..."
-      : featuredPost.title
-
   return (
     <div className="font-vazir bg-background min-h-screen w-full overflow-x-hidden text-gray-300">
       <main className="container mx-auto px-4 py-12 md:py-20">
@@ -106,30 +91,21 @@ export default function BlogPage() {
           </p>
         </header>
 
-        {/* Featured Post Section */}
+        {/* Featured Post بدون تصویر */}
         <section className="mb-16">
-          <article className="group grid grid-cols-1 items-center gap-8 rounded-2xl border border-gray-800 bg-gray-900/50 p-6 transition-all duration-300 hover:bg-gray-800/60 md:grid-cols-2">
-            <Link
-              href={`/blog/${featuredPost.slug}`}
-              className="block overflow-hidden rounded-lg"
-            >
-              <Image
-                src={featuredPost.image || "/rhyno1.png"}
-                alt={`تصویر مقاله ویژه: ${featuredPost.title}`}
-                width={400}
-                height={250}
-                className="h-48 w-full rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </Link>
+          <article className="group rounded-2xl border border-gray-800 bg-gray-900/50 p-6 transition-all duration-300 hover:bg-gray-800/60">
             <div dir="rtl">
-              <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-400">
-                {featuredTitle}
-              </span>
+              {featuredPost.category && (
+                <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-400">
+                  {featuredPost.category}
+                </span>
+              )}
               <h2 className="mb-3 text-xl font-semibold text-white hover:text-blue-400 md:text-2xl">
                 <Link href={`/blog/${featuredPost.slug}`}>
-                  {featuredPost.title}
+                  {featuredPost.title || "مقاله بدون عنوان"}
                 </Link>
               </h2>
+
               <p className="mb-5 text-gray-400">{featuredPost.excerpt || ""}</p>
               <Link
                 href={`/blog/${featuredPost.slug}`}
@@ -142,7 +118,7 @@ export default function BlogPage() {
           </article>
         </section>
 
-        {/* All Posts Grid */}
+        {/* All Posts Grid بدون تصویر */}
         {otherPosts.length > 0 && (
           <section>
             <h2 className="mb-8 text-center text-3xl font-bold text-white">
@@ -156,18 +132,6 @@ export default function BlogPage() {
           </section>
         )}
       </main>
-
-      {/* اسکیمای JSON-LD */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Blog",
-            name: "بلاگ هوش مصنوعی Rhyno AI"
-          })
-        }}
-      />
     </div>
   )
 }

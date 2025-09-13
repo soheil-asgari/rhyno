@@ -88,7 +88,14 @@ export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
     console.log(
       `[ChatItem] روی چت کلیک شد. در حال تلاش برای ناوبری به چت با ID: ${chat.id}`
     )
+    console.log("[ChatItem] وضعیت فعلی selectedWorkspace:", selectedWorkspace)
     if (!selectedWorkspace) return
+    console.error(
+      "[ChatItem] خطا: selectedWorkspace تعریف نشده است! ناوبری لغو شد."
+    )
+    console.log(
+      `[ChatItem] ناوبری به: /${selectedWorkspace.id}/chat/${chat.id}`
+    )
     return router.push(`/${selectedWorkspace.id}/chat/${chat.id}`)
   }
 

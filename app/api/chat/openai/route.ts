@@ -139,6 +139,31 @@ export async function POST(request: Request) {
     })
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    // ✨ هدایت درخواست‌های gpt-5-nano به مسیر اختصاصی MCP
+    if (selectedModel === "gpt-5-nano") {
+      console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")
+
+      // ساخت URL کامل برای مسیر جدید
+      const mcpUrl = new URL("/api/chat/mcp", request.url)
+
+      // ارسال درخواست به مسیر جدید با همان بدنه و هدرها
+      const mcpResponse = await fetch(mcpUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // ارسال کوکی‌ها برای احراز هویت در مسیر جدید
+          Cookie: request.headers.get("Cookie") || ""
+        },
+        // ارسال دوباره اطلاعاتی که از بدنه درخواست خوانده بودیم
+        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+      })
+
+      // بازگرداندن مستقیم پاسخ (استریم یا غیر استریم) از مسیر MCP به کاربر
+      return new Response(mcpResponse.body, {
+        status: mcpResponse.status,
+        headers: mcpResponse.headers
+      })
+    }
     // اگر مدل انتخاب شده برای تبدیل متن به گفتار است، آن را به کنترل‌کننده مربوطه بفرست
     if (selectedModel === "gpt-4o-mini-tts") {
       console.log("🔊 درخواست TTS شناسایی شد. ارسال به handleTTS...")
@@ -179,7 +204,10 @@ export async function POST(request: Request) {
 
     if (selectedModel === "dall-e-3") {
       return NextResponse.json(
-        { message: "DALL-E 3 requests should be sent to /api/dalle/route.ts" },
+        {
+          message:
+            "DALL-E 3 requests should be sent to /api/chat/dalle/route.ts"
+        },
         { status: 400 }
       )
     }
@@ -513,9 +541,9 @@ export async function POST(request: Request) {
                 JSON.stringify(usageResponse, null, 2)
               )
               const content = usageResponse.choices[0]?.message?.content
-              if (content) {
-                controller.enqueue(encoder.encode(content))
-              }
+              // if (content) {
+              //   controller.enqueue(encoder.encode(content))
+              // }
               if (usageResponse.usage) {
                 const userCostUSD = calculateUserCostUSD(
                   selectedModel,
