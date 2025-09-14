@@ -175,12 +175,15 @@ export async function POST(request: Request) {
           }
         }
       },
+
+      // Replace the generate_excel tool definition in route.ts with this
+
       {
         type: "function",
         function: {
           name: "generate_excel",
           description:
-            "یک فایل Excel (.xlsx) با ستون‌ها، ردیف‌ها و شیت‌های قابل تنظیم ایجاد می‌کند.",
+            "یک فایل Excel (.xlsx) حرفه‌ای با داده‌های مشخص، استایل و فرمول‌های داینامیک ایجاد می‌کند.",
           parameters: {
             type: "object",
             properties: {
@@ -188,34 +191,83 @@ export async function POST(request: Request) {
                 type: "string",
                 description: "نام فایل خروجی. مثال: report.xlsx"
               },
-              rowsCount: {
-                type: "number",
-                description: "تعداد ردیف‌های خالی در هر شیت. پیش‌فرض: 20"
+              sheetNames: {
+                type: "array",
+                description: "آرایه‌ای از نام شیت‌ها.",
+                items: { type: "string" }
               },
               headers: {
                 type: "array",
                 description:
-                  "آرایه‌ای از نام‌های مشخص برای ستون‌ها. مثال: ['نام', 'کد کالا']",
+                  "آرایه‌ای از نام ستون‌ها که در ردیف اول قرار می‌گیرد.",
                 items: { type: "string" }
               },
-              columnCount: {
-                type: "number",
-                description:
-                  "تعداد ستون‌ها با نام تصادفی (در صورتی که headers ارسال نشود). پیش‌فرض: 1"
-              },
-              sheetNames: {
+              data: {
                 type: "array",
                 description:
-                  "آرایه‌ای از نام‌های مشخص برای شیت‌ها. مثال: ['فروش', 'موجودی']",
-                items: { type: "string" }
+                  "داده‌های واقعی برای پر کردن شیت. آرایه‌ای از ردیف‌ها است که هر ردیف خود یک آرایه از مقادیر سلول‌هاست. مثال: [['کالای اول', 10], ['کالای دوم', 25]]",
+                items: {
+                  type: "array",
+                  items: {
+                    anyOf: [{ type: "string" }, { type: "number" }]
+                  }
+                }
               },
-              sheetCount: {
-                type: "number",
-                description:
-                  "تعداد شیت‌ها با نام تصادفی (در صورتی که sheetNames ارسال نشود). پیش‌فرض: 1"
+              formulas: {
+                type: "array",
+                description: "آرایه‌ای از فرمول‌ها برای اعمال به شیت.",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: {
+                      type: "string",
+                      enum: ["SUM"],
+                      description: "نوع فرمول."
+                    },
+                    columnHeader: {
+                      type: "string",
+                      description: "نام ستونی که باید جمع زده شود."
+                    },
+                    label: {
+                      type: "string",
+                      description: "برچسب برای سلول جمع کل."
+                    },
+                    labelColumnHeader: {
+                      type: "string",
+                      description: "نام ستونی که برچسب در آن قرار می‌گیرد."
+                    }
+                  }
+                }
+              },
+              conditionalFormatting: {
+                type: "array",
+                description: "آرایه‌ای از قوانین فرمت‌دهی شرطی.",
+                items: {
+                  type: "object",
+                  properties: {
+                    columnHeader: {
+                      type: "string",
+                      description: "نام ستونی که قانون روی آن اعمال می‌شود."
+                    },
+                    type: {
+                      type: "string",
+                      enum: ["greaterThan", "lessThan"],
+                      description: "نوع شرط."
+                    },
+                    value: {
+                      type: "number",
+                      description: "مقدار برای مقایسه."
+                    },
+                    color: {
+                      type: "string",
+                      description:
+                        "کد هگز رنگ برای هایلایت. مثال: 'FFFF0000' برای قرمز."
+                    }
+                  }
+                }
               }
             },
-            required: ["filename"]
+            required: ["filename", "headers"]
           }
         }
       }

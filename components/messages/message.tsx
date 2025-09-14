@@ -315,12 +315,11 @@ const MessageBody: FC<{
     }
     if (message.role === "user") {
       return (
-        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed text-white">
+        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed">
           {content}
         </div>
       )
     }
-
     const isBase64Image =
       typeof content === "string" && content.startsWith("data:image")
 
@@ -410,7 +409,7 @@ const MessageBody: FC<{
       return (
         <MessageMarkdown
           content={content}
-          className="markdown-content-rtl whitespace-pre-wrap text-right leading-snug tracking-normal text-white"
+          className="markdown-content-rtl text-foreground whitespace-pre-wrap text-right leading-snug tracking-normal"
           dir="rtl"
         />
       )
@@ -419,7 +418,7 @@ const MessageBody: FC<{
     return (
       <MessageMarkdown
         content={content}
-        className="markdown-content-rtl whitespace-pre-wrap text-right leading-snug tracking-normal text-white"
+        className="markdown-content-rtl text-foreground whitespace-pre-wrap text-right leading-snug tracking-normal"
         dir="rtl"
       />
     )

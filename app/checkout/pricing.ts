@@ -10,7 +10,7 @@ export interface ModelPricing {
   finalCostRial: number
 }
 
-const RIAL_RATE = 100000
+const RIAL_RATE = 103000
 
 // مثال مصرف: 1500 ورودی، 3000 خروجی
 const INPUT_TOKENS = 1500

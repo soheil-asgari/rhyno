@@ -20,11 +20,20 @@ const useIsMobile = (breakpoint = 768) => {
   return isMobile
 }
 
-const SectionTitle = memo(({ children }: { children: React.ReactNode }) => (
-  <h2 className="mb-8 text-center text-3xl font-bold text-white sm:text-4xl">
+interface SectionTitleProps {
+  children: React.ReactNode
+  className?: string
+}
+
+const SectionTitle = memo(({ children, className = "" }: SectionTitleProps) => (
+  <h2
+    className={`mb-8 text-center text-3xl font-bold text-white sm:text-4xl ${className}`}
+  >
     {children}
   </h2>
 ))
+SectionTitle.displayName = "SectionTitle"
+
 SectionTitle.displayName = "SectionTitle"
 
 const HeaderBrand: React.FC = () => (
@@ -137,7 +146,7 @@ export default function HomePageClient() {
               {" "}
               AI{" "}
             </span>
-            در دستان شما، سریع و بدون پیچیدگی.
+            تست در دستان شما، سریع و بدون پیچیدگی.
           </motion.p>
 
           <motion.div variants={fadeInUp} className="mt-8">
@@ -205,14 +214,14 @@ export default function HomePageClient() {
             ].map((feature, i) => (
               <motion.div
                 key={i}
-                className="rounded-xl border border-gray-800 bg-gray-900 p-5 transition-colors duration-300 hover:border-gray-600 hover:bg-gray-800 sm:p-6"
+                className="rounded-xl border border-gray-800 bg-gray-900 p-5 text-right transition-colors duration-300 hover:border-gray-600 hover:bg-gray-800 sm:p-6"
                 initial={isMobile ? "visible" : "hidden"}
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
                 transition={{ duration: 0.5, delay: isMobile ? 0 : i * 0.1 }}
                 variants={fadeInUp}
               >
-                <div className="mb-3 text-white">
+                <div className="mb-3 flex justify-end text-white">
                   {React.cloneElement(feature.icon, { className: "h-7 w-7" })}
                 </div>
                 <h3 className="mb-2 text-lg font-semibold text-white">

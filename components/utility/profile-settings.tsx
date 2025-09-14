@@ -431,23 +431,23 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-sm">
+                {/* <Label className="text-sm">
                   What would you like the AI to know about you to provide better
                   responses?
-                </Label>
+                </Label> */}
 
-                <TextareaAutosize
+                {/* <TextareaAutosize
                   value={profileInstructions}
                   onValueChange={setProfileInstructions}
                   placeholder="Profile context... (optional)"
                   minRows={6}
                   maxRows={10}
-                />
+                /> */}
 
-                <LimitDisplay
+                {/* <LimitDisplay
                   used={profileInstructions.length}
                   limit={PROFILE_CONTEXT_MAX}
-                />
+                /> */}
               </div>
             </TabsContent>
 
