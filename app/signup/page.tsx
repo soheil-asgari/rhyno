@@ -134,40 +134,70 @@ export default async function SignupPage({
   const verifyOtpForSignUp = async (formData: FormData) => {
     "use server"
     const phone = formData.get("phone") as string
+    const otp = formData.get("otp") as string // دریافت کد وارد شده توسط کاربر
 
-    // ✅ منطق تایید کد خودت اینجا
-    const isOtpValid = true // فرض کنیم OTP معتبر است
-    if (isOtpValid) {
-      const cookieStore = cookies()
-      const supabase = createClient(cookieStore)
+    const cookieStore = cookies()
+    const supabase = createClient(cookieStore)
 
-      // گرفتن اطلاعات کاربر بعد از تایید OTP
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phone)
-        .single()
+    // مرحله ۱: کد OTP را در دیتابیس پیدا و اعتبارسنجی کن
+    const { data: otpData, error: otpError } = await supabase
+      .from("otp_codes")
+      .select("id, expires_at")
+      .eq("phone", phone)
+      .eq("code", otp)
+      .single()
 
-      if (!userError && userData) {
-        // اضافه کردن 1$ خوش‌آمدگویی
-        await supabase.from("wallets").insert({
-          user_id: userData.id,
-          amount_usd: 1,
-          description: "خوش‌آمدگویی 1$"
-        })
-      }
-
-      // هدایت به صفحه setup با پارامتر toast
-      return redirect(`/setup?welcome=1`)
+    // اگر کد اشتباه بود یا خطایی رخ داد، به کاربر اطلاع بده
+    if (otpError || !otpData) {
+      const message = "کد واردشده نادرست است ❌"
+      return redirect(
+        `/signup?method=phone&step=otp&phone=${encodeURIComponent(
+          phone
+        )}&message=${encodeURIComponent(message)}`
+      )
     }
 
-    // اگر OTP اشتباه بود
-    const message = "کد واردشده نادرست است ❌"
-    return redirect(
-      `/signup?method=phone&step=otp&phone=${encodeURIComponent(
-        phone
-      )}&message=${encodeURIComponent(message)}`
+    // اگر کد منقضی شده بود
+    if (new Date(otpData.expires_at) < new Date()) {
+      const message = "کد واردشده منقضی شده است. لطفاً دوباره تلاش کنید."
+      return redirect(
+        `/signup?method=phone&message=${encodeURIComponent(message)}`
+      )
+    }
+
+    // مرحله ۲: کاربر جدید را در سیستم auth سوپابیس بساز
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+      {
+        phone: phone,
+        // برای ثبت‌نام با شماره موبایل، سوپابیس به یک رمز عبور نیاز دارد.
+        // ما یک رمز موقت و تصادفی ایجاد می‌کنیم چون کاربر با OTP وارد می‌شود.
+        password: Math.random().toString(36).slice(-12)
+      }
     )
+
+    if (signUpError || !signUpData.user) {
+      const message =
+        signUpError?.message === "User already registered"
+          ? "این شماره قبلاً ثبت شده است."
+          : "خطایی در ساخت حساب کاربری رخ داد."
+      return redirect(
+        `/signup?method=phone&message=${encodeURIComponent(message)}`
+      )
+    }
+
+    // مرحله ۳: هدیه خوش‌آمدگویی را به کیف پول کاربر اضافه کن
+    const newUserId = signUpData.user.id
+    await supabase.from("wallets").insert({
+      user_id: newUserId,
+      amount_usd: 0.1,
+      description: "خوش‌آمدگویی ۱ دلاری ثبت‌نام با موبایل"
+    })
+
+    // اختیاری: کد OTP استفاده شده را از دیتابیس پاک کن
+    await supabase.from("otp_codes").delete().eq("id", otpData.id)
+
+    // مرحله ۴: کاربر را به صفحه راه‌اندازی هدایت کن
+    return redirect(`/setup?welcome=1`)
   }
 
   // --------------------------------------------------------------------------

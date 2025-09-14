@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
 import { SupabaseClient, User } from "@supabase/supabase-js"
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
+import { modelsWithRial } from "@/app/checkout/pricing"
 
 // ثابت‌ها
 const PROFIT_MARGIN = 1.4
 const TTS_MODEL_ID = "gpt-4o-mini-tts"
-const OPENAI_TTS_MODEL = "tts-1"
-const TTS_PRICE_PER_MILLION_CHARS = 15.0
 
 interface HandlerParams {
   body: {
@@ -21,12 +20,25 @@ interface HandlerParams {
 }
 
 // محاسبه هزینه
-function calculateTtsCost(characterCount: number): number {
+export function calculateTtsCost(
+  characterCount: number,
+  inRial = false
+): number {
   if (characterCount === 0) return 0
-  const cost = (characterCount / 1_000_000) * TTS_PRICE_PER_MILLION_CHARS
-  return cost * PROFIT_MARGIN
-}
 
+  // گرفتن مدل TTS از لیست مدل‌ها
+  const model = modelsWithRial.find(m => m.id === TTS_MODEL_ID)
+  if (!model) return 0
+
+  // محاسبه پایه هزینه بر اساس تعداد کاراکتر
+  const baseCostUSD =
+    (characterCount / 1_000_000) * model.inputPricePer1MTokenUSD
+
+  // اعمال مارجین
+  const finalCostUSD = baseCostUSD * PROFIT_MARGIN
+
+  return inRial ? Math.round(finalCostUSD * 10300) : finalCostUSD
+}
 export async function handleTTS({
   body,
   user,

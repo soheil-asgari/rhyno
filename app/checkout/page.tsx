@@ -274,10 +274,10 @@ export default function CheckoutPage() {
                     </p>
                     <div className="flex items-center justify-between border-t border-gray-700 pt-4">
                       <span className="text-sm text-gray-400">
-                        هزینه برای یک خط ۱۵۰۰ کلمه‌ای:
+                        هزینه برای ۱۵۰۰ کلمه‌:
                       </span>
                       <span className="text-xl font-extrabold text-green-400">
-                        {model.costExampleRial?.toLocaleString()} ریال
+                        {model.finalCostRial?.toLocaleString()} تومان
                       </span>
                     </div>
                   </motion.div>
@@ -301,8 +301,8 @@ export default function CheckoutPage() {
                 href="/login"
                 className="flex w-full items-center justify-center rounded-full bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition-all duration-300 hover:bg-blue-500 md:w-auto"
               >
-                <FaCreditCard className="ml-2 inline-block text-xl" />  ورود به
-                حساب کاربری و دریافت شارژ هدیه
+                <FaCreditCard className="ml-2 inline-block text-xl" />
+                ورود و دریافت شارژ هدیه
               </a>
             </motion.div>
           </motion.div>

@@ -13,7 +13,7 @@ import type {
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings, LLMID } from "@/types"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
-
+import { modelsWithRial } from "@/app/checkout/pricing"
 export const runtime = "nodejs"
 
 function safeJSONParse(jsonString: string | undefined): any {
@@ -42,15 +42,19 @@ const pricingMap = new Map(
   OPENAI_LLM_LIST.map(llm => [llm.modelId, llm.pricing])
 )
 const PROFIT_MARGIN = 1.4
+
 function calculateUserCostUSD(
-  modelId: LLMID,
+  modelId: string,
   usage: { prompt_tokens: number; completion_tokens: number }
 ): number {
-  const pricing = pricingMap.get(modelId)
-  if (!pricing?.inputCost || !pricing.outputCost) return 0
-  const promptCost = (usage.prompt_tokens / 1_000_000) * pricing.inputCost
+  const model = modelsWithRial.find(m => m.id === modelId)
+  if (!model) return 0
+
+  const promptCost =
+    (usage.prompt_tokens / 1_000_000) * model.inputPricePer1MTokenUSD
   const completionCost =
-    (usage.completion_tokens / 1_000_000) * pricing.outputCost
+    (usage.completion_tokens / 1_000_000) * model.outputPricePer1MTokenUSD
+
   return (promptCost + completionCost) * PROFIT_MARGIN
 }
 const MODELS_NEED_MAX_COMPLETION = new Set([
@@ -130,7 +134,7 @@ export async function POST(request: Request) {
       organization: profile.openai_organization_id
     })
 
-    const selectedModel = "gpt-4o" as LLMID
+    const selectedModel = "gpt-5-nano" as LLMID
 
     if (file) {
       const fileBuffer = Buffer.from(await file.arrayBuffer())
@@ -321,6 +325,13 @@ export async function POST(request: Request) {
     const cs = chatSettings as ExtendedChatSettings
     const maxTokens = pickMaxTokens(cs, selectedModel)
     const temp = typeof cs.temperature === "number" ? cs.temperature : 1
+    let usage:
+      | {
+          prompt_tokens: number
+          completion_tokens: number
+          total_tokens?: number
+        }
+      | undefined
 
     const payload: ChatCompletionCreateParamsStreaming = {
       model: selectedModel,
@@ -346,8 +357,16 @@ export async function POST(request: Request) {
 
           for await (const chunk of stream) {
             const delta = chunk.choices[0]?.delta
+
             if (delta?.content) {
               controller.enqueue(encoder.encode(delta.content))
+            }
+            if (chunk.usage) {
+              usage = {
+                prompt_tokens: chunk.usage.prompt_tokens,
+                completion_tokens: chunk.usage.completion_tokens,
+                total_tokens: chunk.usage.total_tokens
+              }
             }
 
             if (delta?.tool_calls) {
@@ -371,6 +390,29 @@ export async function POST(request: Request) {
                       toolCallDelta.function.arguments
                 }
               }
+            }
+          }
+          if (!usage) {
+            console.log(
+              "⚠️ No usage from stream. Using fallback non-stream request for cost calculation."
+            )
+            const fallbackResponse = await openai.chat.completions.create({
+              model: selectedModel,
+              messages: finalMessages,
+              temperature: temp,
+              stream: false
+            })
+            if (fallbackResponse.usage) {
+              usage = {
+                prompt_tokens: fallbackResponse.usage.prompt_tokens,
+                completion_tokens: fallbackResponse.usage.completion_tokens,
+                total_tokens: fallbackResponse.usage.total_tokens
+              }
+
+              // 🔥 Log AFTER usage is available
+              console.log(
+                `💰 [BEFORE DEDUCT] User ${user.id} balance: ${wallet.balance}, cost to deduct: $${calculateUserCostUSD(selectedModel, usage)}`
+              )
             }
           }
 
@@ -413,6 +455,32 @@ export async function POST(request: Request) {
               const content = finalChunk.choices[0]?.delta?.content || ""
               if (content) {
                 controller.enqueue(encoder.encode(content))
+              }
+            }
+            // اگر usage نیامد، fallback بزن
+            if (usage && wallet) {
+              const userCostUSD = calculateUserCostUSD(selectedModel, usage)
+              if (userCostUSD > 0) {
+                await supabase.rpc("deduct_credits_and_log_usage", {
+                  p_user_id: user.id,
+                  p_model_name: selectedModel,
+                  p_prompt_tokens: usage.prompt_tokens,
+                  p_completion_tokens: usage.completion_tokens,
+                  p_cost: userCostUSD
+                })
+
+                const { data: newWallet, error } = await supabase
+                  .from("wallets")
+                  .select("balance")
+                  .eq("user_id", user.id)
+                  .single()
+
+                if (error)
+                  console.error("❌ Error fetching new balance:", error)
+                else
+                  console.log(
+                    `✅ [AFTER DEDUCT] User ${user.id} new balance: ${newWallet.balance}`
+                  )
               }
             }
           }

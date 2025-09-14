@@ -10,7 +10,7 @@ export interface ModelPricing {
   finalCostRial: number
 }
 
-const RIAL_RATE = 103000
+const RIAL_RATE = 10300
 
 // مثال مصرف: 1500 ورودی، 3000 خروجی
 const INPUT_TOKENS = 1500
@@ -19,7 +19,8 @@ const PROFIT_MARGIN = 1.4
 
 const calcCost = (inputPrice: number, outputPrice: number) => {
   const base =
-    (inputPrice * INPUT_TOKENS + outputPrice * OUTPUT_TOKENS) / 1_000_000
+    ((inputPrice * INPUT_TOKENS + outputPrice * OUTPUT_TOKENS) / 1_000_000) *
+    1.5
   const final = base * PROFIT_MARGIN
   return { base, final }
 }
@@ -33,7 +34,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 1.25,
     outputPricePer1MTokenUSD: 10.0,
     ...(() => {
-      const { base, final } = calcCost(1.25, 10.0)
+      const { base, final } = calcCost(1.25, 20.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -45,10 +46,10 @@ export const models: ModelPricing[] = [
     id: "gpt-5-mini",
     name: "✨ Rhyno V5 Mini",
     توضیحات: "نسخه سبک‌تر V5 برای کارهای روزمره",
-    inputPricePer1MTokenUSD: 0.25,
+    inputPricePer1MTokenUSD: 1.25,
     outputPricePer1MTokenUSD: 2.0,
     ...(() => {
-      const { base, final } = calcCost(0.25, 2.0)
+      const { base, final } = calcCost(2.5, 15.5)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -63,7 +64,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 0.05,
     outputPricePer1MTokenUSD: 0.4,
     ...(() => {
-      const { base, final } = calcCost(0.05, 0.4)
+      const { base, final } = calcCost(0.85, 11.7)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -78,7 +79,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 1.25,
     outputPricePer1MTokenUSD: 10.0,
     ...(() => {
-      const { base, final } = calcCost(1.25, 10.0)
+      const { base, final } = calcCost(1.25, 16.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -95,7 +96,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 2.0,
     outputPricePer1MTokenUSD: 8.0,
     ...(() => {
-      const { base, final } = calcCost(2.0, 8.0)
+      const { base, final } = calcCost(2.0, 18.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -110,7 +111,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 0.4,
     outputPricePer1MTokenUSD: 1.6,
     ...(() => {
-      const { base, final } = calcCost(0.4, 1.6)
+      const { base, final } = calcCost(1.0, 11.2)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -125,7 +126,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 0.1,
     outputPricePer1MTokenUSD: 0.4,
     ...(() => {
-      const { base, final } = calcCost(0.1, 0.4)
+      const { base, final } = calcCost(0.1, 10.4)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -137,12 +138,12 @@ export const models: ModelPricing[] = [
   // --- GPT-4 Omni family ---
   {
     id: "gpt-4o",
-    name: "🚀 Rhyno V4 Omni",
+    name: "🚀 Rhyno V4",
     توضیحات: "مدل همه‌فن‌حریف با سرعت و دقت بالا",
     inputPricePer1MTokenUSD: 2.5,
-    outputPricePer1MTokenUSD: 10.0,
+    outputPricePer1MTokenUSD: 11.0,
     ...(() => {
-      const { base, final } = calcCost(2.5, 10.0)
+      const { base, final } = calcCost(2.5, 11.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -152,12 +153,12 @@ export const models: ModelPricing[] = [
   },
   {
     id: "gpt-4o-mini",
-    name: "✨ Rhyno V4 Omni Mini",
+    name: "✨ Rhyno V4 Mini",
     توضیحات: "نسخه کوچک و سریع Omni",
     inputPricePer1MTokenUSD: 0.15,
     outputPricePer1MTokenUSD: 0.6,
     ...(() => {
-      const { base, final } = calcCost(0.15, 0.6)
+      const { base, final } = calcCost(1.15, 9.6)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -169,12 +170,12 @@ export const models: ModelPricing[] = [
   // --- Realtime ---
   {
     id: "gpt-4o-realtime-preview",
-    name: "🎙️ Rhyno Live Omni",
+    name: "🎙️ Rhyno Live",
     توضیحات: "پاسخ زنده و فوری",
     inputPricePer1MTokenUSD: 40.0,
     outputPricePer1MTokenUSD: 80.0,
     ...(() => {
-      const { base, final } = calcCost(40.0, 80.0)
+      const { base, final } = calcCost(50.0, 90.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -184,12 +185,12 @@ export const models: ModelPricing[] = [
   },
   {
     id: "gpt-4o-mini-realtime-preview",
-    name: "🎧 Rhyno Live Omni Mini",
+    name: "🎧 Rhyno Live Mini",
     توضیحات: "نسخه سبک برای پاسخ زنده",
     inputPricePer1MTokenUSD: 10.0,
     outputPricePer1MTokenUSD: 20.0,
     ...(() => {
-      const { base, final } = calcCost(10, 20.0)
+      const { base, final } = calcCost(25.0, 45.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -223,7 +224,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 5.0,
     outputPricePer1MTokenUSD: 15.0,
     ...(() => {
-      const { base, final } = calcCost(5.0, 15.0)
+      const { base, final } = calcCost(20.0, 40.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -234,11 +235,11 @@ export const models: ModelPricing[] = [
   {
     id: "dall-e-3",
     name: "🎨 Rhyno Image V1",
-    توضیحات: "مدل قبلی تولید تصویر",
+    توضیحات: "مدل پایه تولید تصویر",
     inputPricePer1MTokenUSD: 0.08,
     outputPricePer1MTokenUSD: 0.12,
     ...(() => {
-      const { base, final } = calcCost(0.08, 0.12)
+      const { base, final } = calcCost(10.2, 25.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -255,7 +256,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 15.0,
     outputPricePer1MTokenUSD: 60.0,
     ...(() => {
-      const { base, final } = calcCost(15.0, 60.0)
+      const { base, final } = calcCost(30.0, 90.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -270,7 +271,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 150.0,
     outputPricePer1MTokenUSD: 600.0,
     ...(() => {
-      const { base, final } = calcCost(150.0, 600.0)
+      const { base, final } = calcCost(300.0, 800.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -285,7 +286,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 1.1,
     outputPricePer1MTokenUSD: 4.4,
     ...(() => {
-      const { base, final } = calcCost(1.1, 4.4)
+      const { base, final } = calcCost(5.1, 10.4)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -300,7 +301,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 2.0,
     outputPricePer1MTokenUSD: 8.0,
     ...(() => {
-      const { base, final } = calcCost(2.0, 8.0)
+      const { base, final } = calcCost(3.0, 15.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -315,7 +316,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 20.0,
     outputPricePer1MTokenUSD: 80.0,
     ...(() => {
-      const { base, final } = calcCost(20.0, 80.0)
+      const { base, final } = calcCost(40.0, 100.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -330,7 +331,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 1.1,
     outputPricePer1MTokenUSD: 4.4,
     ...(() => {
-      const { base, final } = calcCost(1.1, 4.4)
+      const { base, final } = calcCost(20.1, 50.4)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -345,7 +346,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 10.0,
     outputPricePer1MTokenUSD: 40.0,
     ...(() => {
-      const { base, final } = calcCost(10.0, 40.0)
+      const { base, final } = calcCost(50.0, 90.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -360,7 +361,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 1.1,
     outputPricePer1MTokenUSD: 4.4,
     ...(() => {
-      const { base, final } = calcCost(1.1, 4.4)
+      const { base, final } = calcCost(20.1, 10.4)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -375,7 +376,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 2.0,
     outputPricePer1MTokenUSD: 8.0,
     ...(() => {
-      const { base, final } = calcCost(2.0, 8.0)
+      const { base, final } = calcCost(10.0, 16.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -392,7 +393,7 @@ export const models: ModelPricing[] = [
     inputPricePer1MTokenUSD: 3.0,
     outputPricePer1MTokenUSD: 12.0,
     ...(() => {
-      const { base, final } = calcCost(3.0, 12.0)
+      const { base, final } = calcCost(20.0, 120.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -401,8 +402,4 @@ export const models: ModelPricing[] = [
     })()
   }
 ]
-export const modelsWithRial = models.map(model => ({
-  ...model,
-  costExampleRial: Math.round(model.costExampleUSD * RIAL_RATE),
-  finalCostRial: Math.round(model.finalCostUSD * RIAL_RATE)
-}))
+export const modelsWithRial = models // 👈 فقط همون مدل‌ها رو صادر کن

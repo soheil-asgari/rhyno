@@ -333,7 +333,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent px-14 py-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full min-w-0 resize-none rounded-md border-none bg-transparent py-3 pl-14 pr-24 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           placeholder={`Ask anything. Type @ / # !`}
           onValueChange={handleInputChange}
           value={userInput}

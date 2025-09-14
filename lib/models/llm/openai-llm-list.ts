@@ -73,8 +73,8 @@ const DallE3: LLM = {
   pricing: {
     currency: "USD",
     unit: "1M tokens",
-    inputCost: 20.0,
-    outputCost: 20.0
+    inputCost: 50.0,
+    outputCost: 100.0
   }
 }
 const GPT5Nano: LLM = {

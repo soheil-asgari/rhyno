@@ -7,7 +7,7 @@ import { ServerRuntime } from "next"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
-
+import { modelsWithRial } from "@/app/checkout/pricing"
 export const runtime = "edge"
 
 const pricingMap = new Map(

@@ -355,18 +355,13 @@ const MessageBody: FC<{
                 className="w-full"
               ></audio>
             )}
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
               <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-                <SelectTrigger className="font-vazir w-[180px] text-right">
-                  <SelectValue placeholder="انتخاب صدا" />
+                {/* ✅ عرض در موبایل کامل و در دسکتاپ ثابت */}
+                <SelectTrigger className="font-vazir w-full text-right sm:w-[180px]">
+                  <SelectValue placeholder="انتخاب سرعت" />
                 </SelectTrigger>
-                <SelectContent>
-                  {TTS_VOICES.map(voice => (
-                    <SelectItem key={voice.id} value={voice.id}>
-                      {voice.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{/* ... */}</SelectContent>
               </Select>
               <Select
                 value={String(selectedSpeed)}

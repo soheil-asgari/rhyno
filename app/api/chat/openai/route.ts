@@ -14,6 +14,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 import { handleTTS } from "@/app/api/chat/handlers/tts"
+import { modelsWithRial } from "@/app/checkout/pricing"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -35,20 +36,21 @@ type ExtendedChatSettings = ChatSettings & {
 }
 
 // ✨ ثابت‌ها و تابع محاسبه هزینه
-const pricingMap = new Map(
-  OPENAI_LLM_LIST.map(llm => [llm.modelId, llm.pricing])
-)
 const PROFIT_MARGIN = 1.4
 
 function calculateUserCostUSD(
-  modelId: LLMID,
+  modelId: string,
   usage: { prompt_tokens: number; completion_tokens: number }
 ): number {
-  const pricing = pricingMap.get(modelId)
-  if (!pricing?.inputCost || !pricing.outputCost) return 0
-  const promptCost = (usage.prompt_tokens / 1_000_000) * pricing.inputCost
+  // پیدا کردن مدل از modelsWithRial
+  const model = modelsWithRial.find(m => m.id === modelId)
+  if (!model) return 0
+
+  const promptCost =
+    (usage.prompt_tokens / 1_000_000) * model.inputPricePer1MTokenUSD
   const completionCost =
-    (usage.completion_tokens / 1_000_000) * pricing.outputCost
+    (usage.completion_tokens / 1_000_000) * model.outputPricePer1MTokenUSD
+
   return (promptCost + completionCost) * PROFIT_MARGIN
 }
 
