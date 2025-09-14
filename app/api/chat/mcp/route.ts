@@ -5,19 +5,17 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import type {
-  ChatCompletionCreateParams,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam
 } from "openai/resources/chat/completions"
-import { MODEL_PROMPTS } from "@/lib/build-prompt"
-// --- توابع کمکی و ثابت‌ها ---
+
+// --- Your Helper Functions ---
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings, LLMID } from "@/types"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 
 export const runtime = "nodejs"
 
-// --- تابع کمکی برای پردازش امن JSON ---
 function safeJSONParse(jsonString: string | undefined): any {
   if (!jsonString) return {}
   try {
@@ -26,17 +24,16 @@ function safeJSONParse(jsonString: string | undefined): any {
     console.warn("JSON.parse failed, attempting to fix string:", jsonString)
     try {
       const fixedString = jsonString
-        .replace(/(?<!\\)'/g, '"') // تبدیل single-quote به double-quote
-        .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":') // اضافه کردن کوتیشن به کلیدها
-        .replace(/,\s*([}\]])/g, "$1") // حذف ویرگول‌های اضافی در انتها
+        .replace(/(?<!\\)'/g, '"')
+        .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":')
+        .replace(/,\s*([}\]])/g, "$1")
       return JSON.parse(fixedString)
     } catch (finalError) {
       console.error("Critical JSON parse error after fix:", finalError)
-      return {} // اگر باز هم شکست خورد، یک آبجکت خالی برگردان
+      return {}
     }
   }
 }
-// ... (بقیه توابع کمکی شما) ...
 type ExtendedChatSettings = ChatSettings & {
   maxTokens?: number
   max_tokens?: number
@@ -63,7 +60,6 @@ const MODELS_NEED_MAX_COMPLETION = new Set([
   "gpt-5-nano",
   "gpt-5-mini"
 ])
-const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "gpt-4o": 8192,
   "gpt-4o-mini": 4096,
@@ -79,10 +75,28 @@ function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
 export async function POST(request: Request) {
   console.log("✅ درخواست به مسیر MCP دریافت شد.")
   try {
-    const { chatSettings, messages } = await request.json()
+    const contentType = request.headers.get("Content-Type") || ""
+    let chatSettings: ChatSettings
+    let messages: ChatCompletionMessageParam[]
+    let file: File | null = null
 
-    // توصیه می‌شود این آدرس را در فایل .env.local قرار دهید
-    // مثال: FILE_SERVER_URL=http://your-ip-or-domain:3000
+    if (contentType.includes("multipart/form-data")) {
+      console.log("در حال پردازش درخواست multipart/form-data...")
+      const formData = await request.formData()
+      chatSettings = JSON.parse(formData.get("chatSettings") as string)
+      messages = JSON.parse(formData.get("messages") as string)
+      file = formData.get("file") as File | null
+    } else if (contentType.includes("application/json")) {
+      console.log("در حال پردازش درخواست application/json...")
+      const body = await request.json()
+      chatSettings = body.chatSettings
+      messages = body.messages
+    } else {
+      return new NextResponse(`Unsupported Content-Type: ${contentType}`, {
+        status: 415
+      })
+    }
+
     const fileServerUrl =
       process.env.FILE_SERVER_URL || "http://65.109.206.118:3000"
 
@@ -116,8 +130,30 @@ export async function POST(request: Request) {
       organization: profile.openai_organization_id
     })
 
-    const selectedModel = "gpt-5-nano" as LLMID
+    const selectedModel = "gpt-4o" as LLMID
 
+    if (file) {
+      const fileBuffer = Buffer.from(await file.arrayBuffer())
+      const base64Image = fileBuffer.toString("base64")
+      const mimeType = file.type
+      const lastUserMessage = messages[messages.length - 1]
+      if (lastUserMessage && lastUserMessage.role === "user") {
+        const newContent: any[] = []
+        if (
+          lastUserMessage.content &&
+          typeof lastUserMessage.content === "string"
+        ) {
+          newContent.push({ type: "text", text: lastUserMessage.content })
+        }
+        newContent.push({
+          type: "image_url",
+          image_url: { url: `data:${mimeType};base64,${base64Image}` }
+        })
+        lastUserMessage.content = newContent
+      }
+    }
+
+    // ✅✅✅ FINAL AND CORRECTED TOOL DEFINITIONS ✅✅✅
     const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       {
         type: "function",
@@ -277,233 +313,120 @@ export async function POST(request: Request) {
       {
         role: "system",
         content:
-          "شما یک دستیار هوش مصنوعی هستید که فقط به زبان فارسی پاسخ می‌دهید. وظیفه شما اجرای دقیق ابزارهاست. وقتی ابزاری را اجرا می‌کنی، نتیجه را به صورت یک پاسخ روان و کوتاه به کاربر اعلام کن. هرگز داده‌های خام JSON را نمایش نده. **قانون بسیار مهم: وقتی خودت محتوای یک فایل (مانند نامه یا گزارش) را می‌نویسی، باید دقیقاً همان متن را در پارامتر `content` ابزار مربوطه قرار دهی. پارامتر `title` را هم از موضوع اصلی درخواست استخراج کن.**"
+          "شما یک دستیار هوش مصنوعی پیشرفته و چندوجهی (multi-modal) هستید که فقط به زبان فارسی پاسخ می‌دهید. وظیفه شما اجرای دقیق ابزارها بر اساس درخواست متنی و تصویری کاربر است. اگر کاربر تصویری ارسال کرد، از قابلیت‌های بینایی خود برای تحلیل آن استفاده کن و اطلاعات استخراج شده را مستقیماً به پارامترهای ابزار مناسب (مانند پارامتر `data` در ابزار اکسل) ارسال کن. همیشه ابزارها را مستقیماً و بدون سوال تاییدی فراخوانی کن."
       },
-      ...(Array.isArray(messages) ? messages : [])
+      ...messages
     ]
 
     const cs = chatSettings as ExtendedChatSettings
     const maxTokens = pickMaxTokens(cs, selectedModel)
     const temp = typeof cs.temperature === "number" ? cs.temperature : 1
-    const useStream = !MODELS_THAT_SHOULD_NOT_STREAM.has(selectedModel)
 
-    if (useStream) {
-      const payload: ChatCompletionCreateParamsStreaming = {
-        model: selectedModel,
-        messages: finalMessages,
-        stream: true,
-        temperature: temp,
-        tools: tools,
-        tool_choice: "auto",
-        ...(MODELS_NEED_MAX_COMPLETION.has(selectedModel)
-          ? { max_completion_tokens: maxTokens }
-          : { max_tokens: maxTokens })
-      }
-
-      const encoder = new TextEncoder()
-      const readableStream = new ReadableStream({
-        async start(controller) {
-          try {
-            const stream = await openai.chat.completions.create(payload)
-
-            let hasToolCall = false
-            const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] =
-              []
-
-            for await (const chunk of stream) {
-              const delta = chunk.choices[0]?.delta
-              if (delta?.content) {
-                controller.enqueue(encoder.encode(delta.content))
-              }
-
-              if (delta?.tool_calls) {
-                hasToolCall = true
-                for (const toolCallDelta of delta.tool_calls) {
-                  const index = toolCallDelta.index
-                  // ✅✅✅ اصلاحیه اصلی برای خطای تایپ‌اسکریپت اینجاست ✅✅✅
-                  if (!toolCalls[index]) {
-                    toolCalls[index] = {
-                      id: "",
-                      type: "function",
-                      function: { name: "", arguments: "" }
-                    }
-                  }
-
-                  const currentTool = toolCalls[index]
-                  if (currentTool.type === "function") {
-                    if (toolCallDelta.id) currentTool.id = toolCallDelta.id
-                    if (toolCallDelta.function?.name)
-                      currentTool.function.name = toolCallDelta.function.name
-                    if (toolCallDelta.function?.arguments)
-                      currentTool.function.arguments +=
-                        toolCallDelta.function.arguments
-                  }
-                }
-              }
-            }
-
-            if (hasToolCall) {
-              const newMessages: ChatCompletionMessageParam[] = [
-                ...finalMessages,
-                { role: "assistant", tool_calls: toolCalls }
-              ]
-
-              for (const toolCall of toolCalls) {
-                if (toolCall.type === "function") {
-                  const functionName = toolCall.function.name
-                  const functionArgs = safeJSONParse(
-                    toolCall.function.arguments
-                  )
-
-                  const apiResponse = await fetch(
-                    `${fileServerUrl}/tools/${functionName}`,
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(functionArgs)
-                    }
-                  )
-
-                  if (!apiResponse.ok) {
-                    throw new Error(
-                      `Error from file server: ${await apiResponse.text()}`
-                    )
-                  }
-
-                  const result = await apiResponse.json()
-
-                  newMessages.push({
-                    tool_call_id: toolCall.id,
-                    role: "tool",
-                    content: JSON.stringify(result)
-                  })
-                }
-              }
-
-              const finalStream = await openai.chat.completions.create({
-                model: selectedModel,
-                messages: newMessages,
-                stream: true
-              })
-
-              for await (const finalChunk of finalStream) {
-                const content = finalChunk.choices[0]?.delta?.content || ""
-                if (content) {
-                  controller.enqueue(encoder.encode(content))
-                }
-              }
-            }
-          } catch (err: any) {
-            console.error("❌ ERROR INSIDE MCP STREAM:", err)
-            controller.enqueue(encoder.encode(`خطای سرور: ${err.message}`))
-          } finally {
-            controller.close()
-          }
-        }
-      })
-      return new Response(readableStream, {
-        headers: { "Content-Type": "text/event-stream; charset=utf-8" }
-      })
-    } else {
-      // --- حالت غیر استریم ---
-      const payload: ChatCompletionCreateParams = {
-        model: selectedModel,
-        messages: finalMessages,
-        stream: false,
-        temperature: temp,
-        tools: tools,
-        tool_choice: "auto",
-        ...(MODELS_NEED_MAX_COMPLETION.has(selectedModel)
-          ? { max_completion_tokens: maxTokens }
-          : { max_tokens: maxTokens })
-      }
-
-      const response = await openai.chat.completions.create(payload)
-      const responseMessage = response.choices[0].message
-
-      if (responseMessage.tool_calls) {
-        const newMessages: ChatCompletionMessageParam[] = [
-          ...finalMessages,
-          responseMessage
-        ]
-
-        for (const toolCall of responseMessage.tool_calls) {
-          if (toolCall.type === "function") {
-            const functionName = toolCall.function.name
-            const functionArgs = safeJSONParse(toolCall.function.arguments)
-
-            console.log("📌 Function Name:", functionName)
-            console.log("📦 Function Args:", functionArgs)
-            console.log("📦 RAW Function Args:", toolCall.function?.arguments)
-
-            const apiResponse = await fetch(
-              `${fileServerUrl}/tools/${functionName}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(functionArgs)
-              }
-            )
-
-            if (!apiResponse.ok) {
-              throw new Error(
-                `Error from file server: ${await apiResponse.text()}`
-              )
-            }
-
-            const result = await apiResponse.json()
-
-            newMessages.push({
-              tool_call_id: toolCall.id,
-              role: "tool",
-              content: JSON.stringify(result)
-            })
-          }
-        }
-
-        const finalResponse = await openai.chat.completions.create({
-          model: selectedModel,
-          messages: newMessages
-        })
-        const finalContent =
-          finalResponse.choices[0].message.content ?? "ابزار با موفقیت اجرا شد."
-        const finalUsage = finalResponse.usage
-
-        if (finalUsage) {
-          const userCostUSD = calculateUserCostUSD(selectedModel, finalUsage)
-          if (userCostUSD > 0 && wallet && wallet.balance >= userCostUSD) {
-            await supabase.rpc("deduct_credits_and_log_usage", {
-              p_user_id: user.id,
-              p_model_name: selectedModel,
-              p_prompt_tokens: finalUsage.prompt_tokens,
-              p_completion_tokens: finalUsage.completion_tokens,
-              p_cost: userCostUSD
-            })
-          }
-        }
-        return new Response(finalContent, {
-          headers: { "Content-Type": "text/plain; charset=utf-8" }
-        })
-      } else {
-        const content = response.choices[0].message.content ?? ""
-        const usage = response.usage
-        if (usage) {
-          const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-          if (userCostUSD > 0 && wallet && wallet.balance >= userCostUSD) {
-            await supabase.rpc("deduct_credits_and_log_usage", {
-              p_user_id: user.id,
-              p_model_name: selectedModel,
-              p_prompt_tokens: usage.prompt_tokens,
-              p_completion_tokens: usage.completion_tokens,
-              p_cost: userCostUSD
-            })
-          }
-        }
-        return new Response(content, {
-          headers: { "Content-Type": "text/plain; charset=utf-8" }
-        })
-      }
+    const payload: ChatCompletionCreateParamsStreaming = {
+      model: selectedModel,
+      messages: finalMessages,
+      stream: true,
+      temperature: temp,
+      tools: tools,
+      tool_choice: "auto",
+      ...(MODELS_NEED_MAX_COMPLETION.has(selectedModel)
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens })
     }
+
+    const encoder = new TextEncoder()
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          const stream = await openai.chat.completions.create(payload)
+
+          let hasToolCall = false
+          const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] =
+            []
+
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta
+            if (delta?.content) {
+              controller.enqueue(encoder.encode(delta.content))
+            }
+
+            if (delta?.tool_calls) {
+              hasToolCall = true
+              for (const toolCallDelta of delta.tool_calls) {
+                const index = toolCallDelta.index
+                if (!toolCalls[index]) {
+                  toolCalls[index] = {
+                    id: "",
+                    type: "function",
+                    function: { name: "", arguments: "" }
+                  }
+                }
+                const currentTool = toolCalls[index]
+                if (currentTool.type === "function") {
+                  if (toolCallDelta.id) currentTool.id = toolCallDelta.id
+                  if (toolCallDelta.function?.name)
+                    currentTool.function.name = toolCallDelta.function.name
+                  if (toolCallDelta.function?.arguments)
+                    currentTool.function.arguments +=
+                      toolCallDelta.function.arguments
+                }
+              }
+            }
+          }
+
+          if (hasToolCall) {
+            const newMessages: ChatCompletionMessageParam[] = [
+              ...finalMessages,
+              { role: "assistant", tool_calls: toolCalls }
+            ]
+            for (const toolCall of toolCalls) {
+              if (toolCall.type === "function") {
+                const functionName = toolCall.function.name
+                const functionArgs = safeJSONParse(toolCall.function.arguments)
+                const apiResponse = await fetch(
+                  `${fileServerUrl}/tools/${functionName}`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(functionArgs)
+                  }
+                )
+                if (!apiResponse.ok) {
+                  throw new Error(
+                    `Error from file server: ${await apiResponse.text()}`
+                  )
+                }
+                const result = await apiResponse.json()
+                newMessages.push({
+                  tool_call_id: toolCall.id,
+                  role: "tool",
+                  content: JSON.stringify(result)
+                })
+              }
+            }
+            const finalStream = await openai.chat.completions.create({
+              model: selectedModel,
+              messages: newMessages,
+              stream: true
+            })
+            for await (const finalChunk of finalStream) {
+              const content = finalChunk.choices[0]?.delta?.content || ""
+              if (content) {
+                controller.enqueue(encoder.encode(content))
+              }
+            }
+          }
+        } catch (err: any) {
+          console.error("❌ ERROR INSIDE MCP STREAM:", err)
+          controller.enqueue(encoder.encode(`خطای سرور: ${err.message}`))
+        } finally {
+          controller.close()
+        }
+      }
+    })
+    return new Response(readableStream, {
+      headers: { "Content-Type": "text/event-stream; charset=utf-8" }
+    })
   } catch (error: any) {
     console.error("!!! MCP ROUTE ERROR CATCH !!!:", error)
     const errorMessage = error.message || "یک خطای غیرمنتظره در مسیر MCP رخ داد"
