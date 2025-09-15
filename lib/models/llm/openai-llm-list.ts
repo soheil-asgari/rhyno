@@ -277,6 +277,20 @@ const GPT4oMiniTTS: LLM = {
     outputCost: 0.24 // حدودی: معادل $0.24 / دقیقه
   }
 }
+const GPT4OTranscribe: LLM = {
+  modelId: "gpt-4o-transcribe",
+  modelName: "GPT-4O Transcribe",
+  imageInput: false,
+  provider: "openai",
+  hostedId: "gpt-4o-transcribe",
+  platformLink: OPENAI_PLATFORM_LINK, // چون مدل برای ترنسکرایب صدا است
+  pricing: {
+    currency: "USD",
+    unit: "1 min audio",
+    inputCost: 4.0, // قیمت تقریبی برای هر دقیقه ورودی
+    outputCost: 4.0 // قیمت تقریبی برای هر دقیقه خروجی
+  }
+}
 
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT3_5Turbo,
@@ -296,5 +310,6 @@ export const OPENAI_LLM_LIST: LLM[] = [
   GPT4_1,
   GPT5Nano,
   ComputerUsePreview,
+  GPT4OTranscribe,
   GPT4oMiniTTS
 ]

@@ -42,6 +42,22 @@ export const models: ModelPricing[] = [
       }
     })()
   },
+
+  {
+    id: "gpt-4o-transcribe",
+    name: "🎙️ Rhyno Transcribe",
+    توضیحات: "جدیدترین مدل پرچمدار برای تبدیل صدا به متن",
+    inputPricePer1MTokenUSD: 2.5,
+    outputPricePer1MTokenUSD: 10.0,
+    ...(() => {
+      const { base, final } = calcCost(6.25, 30.0)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
   {
     id: "gpt-5-mini",
     name: "✨ Rhyno V5 Mini",

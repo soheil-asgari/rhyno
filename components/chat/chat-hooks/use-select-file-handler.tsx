@@ -12,7 +12,8 @@ export const ACCEPTED_FILE_TYPES = [
   "application/json",
   "text/markdown",
   "application/pdf",
-  "text/plain"
+  "text/plain",
+  "audio/*"
 ].join(",")
 
 export const useSelectFileHandler = () => {
@@ -136,7 +137,15 @@ export const useSelectFileHandler = () => {
       } else {
         throw new Error("Unsupported file type")
       }
+      const acceptedTypes = ACCEPTED_FILE_TYPES.split(",")
+      // ✨ این شرط اصلاح شده است تا فرمت‌های صوتی را به درستی تشخیص دهد
+      const isAccepted =
+        acceptedTypes.includes(file.type) || file.type.startsWith("audio/")
 
+      if (!isAccepted) {
+        toast.error(`فرمت فایل پشتیبانی نمی‌شود: ${file.type}`)
+        return
+      }
       reader.onloadend = async function () {
         try {
           if (file.type.includes("image")) {

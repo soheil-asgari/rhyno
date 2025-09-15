@@ -41,13 +41,6 @@ import { TextareaAutosize } from "../ui/textarea-autosize"
 import { WithTooltip } from "../ui/with-tooltip"
 import { MessageActions } from "./message-actions"
 import { MessageMarkdown } from "./message-markdown"
-import { ChatFile } from "@/types"
-// تعریف props برای کامپوننت شما
-interface MessageMarkdownProps {
-  content: string
-  className?: string
-  dir?: "rtl" | "ltr" | "auto"
-}
 
 const ICON_SIZE = 32
 
@@ -121,39 +114,6 @@ const TTS_SPEEDS = [
 // =================================================================
 // 1. Helper Components (کامپوننت‌های کمکی)
 // =================================================================
-const MessageAttachments: FC<{
-  message: Tables<"messages"> & { attachments?: ChatFile[] }
-}> = memo(({ message }) => {
-  // این کامپوننت فرض می‌کند که فایل‌ها در پراپرتی attachments پیام قرار دارند
-  const attachments = (message as any).attachments || []
-
-  if (attachments.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="mb-2 flex flex-col space-y-2">
-      {attachments.map((file: ChatFile, index: number) => {
-        // اگر آبجکت فایل وجود داشت، یک URL موقت برای دانلود می‌سازیم
-        const fileUrl = file.file ? URL.createObjectURL(file.file) : "#"
-
-        return (
-          // ✅ کل این بخش را در یک تگ <a> قرار می‌دهیم
-          <a
-            key={index}
-            href={fileUrl}
-            download={file.name} // این باعث می‌شود لینک به صورت دانلود عمل کند
-            className="flex items-center space-x-2 rounded-lg border border-zinc-700 bg-zinc-800/50 p-2 text-sm transition-colors hover:bg-zinc-700"
-          >
-            <FileIcon type={file.type} />
-            <span className="truncate text-white">{file.name}</span>
-          </a>
-        )
-      })}
-    </div>
-  )
-})
-MessageAttachments.displayName = "MessageAttachments"
 
 const MessageHeader: FC<{
   message: Tables<"messages">
@@ -261,19 +221,22 @@ const MessageBody: FC<{
     setAudioUrl,
     audioUrl
   }) => {
-    // console.log(
-    //   ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
-    //   audioUrl
-    // )
+    console.log(
+      ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
+      audioUrl
+    ) // <--- این خط را اضافه کنید
     const content = message.content
     const isTTSMessage = message.model === "gpt-4o-mini-tts"
     const audioContent = isTTSMessage ? audioUrl : null
-    // console.log(
-    //   ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
-    //   audioContent
-    // )
+    console.log(
+      ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
+      audioContent
+    ) // <--- این خط را اضافه کنید
     const audioRef = useRef<HTMLAudioElement>(null)
-
+    // ✨ این شرط را برای نمایش پیام‌های صوتی کاربر اضافه یا اصلاح کنید
+    if (message.model === "user-audio") {
+      return <audio controls src={message.content} className="w-full" />
+    }
     if (
       !firstTokenReceived &&
       isGenerating &&
@@ -305,7 +268,7 @@ const MessageBody: FC<{
       return (
         <TextareaAutosize
           textareaRef={editInputRef}
-          className="text-md font-vazir text-right text-[15px] leading-snug"
+          className="text-md font-vazir text-right text-[15px] leading-relaxed"
           dir="rtl"
           value={editedMessage}
           onValueChange={setEditedMessage}
@@ -315,11 +278,12 @@ const MessageBody: FC<{
     }
     if (message.role === "user") {
       return (
-        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed">
+        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed text-white">
           {content}
         </div>
       )
     }
+
     const isBase64Image =
       typeof content === "string" && content.startsWith("data:image")
 
@@ -355,13 +319,18 @@ const MessageBody: FC<{
                 className="w-full"
               ></audio>
             )}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex items-center space-x-2">
               <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-                {/* ✅ عرض در موبایل کامل و در دسکتاپ ثابت */}
-                <SelectTrigger className="font-vazir w-full text-right sm:w-[180px]">
-                  <SelectValue placeholder="انتخاب سرعت" />
+                <SelectTrigger className="font-vazir w-[180px] text-right">
+                  <SelectValue placeholder="انتخاب صدا" />
                 </SelectTrigger>
-                <SelectContent>{/* ... */}</SelectContent>
+                <SelectContent>
+                  {TTS_VOICES.map(voice => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      {voice.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <Select
                 value={String(selectedSpeed)}
@@ -404,7 +373,7 @@ const MessageBody: FC<{
       return (
         <MessageMarkdown
           content={content}
-          className="markdown-content-rtl text-foreground whitespace-pre-wrap text-right leading-snug tracking-normal"
+          className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
           dir="rtl"
         />
       )
@@ -413,7 +382,7 @@ const MessageBody: FC<{
     return (
       <MessageMarkdown
         content={content}
-        className="markdown-content-rtl text-foreground whitespace-pre-wrap text-right leading-snug tracking-normal"
+        className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
         dir="rtl"
       />
     )
@@ -482,7 +451,7 @@ const MessageImages: FC<{
   chatImages: MessageImage[]
   onImageClick: (image: MessageImage) => void
 }> = memo(({ message, chatImages, onImageClick }) => {
-  if (message.image_paths.length === 0) return null
+  if (!message.image_paths || message.image_paths.length === 0) return null
 
   return (
     <div className="mt-3 flex flex-wrap gap-2">
@@ -573,19 +542,19 @@ export const Message: FC<MessageProps> = ({
   const audioUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
-    // console.log(
-    //   " M [Message Component] useEffect triggered for message ID:",
-    //   message.id
-    // )
-    // console.log(" M [Message Component] Model:", message.model) // <--- این خط را اضافه کنید
-    // console.log(" M [Message Component] Content:", message.content)
+    console.log(
+      " M [Message Component] useEffect triggered for message ID:",
+      message.id
+    ) // <--- این خط را اضافه کنید
+    console.log(" M [Message Component] Model:", message.model) // <--- این خط را اضافه کنید
+    console.log(" M [Message Component] Content:", message.content)
 
     // اگر پیام از نوع TTS بود و محتوای آن یک Blob URL بود
     if (
       message.model === "gpt-4o-mini-tts" &&
       message.content.startsWith("blob:")
     ) {
-      // console.log(" M [Message Component] Conditions met! Setting audio URL.")
+      console.log(" M [Message Component] Conditions met! Setting audio URL.") // <--- این خط را اضافه کنید
       setAudioUrl(message.content) // استیت محلی را آپدیت کن
       audioUrlRef.current = message.content // رف را هم برای دانلود آپدیت کن
     }
@@ -810,7 +779,6 @@ export const Message: FC<MessageProps> = ({
             modelData={modelData}
             assistantName={assistantName}
           />
-          <MessageAttachments message={message} />
           <MessageBody
             message={message}
             isEditing={isEditing}

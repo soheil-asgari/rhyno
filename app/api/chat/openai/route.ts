@@ -15,6 +15,7 @@ import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 import { handleTTS } from "@/app/api/chat/handlers/tts"
 import { modelsWithRial } from "@/app/checkout/pricing"
+import { handleSTT } from "@/app/api/chat/handlers/stt"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -141,7 +142,44 @@ export async function POST(request: Request) {
     })
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    // if (selectedModel === "gpt-4o-mini") {
+    //   console.log("🚀 درخواست gpt-4o-mini شناسایی شد. هدایت به /api/chat/code...");
+
+    //   // ساخت URL کامل برای مسیر جدید
+    //   const codeUrl = new URL("/api/chat/code", request.url);
+
+    //   // ارسال درخواست به مسیر جدید با همان بدنه و هدرها
+    //   const codeResponse = await fetch(codeUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       // ارسال کوکی‌ها برای احراز هویت در مسیر جدید
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     // ارسال دوباره اطلاعاتی که از بدنه درخواست خوانده بودیم
+    //     body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+    //   });
+
+    //   // بازگرداندن مستقیم پاسخ (استریم یا غیر استریم) از مسیر code به کاربر
+    //   return new Response(codeResponse.body, {
+    //     status: codeResponse.status,
+    //     headers: codeResponse.headers
+    //   });
+    // }
     // ✨ هدایت درخواست‌های gpt-5-nano به مسیر اختصاصی MCP
+    if (selectedModel === "gpt-4o-transcribe") {
+      console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
+      // این شرط برای جلوگیری از سردرگمی است.
+      // درخواست‌های STT باید به همراه فایل صوتی به /api/transcribe ارسال شوند.
+      return NextResponse.json(
+        {
+          message:
+            "درخواست‌های تبدیل گفتار به متن باید به مسیر /api/transcribe ارسال شوند."
+        },
+        { status: 400 } // Bad Request
+      )
+    }
+
     if (selectedModel === "gpt-5-nano") {
       console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")
 

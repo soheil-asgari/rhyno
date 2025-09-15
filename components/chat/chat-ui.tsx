@@ -219,7 +219,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
         <ChatMessages />
         <div ref={messagesEndRef} />
       </div>
-      <div className="relative w-full min-w-[300px] items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
+      <div className="relative w-full max-w-4xl items-end px-2 pb-3 pt-0 sm:pb-8 sm:pt-5">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (

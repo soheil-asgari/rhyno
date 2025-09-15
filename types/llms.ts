@@ -29,6 +29,7 @@ export type OpenAILLMID =
   | "gpt-5-nano"
   | "gpt-4o-mini-tts"
   | "computer-use-preview"
+  | "gpt-4o-transcribe"
 
 // Google Models
 export type GoogleLLMID =

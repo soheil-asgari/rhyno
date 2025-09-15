@@ -2,8 +2,10 @@
 
 import { ChatbotUIContext } from "@/context/context"
 import useHotkey from "@/lib/hooks/use-hotkey"
+import { useVoiceRecorder } from "./chat-hooks/use-voice-recorder"
 import { LLM_LIST } from "@/lib/models/llm/llm-list"
 import { cn } from "@/lib/utils"
+import { Tables } from "@/supabase/types"
 import {
   IconCirclePlus,
   IconLoader2,
@@ -18,11 +20,9 @@ import { toast } from "sonner"
 import { Input } from "../ui/input"
 import { TextareaAutosize } from "../ui/textarea-autosize"
 import { useChatHandler } from "./chat-hooks/use-chat-handler"
-import { useChatHistoryHandler } from "./chat-hooks/use-chat-history"
 import { usePromptAndCommand } from "./chat-hooks/use-prompt-and-command"
 import { useSelectFileHandler } from "./chat-hooks/use-select-file-handler"
 
-// کامپوننت‌های داینامیک
 const ChatCommandInput = dynamic(() =>
   import("./chat-command-input").then(mod => mod.ChatCommandInput)
 )
@@ -40,12 +40,8 @@ interface ChatInputProps {}
 
 export const ChatInput: FC<ChatInputProps> = ({}) => {
   const [isTyping, setIsTyping] = useState<boolean>(false)
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false)
 
-  // =================================================================
-  // ✨ اصلاح کلیدی: تمام هوک‌ها و متغیرهای مورد نیاز به بالای کامپوننت منتقل شدند
-  // تا قبل از استفاده، تعریف شده باشند.
-  // =================================================================
-  const context = useContext(ChatbotUIContext)
   const {
     userInput,
     chatMessages,
@@ -60,180 +56,97 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     chatSettings,
     newMessageImages,
     newMessageFiles
-  } = context
+  } = useContext(ChatbotUIContext)
 
   const { handleInputChange } = usePromptAndCommand()
-
-  // =================================================================
-  // بخش Realtime
-  // =================================================================
-  const [isRealtimeConnecting, setIsRealtimeConnecting] = useState(false)
-  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
-
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
-  const audioStreamRef = useRef<MediaStream | null>(null)
-  const audioElRef = useRef<HTMLAudioElement | null>(null)
-  const textInputDataChannelRef = useRef<RTCDataChannel | null>(null)
-
-  const stopRealtime = useCallback(() => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close()
-      peerConnectionRef.current = null
-    }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach(track => track.stop())
-      audioStreamRef.current = null
-    }
-    setIsRealtimeConnected(false)
-    setIsRealtimeConnecting(false)
-    console.log("Realtime session stopped 🛑")
-  }, [])
-
-  const startRealtime = useCallback(
-    async (model: string) => {
-      if (isRealtimeConnected || isRealtimeConnecting) return
-      setIsRealtimeConnecting(true)
-
-      try {
-        const res = await fetch("/api/chat/openai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chatSettings: { model } })
-        })
-
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(
-            errorData.message ||
-              "Failed to get an ephemeral key from the server."
-          )
-        }
-
-        const sessionData = await res.json()
-        const EPHEMERAL_KEY = sessionData.client_secret?.value
-        if (!EPHEMERAL_KEY) {
-          throw new Error("Invalid session data received from server.")
-        }
-
-        const pc = new RTCPeerConnection()
-        peerConnectionRef.current = pc
-
-        pc.ontrack = e => {
-          if (audioElRef.current) {
-            audioElRef.current.srcObject = e.streams[0]
-          }
-        }
-
-        pc.onconnectionstatechange = () => {
-          if (
-            pc.connectionState === "disconnected" ||
-            pc.connectionState === "failed" ||
-            pc.connectionState === "closed"
-          ) {
-            stopRealtime()
-          }
-        }
-
-        const textInputDc = pc.createDataChannel("text-input")
-        textInputDc.onopen = () => console.log("Text data channel opened ✅")
-        textInputDc.onclose = () => console.log("Text data channel closed 🛑")
-        textInputDataChannelRef.current = textInputDc
-
-        const ms = await navigator.mediaDevices.getUserMedia({ audio: true })
-        audioStreamRef.current = ms
-        ms.getTracks().forEach(track => pc.addTrack(track, ms))
-
-        const dc = pc.createDataChannel("oai-events")
-        dc.onmessage = e => console.log("Event:", e.data)
-
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-
-        const sdpResponse = await fetch(
-          `https://api.openai.com/v1/realtime?model=${model}`,
-          {
-            method: "POST",
-            body: offer.sdp,
-            headers: {
-              Authorization: `Bearer ${EPHEMERAL_KEY}`,
-              "Content-Type": "application/sdp"
-            }
-          }
-        )
-
-        if (!sdpResponse.ok) {
-          throw new Error(`SDP exchange failed: ${sdpResponse.statusText}`)
-        }
-
-        const answer: RTCSessionDescriptionInit = {
-          type: "answer",
-          sdp: await sdpResponse.text()
-        }
-        await pc.setRemoteDescription(answer)
-
-        setIsRealtimeConnected(true)
-        console.log("Realtime session started ✅")
-      } catch (error) {
-        console.error("Error starting realtime session:", error)
-        toast.error(
-          `Could not start voice chat: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        )
-        stopRealtime()
-      } finally {
-        setIsRealtimeConnecting(false)
-      }
-    },
-    [isRealtimeConnected, isRealtimeConnecting, stopRealtime, chatSettings]
-  )
-
-  const sendRealtimeText = useCallback(
-    (text: string) => {
-      if (textInputDataChannelRef.current?.readyState === "open") {
-        const message = { type: "text", text }
-        textInputDataChannelRef.current.send(JSON.stringify(message))
-        console.log("Sent text message:", message)
-        handleInputChange("")
-      } else {
-        toast.error("Text channel is not open. Cannot send message.")
-      }
-    },
-    [handleInputChange]
-  )
-
-  const handleToggleRealtime = () => {
-    if (isRealtimeConnected) {
-      stopRealtime()
-    } else {
-      const realtimeModel = chatSettings?.model
-      if (!realtimeModel || !realtimeModel.includes("realtime")) {
-        toast.error("Please select a realtime model to use voice chat.")
-        return
-      }
-      startRealtime(realtimeModel)
-    }
-  }
-
-  // useEffect(() => {
-  //   return () => {
-  //     stopRealtime()
-  //   }
-  // }, [stopRealtime])
-
-  // =================================================================
-  // سایر هوک‌ها و منطق UI
-  // =================================================================
-
   const {
     chatInputRef,
     handleSendMessage,
     handleStopMessage,
-    handleFocusChatInput
+    handleFocusChatInput,
+    setChatMessages
   } = useChatHandler()
 
-  useHotkey("l", () => handleFocusChatInput())
+  // ✨ تابع جدید و هوشمند برای مدیریت دو سناریوی صوتی
+  const handleVoiceSubmit = async (audioBlob: Blob) => {
+    const selectedModel = chatSettings?.model
+    setIsTranscribing(true)
 
+    // سناریو ۲: اگر مدل "رونویسی" انتخاب شده بود
+    if (selectedModel === "gpt-4o-transcribe") {
+      const audioUrl = URL.createObjectURL(audioBlob)
+
+      const userAudioMessage: Tables<"messages"> = {
+        id: crypto.randomUUID(),
+        chat_id: chatMessages[0]?.message.chat_id || "",
+        user_id: chatMessages[0]?.message.user_id || "",
+        assistant_id: null,
+        content: audioUrl,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        image_paths: [],
+        model: "user-audio",
+        role: "user",
+        sequence_number: chatMessages.length
+      }
+      setChatMessages(prev => [
+        ...prev,
+        { message: userAudioMessage, fileItems: [] }
+      ])
+
+      const formData = new FormData()
+      formData.append("file", audioBlob, "recording.webm")
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData
+      })
+      const result = await response.json()
+
+      if (response.ok && result.text) {
+        const assistantTextMessage: Tables<"messages"> = {
+          id: crypto.randomUUID(),
+          chat_id: chatMessages[0]?.message.chat_id || "",
+          user_id: chatMessages[0]?.message.user_id || "",
+          assistant_id: null,
+          content: result.text,
+          created_at: new Date().toISOString(),
+          image_paths: [],
+          model: selectedModel,
+          role: "assistant",
+          sequence_number: chatMessages.length + 1,
+          updated_at: new Date().toISOString()
+        }
+        setChatMessages(prev => [
+          ...prev,
+          { message: assistantTextMessage, fileItems: [] }
+        ])
+      } else {
+        toast.error(result.message || "خطا در رونویسی صدا")
+      }
+    }
+    // سناریو ۱: برای بقیه مدل‌ها (ارسال خودکار)
+    else {
+      const formData = new FormData()
+      formData.append("file", audioBlob, "recording.webm")
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData
+      })
+      const result = await response.json()
+
+      if (response.ok && result.text) {
+        handleSendMessage(result.text, chatMessages, false)
+      } else {
+        toast.error(result.message || "خطا در رونویسی صدا")
+      }
+    }
+    setIsTranscribing(false)
+  }
+
+  const { isRecording, handleToggleRecording } =
+    useVoiceRecorder(handleVoiceSubmit)
+
+  useHotkey("l", () => handleFocusChatInput())
   const { filesToAccept, handleSelectDeviceFile } = useSelectFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -246,25 +159,24 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      if (!isTyping && event.key === "Enter" && !event.shiftKey) {
+      if (
+        !isTyping &&
+        event.key === "Enter" &&
+        !event.shiftKey &&
+        !isRecording
+      ) {
         event.preventDefault()
         setIsPromptPickerOpen(false)
-
-        if (isRealtimeConnected) {
-          if (userInput) sendRealtimeText(userInput)
-        } else {
-          if (userInput) handleSendMessage(userInput, chatMessages, false)
-        }
+        if (userInput) handleSendMessage(userInput, chatMessages, false)
       }
     },
     [
       isTyping,
       userInput,
       chatMessages,
+      isRecording,
       handleSendMessage,
-      setIsPromptPickerOpen,
-      isRealtimeConnected,
-      sendRealtimeText
+      setIsPromptPickerOpen
     ]
   )
 
@@ -297,13 +209,10 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
   return (
     <>
-      <audio ref={audioElRef} autoPlay />
-
       <div className="flex flex-col flex-wrap justify-center gap-2">
-        {(context.chatFiles.length > 0 ||
-          newMessageImages.length > 0 ||
-          newMessageFiles.length > 0) && <ChatFilesDisplay />}
-        {context.selectedTools.length > 0 && <SelectedTools />}
+        {(newMessageFiles.length > 0 || newMessageImages.length > 0) && (
+          <ChatFilesDisplay />
+        )}
         {selectedAssistant && <SelectedAssistant />}
       </div>
 
@@ -325,16 +234,30 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             className="hidden"
             type="file"
             onChange={e => {
-              if (e.target.files) handleSelectDeviceFile(e.target.files[0])
+              if (!e.target.files) return
+              const file = e.target.files[0]
+
+              // بررسی می‌کنیم که فایل صوتی است یا نه
+              if (file.type.startsWith("audio/")) {
+                // اگر صوتی بود، برای رونویسی ارسال می‌شود
+                handleVoiceSubmit(file)
+              } else {
+                // در غیر این صورت، مانند قبل برای الصاق فایل پردازش می‌شود
+                handleSelectDeviceFile(file)
+              }
+
+              // input را خالی می‌کنیم تا بتوان دوباره همان فایل را انتخاب کرد
+              e.target.value = ""
             }}
-            accept={filesToAccept}
+            // لیست فایل‌های مجاز را به‌روزرسانی کنید
+            accept={filesToAccept + ",audio/*"}
           />
         </>
 
         <TextareaAutosize
           textareaRef={chatInputRef}
           className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full min-w-0 resize-none rounded-md border-none bg-transparent py-3 pl-14 pr-24 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder={`Ask anything. Type @ / # !`}
+          placeholder="پیام خود را تایپ یا ضبط کنید..."
           onValueChange={handleInputChange}
           value={userInput}
           minRows={1}
@@ -346,22 +269,22 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
         />
 
         <div className="absolute bottom-2.5 right-12">
-          {isRealtimeConnecting ? (
+          {isTranscribing ? (
             <IconLoader2
               className="text-muted-foreground animate-spin"
               size={28}
             />
-          ) : isRealtimeConnected ? (
+          ) : isRecording ? (
             <IconPlayerRecordFilled
               className="cursor-pointer rounded p-1 text-red-500 hover:opacity-80"
               size={28}
-              onClick={handleToggleRealtime}
+              onClick={handleToggleRecording}
             />
           ) : (
             <IconMicrophone
               className="bg-primary text-secondary cursor-pointer rounded p-1 hover:opacity-80"
               size={28}
-              onClick={handleToggleRealtime}
+              onClick={handleToggleRecording}
             />
           )}
         </div>
@@ -377,16 +300,13 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             <IconSend
               className={cn(
                 "bg-primary text-secondary rounded p-1",
-                !userInput ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                !userInput || isRecording
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer"
               )}
               onClick={() => {
-                if (!userInput) return
-
-                if (isRealtimeConnected) {
-                  sendRealtimeText(userInput)
-                } else {
-                  handleSendMessage(userInput, chatMessages, false)
-                }
+                if (!userInput || isRecording) return
+                handleSendMessage(userInput, chatMessages, false)
               }}
               size={28}
             />
