@@ -193,7 +193,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   }
 
   return (
-    <div className="relative flex h-full flex-col items-center">
+    <div className="relative flex h-dvh flex-col items-center">
       <div className="absolute left-4 top-2.5 flex justify-center">
         <ChatScrollButtons
           isAtTop={isAtTop}
