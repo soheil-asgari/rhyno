@@ -19,10 +19,143 @@ import { handleSTT } from "@/app/api/chat/handlers/stt"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
-
 function isImageRequest(prompt: string): boolean {
-  const keywords = ["عکس", "تصویر", "picture", "image", "generate image"]
-  return keywords.some(word => prompt.toLowerCase().includes(word))
+  const lowerCasePrompt = prompt.toLowerCase()
+
+  // کلیدواژه‌های اصلی برای شناسایی درخواست تصویر
+  const imageNouns = ["عکس", "تصویر", "نقاشی", "طرح", "پوستر"]
+  const createVerbs = ["بساز", "بکش", "طراحی کن", "درست کن", "ایجاد کن"]
+
+  // آیا حداقل یکی از اسم‌های تصویر در متن هست؟
+  const hasImageNoun = imageNouns.some(noun => lowerCasePrompt.includes(noun))
+
+  // آیا حداقل یکی از فعل‌های ساختن در متن هست؟
+  const hasCreateVerb = createVerbs.some(verb => lowerCasePrompt.includes(verb))
+
+  // اگر هر دو شرط برقرار بود، یعنی درخواست ساخت تصویر است
+  if (hasImageNoun && hasCreateVerb) {
+    return true
+  }
+
+  // می‌توانید کلیدواژه‌های انگلیسی را هم برای اطمینان اضافه کنید
+  const englishKeywords = ["generate image", "create a picture of", "draw a"]
+  if (englishKeywords.some(keyword => lowerCasePrompt.includes(keyword))) {
+    return true
+  }
+
+  return false
+}
+function isTtsRequest(prompt: string): boolean {
+  const lowerCasePrompt = prompt.toLowerCase()
+
+  // لیست فعل‌ها با در نظر گرفتن پسوندهای رایج مثل «ش»
+  const actionVerbs = [
+    "بخون",
+    "بخوان", // Read
+    "بگو", // Say
+    "صدا کن",
+    "صداش کن", // Voice it
+    "تبدیل کن",
+    "تبدیلش کن", // Convert, Convert it  <-- ✨ اصلاح کلیدی
+    "پخش کن",
+    "پخشش کن" // Play, Play it
+  ]
+
+  // لیست اسم‌ها (بدون تغییر)
+  const targetNouns = ["صدا", "صوتی", "متن", "نوشته", "اینو", "این رو"]
+
+  let foundAction = "NONE"
+  let foundTarget = "NONE"
+
+  for (const verb of actionVerbs) {
+    if (lowerCasePrompt.includes(verb)) {
+      foundAction = verb
+      break
+    }
+  }
+
+  for (const noun of targetNouns) {
+    if (lowerCasePrompt.includes(noun)) {
+      foundTarget = noun
+      break
+    }
+  }
+
+  const isMatch = foundAction !== "NONE" && foundTarget !== "NONE"
+
+  // لاگ دیباگ را نگه می‌داریم تا از صحت کارکرد مطمئن شویم
+  console.log(`
+    ---------------- TTS DEBUG ----------------
+    Prompt:          "${prompt}"
+    Action Found:    ${foundAction}
+    Target Found:    ${foundTarget}
+    Final Result:    ${isMatch}
+    -------------------------------------------
+    `)
+
+  return isMatch
+}
+
+// تابع تشخیص ورودی گفتار به متن (STT)
+// این تابع بررسی می‌کند که آیا آخرین پیام، یک فایل صوتی است یا خیر
+function isSttRequest(messages: any[]): boolean {
+  if (!messages || messages.length === 0) {
+    return false
+  }
+  const lastMessage = messages[messages.length - 1]
+  // بر اساس کد فرانت‌اند شما، پیام‌های صوتی کاربر این مدل را دارند
+  return lastMessage.model === "user-audio"
+}
+function isMcpRequest(prompt: string): boolean {
+  // کلمات کلیدی که مدل نانو را فراخوانی می‌کنند
+  const keywords = ["mcp", "nano", "rhyno nano", "v5 nano"]
+  const lowerCasePrompt = prompt.toLowerCase()
+
+  // بررسی می‌کند که آیا پرامپت با یکی از کلمات کلیدی (همراه با : یا فاصله) شروع می‌شود یا خیر
+  // این کار از فراخوانی اشتباهی جلوگیری می‌کند
+  return keywords.some(
+    word =>
+      lowerCasePrompt.startsWith(word + ":") ||
+      lowerCasePrompt.startsWith(word + " ")
+  )
+}
+function isDocgenRequest(prompt: string): boolean {
+  const lowerCasePrompt = prompt.toLowerCase()
+
+  // لیست انواع فایل‌ها
+  const docTypes = [
+    "اکسل",
+    "excel",
+    "pdf",
+    "پی دی اف",
+    "word",
+    "ورد",
+    "document",
+    "سند"
+  ]
+
+  // لیست کلمات کلیدی مربوط به ساختن یا تبدیل
+  const createKeywords = [
+    "بساز",
+    "کن",
+    "تولید کن",
+    "درست کن",
+    "خروجی",
+    "output",
+    "format",
+    "در قالب"
+  ]
+
+  // بررسی می‌کنیم آیا حداقل یکی از انواع فایل در متن وجود دارد؟
+  const hasDocType = docTypes.some(doc => lowerCasePrompt.includes(doc))
+
+  // و آیا حداقل یکی از کلمات کلیدی ساختن در متن وجود دارد؟
+  const hasCreateKeyword = createKeywords.some(keyword =>
+    lowerCasePrompt.includes(keyword)
+  )
+
+  // اگر هر دو شرط برقرار بود، درخواست ساخت فایل است
+  return hasDocType && hasCreateKeyword
 }
 
 type ChatCompletionUsage = {
@@ -97,6 +230,10 @@ export async function POST(request: Request) {
   try {
     const { chatSettings, messages, enableWebSearch } = await request.json()
 
+    console.log("--- RECEIVED MESSAGES ARRAY ---")
+    console.log(JSON.stringify(messages, null, 2))
+    console.log("-----------------------------")
+
     // ✨ شروع بخش پرداخت و احراز هویت
     const cookieStore = cookies()
     const supabase = createServerClient(
@@ -140,33 +277,10 @@ export async function POST(request: Request) {
       apiKey: profile.openai_api_key || "",
       organization: profile.openai_organization_id
     })
+    const lastUserMessage = messages[messages.length - 1]?.content || ""
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
-    // if (selectedModel === "gpt-4o-mini") {
-    //   console.log("🚀 درخواست gpt-4o-mini شناسایی شد. هدایت به /api/chat/code...");
 
-    //   // ساخت URL کامل برای مسیر جدید
-    //   const codeUrl = new URL("/api/chat/code", request.url);
-
-    //   // ارسال درخواست به مسیر جدید با همان بدنه و هدرها
-    //   const codeResponse = await fetch(codeUrl, {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       // ارسال کوکی‌ها برای احراز هویت در مسیر جدید
-    //       Cookie: request.headers.get("Cookie") || ""
-    //     },
-    //     // ارسال دوباره اطلاعاتی که از بدنه درخواست خوانده بودیم
-    //     body: JSON.stringify({ chatSettings, messages, enableWebSearch })
-    //   });
-
-    //   // بازگرداندن مستقیم پاسخ (استریم یا غیر استریم) از مسیر code به کاربر
-    //   return new Response(codeResponse.body, {
-    //     status: codeResponse.status,
-    //     headers: codeResponse.headers
-    //   });
-    // }
-    // ✨ هدایت درخواست‌های gpt-5-nano به مسیر اختصاصی MCP
     if (selectedModel === "gpt-4o-transcribe") {
       console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
       // این شرط برای جلوگیری از سردرگمی است.
@@ -179,6 +293,123 @@ export async function POST(request: Request) {
         { status: 400 } // Bad Request
       )
     }
+    if (isImageRequest(lastUserMessage)) {
+      console.log("🎨 درخواست ساخت تصویر شناسایی شد. هدایت به مسیر DALL-E...")
+
+      // ساخت URL کامل برای مسیر DALL-E
+      const dalleUrl = new URL("/api/chat/dalle", request.url)
+
+      // ارسال درخواست به مسیر DALL-E با همان بدنه
+      // فقط prompt را به آخرین پیام کاربر محدود می‌کنیم تا بهینه باشد
+      const dalleResponse = await fetch(dalleUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // ارسال کوکی‌ها برای اینکه احراز هویت در مسیر DALL-E هم کار کند
+          Cookie: request.headers.get("Cookie") || ""
+        },
+        body: JSON.stringify({
+          chatSettings, // تنظیمات چت را هم می‌فرستیم
+          prompt: lastUserMessage // فقط آخرین پیام را به عنوان پرامپت می‌فرستیم
+        })
+      })
+      // بلاک ۲: بررسی درخواست MCP (Nano)
+
+      // بازگرداندن مستقیم پاسخ از مسیر DALL-E به کاربر
+      // این پاسخ می‌تواند شامل URL عکس ساخته شده باشد
+      return new Response(dalleResponse.body, {
+        status: dalleResponse.status,
+        headers: dalleResponse.headers
+      })
+    }
+    if (isMcpRequest(lastUserMessage)) {
+      console.log("🔹 درخواست MCP (Nano) شناسایی شد. هدایت به مسیر MCP...")
+      const mcpUrl = new URL("/api/chat/mcp", request.url)
+
+      // درخواست را با تمام محتوای اصلی به مسیر MCP فوروارد می‌کنیم
+      const mcpResponse = await fetch(mcpUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: request.headers.get("Cookie") || ""
+        },
+        // مسیر MCP احتمالاً به تمام اطلاعات نیاز دارد، نه فقط پرامپت
+        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+      })
+
+      return new Response(mcpResponse.body, {
+        status: mcpResponse.status,
+        headers: mcpResponse.headers
+      })
+    }
+
+    if (isDocgenRequest(lastUserMessage)) {
+      console.log("📄 درخواست ساخت فایل شناسایی شد. هدایت به مسیر DocGen...")
+
+      // توجه: فرض می‌کنیم شما یک مسیر API جدید در /api/chat/docgen ساخته‌اید
+      const docgenUrl = new URL("/api/chat/mcp", request.url)
+
+      const docgenResponse = await fetch(docgenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: request.headers.get("Cookie") || ""
+        },
+        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+      })
+
+      // پاسخ از این مسیر می‌تواند یک لینک دانلود یا خود فایل باشد
+      return new Response(docgenResponse.body, {
+        status: docgenResponse.status,
+        headers: docgenResponse.headers
+      })
+    }
+
+    // if (isSttRequest(messages)) {
+    //   console.log("🎙️ ورودی صوتی شناسایی شد. هدایت به مسیر Transcribe...");
+    //   const transcribeUrl = new URL("/api/handlers/stt", request.url);
+
+    //   // بازسازی بدنه درخواست از متغیرهای موجود برای ارسال
+    //   const originalBody = { chatSettings, messages, enableWebSearch };
+
+    //   const sttResponse = await fetch(transcribeUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     body: JSON.stringify(originalBody)
+    //   });
+
+    //   // پاسخ از مسیر transcribe مستقیماً به کاربر بازگردانده می‌شود
+    //   return new Response(sttResponse.body, {
+    //     status: sttResponse.status,
+    //     headers: sttResponse.headers
+    //   });
+    // }
+
+    // const lastUserMessageContent = messages[messages.length - 1]?.content || "";
+    // if (isTtsRequest(lastUserMessageContent)) {
+    //   console.log("🔊 درخواست TTS شناسایی شد. هدایت به مسیر TTS...");
+
+    //   // ساخت URL برای مسیر جدید و اختصاصی TTS
+    //   const ttsUrl = new URL("/api/chat/tts", request.url);
+    //   const forwardBody = { chatSettings, messages, enableWebSearch };
+    //   const ttsResponse = await fetch(ttsUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     body: JSON.stringify(forwardBody) // ارسال کامل بدنه به مسیر جدید
+    //   });
+
+    //   // بازگرداندن مستقیم پاسخ از مسیر TTS
+    //   return new Response(ttsResponse.body, {
+    //     status: ttsResponse.status,
+    //     headers: ttsResponse.headers
+    //   });
+    // }
 
     if (selectedModel === "gpt-5-nano") {
       console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")
