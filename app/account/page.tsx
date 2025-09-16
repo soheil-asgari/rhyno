@@ -175,7 +175,7 @@ export default function AccountPage() {
     return rounded.toLocaleString("fa-IR")
   }
 
-  const chargePresets = [200000, 1000000, 2000000]
+  const chargePresets = [1000000, 2000000, 5000000]
 
   if (loading) {
     return (

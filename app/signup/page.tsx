@@ -7,6 +7,8 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Metadata } from "next"
 
+import AnimationHero from "./AnimationHero"
+
 export const metadata: Metadata = {
   title: "ثبت نام | Rhyno Chat"
 }
@@ -369,13 +371,14 @@ export default async function SignupPage({
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
+    <div className="flex w-full flex-1 flex-col justify-center gap-1 px-8 sm:max-w-md">
       <form className="animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2">
-        <div className="mb-6 flex justify-center">
-          <Brand />
+        {/* جایگزین کردن Brand با انیمیشن */}
+        <div className="mb-0 flex justify-center">
+          <AnimationHero />
         </div>
         {renderContent()}
-        <div className="font-vazir mt-4 text-center text-sm">
+        <div className="font-vazir mt-2 text-center text-sm">
           حساب کاربری دارید؟{" "}
           <a
             href="/login"
@@ -384,6 +387,7 @@ export default async function SignupPage({
             وارد شوید
           </a>
         </div>
+
         {searchParams?.message && (
           <p className="bg-foreground/10 text-foreground mt-4 rounded-md p-4 text-center text-sm">
             {searchParams.message}

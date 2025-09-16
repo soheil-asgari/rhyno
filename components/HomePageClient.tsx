@@ -3,10 +3,26 @@
 "use client"
 
 import { motion, Variants } from "framer-motion"
-import { FiArrowRight, FiCpu, FiLock, FiRepeat, FiZap } from "react-icons/fi"
+import {
+  FiArrowRight,
+  FiCpu,
+  FiLock,
+  FiRepeat,
+  FiZap,
+  FiActivity,
+  FiGlobe,
+  FiTrendingUp,
+  FiSmile,
+  FiClock,
+  FiImage,
+  FiFileText,
+  FiBookOpen
+} from "react-icons/fi"
 import React, { memo, useState, useEffect } from "react"
 import AnimatedButton from "@/components/AnimatedButton"
 import Image from "next/image"
+import Lottie from "lottie-react"
+import roboticsAnimation from "../public/animations/robotics.json"
 
 // Hooks and helpers
 const useIsMobile = (breakpoint = 768) => {
@@ -160,22 +176,18 @@ export default function HomePageClient() {
         </motion.section>
 
         {/* Hero Image */}
-        <motion.div
-          className="my-1"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          whileHover={{ scale: 1.05 }}
-        >
-          <Image
-            src="/rhyno_white.png"
-            alt="Rhyno AI visual representation"
-            width={1024}
-            height={1024}
-            className="w-55 mx-auto rounded-xl object-cover sm:w-48 md:w-80"
-          />
-        </motion.div>
+        <Lottie
+          animationData={roboticsAnimation}
+          loop
+          autoplay
+          style={{
+            width: "100%",
+            maxWidth: 800, // حداکثر اندازه دسکتاپ
+            height: "auto",
+            margin: "0 auto"
+          }}
+        />
+
         {/* Trusted Logos Section */}
         <section className="py-8">
           <p className="mb-4 text-center text-sm font-bold text-gray-500">
@@ -210,6 +222,46 @@ export default function HomePageClient() {
                 icon: <FiLock />,
                 title: "امنیت کامل",
                 desc: "امنیت و حریم خصوصی شما، اولویت ماست"
+              },
+              {
+                icon: <FiActivity />,
+                title: "به‌صرفه‌ترین",
+                desc: "با کمترین هزینه از تمام امکانات استفاده کنید "
+              },
+              {
+                icon: <FiGlobe />,
+                title: "دسترسی جهانی",
+                desc: "از هرجا و هر دستگاهی به سرویس متصل شوید"
+              },
+              {
+                icon: <FiTrendingUp />,
+                title: "مقیاس‌پذیری نامحدود",
+                desc: "با رشد کسب‌وکارتان بدون نگرانی منابع را افزایش دهید"
+              },
+              {
+                icon: <FiSmile />,
+                title: "رابط کاربری لذت‌بخش",
+                desc: "تجربه‌ای ساده، سریع و کاربرپسند برای همه"
+              },
+              {
+                icon: <FiClock />,
+                title: "مدل‌های Realtime",
+                desc: "گفتگو و پردازش فوری، بدون هیچ تأخیر"
+              },
+              {
+                icon: <FiImage />,
+                title: "تولید تصویر",
+                desc: "تصاویر خلاقانه و حرفه‌ای را تنها با چند کلمه بسازید"
+              },
+              {
+                icon: <FiFileText />,
+                title: "تولید فایل اکسل",
+                desc: "خروجی‌های دقیق و ساختارمند در قالب فایل Excel"
+              },
+              {
+                icon: <FiBookOpen />,
+                title: "تحلیل فایل اکسل",
+                desc: "خواندن و پردازش داده‌های اکسل برای تصمیم‌گیری بهتر"
               }
             ].map((feature, i) => (
               <motion.div
@@ -248,10 +300,17 @@ export default function HomePageClient() {
             </h3>
             <p className="mb-6 text-base text-gray-400" dir="rtl">
               همه ابزارها، همیشه و بدون محدودیت، با پلن{" "}
-              <span dir="ltr" className="font-medium text-white">
+              <span
+                dir="ltr"
+                className="group relative cursor-help font-medium text-white"
+              >
                 pay as you go
+                <span className="absolute bottom-full left-1/2 mb-2 w-max -translate-x-1/2 rounded-lg bg-gray-800 px-3 py-1 text-sm text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  در این پلن فقط به اندازه استفاده‌تون پرداخت می‌کنید
+                </span>
               </span>
             </p>
+
             <div className="mb-8 flex flex-wrap items-baseline justify-center gap-x-2">
               <span className="text-xl font-extrabold text-white sm:text-2xl md:text-3xl">
                 برای اطلاعات بیشتر از تعرفه ها روی دکمه زیر کلیک کنید

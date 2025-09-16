@@ -327,7 +327,7 @@ export default function TicketsPage() {
                   onClick={handleSendReply}
                   disabled={isSubmitting || !replyContent.trim()}
                 >
-                  <IconSend className="ml-2 size-4" />
+                  <IconSend className="font-vazir ml-2 size-4" />
                   {isSubmitting ? "در حال ارسال..." : "ارسال پاسخ"}
                 </Button>
               </CardFooter>
@@ -342,17 +342,20 @@ export default function TicketsPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setView("list")}
-                className="mb-4"
+                className="font-vazir mb-4"
               >
                 <IconArrowLeft />
               </Button>
-              <CardTitle>ایجاد تیکت جدید</CardTitle>
-              <CardDescription>
-                مشکل یا سوال خود را با جزئیات کامل مطرح کنید.
-              </CardDescription>
+              <div className="font-vazir space-y-2">
+                <CardTitle>ایجاد تیکت جدید</CardTitle>
+                <CardDescription>
+                  مشکل یا سوال خود را با جزئیات کامل مطرح کنید.
+                </CardDescription>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
+
+            <CardContent className="font-vazir space-y-4">
+              <div className="font-vazir space-y-2">
                 <Label htmlFor="subject">موضوع</Label>
                 <Input
                   id="subject"
@@ -381,7 +384,7 @@ export default function TicketsPage() {
                   !newTicketContent.trim()
                 }
               >
-                <IconSend className="ml-2 size-4" />
+                <IconSend className="font-vazir ml-2 size-4" />
                 {isSubmitting ? "در حال ارسال..." : "ارسال تیکت"}
               </Button>
             </CardFooter>
@@ -404,7 +407,7 @@ export default function TicketsPage() {
             </CardHeader>
             <CardContent>
               {tickets.length > 0 ? (
-                <div className="space-y-3">
+                <div className="font-vazir space-y-3">
                   {tickets.map(ticket => (
                     <div
                       key={ticket.id}

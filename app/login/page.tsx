@@ -11,6 +11,7 @@ import OtpStep from "./OtpStep"
 import { clearAuthCookies, getSession } from "./actions"
 import Head from "next/head"
 import { ChangePassword } from "@/components/utility/change-password"
+import AnimationHero from "./AnimationHero"
 
 export const metadata: Metadata = {
   title: "ورود | Rhyno Chat"
@@ -363,10 +364,11 @@ export default async function LoginPage({
     : "bg-foreground/10 text-foreground"
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
+    <div className="flex w-full flex-1 flex-col justify-center gap-1 px-8 sm:max-w-md">
       <form className="animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2">
-        <div className="mb-6 flex justify-center">
-          <Brand />
+        {/* جایگزین کردن Brand با انیمیشن */}
+        <div className="mb-0 flex justify-center">
+          <AnimationHero />
         </div>
         {renderContent()}
         {method && (
