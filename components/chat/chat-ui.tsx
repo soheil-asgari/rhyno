@@ -21,7 +21,6 @@ import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
 import useDynamicVh from "@/lib/hooks/use-dynamic-vh"
-
 const ChatHelp = dynamic(() => import("./chat-help").then(mod => mod.ChatHelp))
 const ChatSecondaryButtons = dynamic(() =>
   import("./chat-secondary-buttons").then(mod => mod.ChatSecondaryButtons)
@@ -195,13 +194,8 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   }
 
   return (
-    // 👇 مرحله ۱: این div اصلی، کل لایوت را به عنوان یک لایه تمام‌صفحه و مستقل کنترل می‌کند
-    <div
-      className="fixed inset-0 flex flex-col bg-[#111827]"
-      style={{ height: "var(--app-height)" }}
-    >
-      {/* دکمه‌های absolute مثل قبل باقی می‌مانند */}
-      <div className="absolute left-4 top-2.5 z-10 flex justify-center">
+    <div className="relative flex h-[calc(var(--vh,1vh)*100)] flex-col items-center">
+      <div className="absolute left-4 top-2.5 flex justify-center">
         <ChatScrollButtons
           isAtTop={isAtTop}
           isAtBottom={isAtBottom}
@@ -210,34 +204,29 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
           scrollToBottom={scrollToBottom}
         />
       </div>
-      <div className="absolute right-4 top-1 z-10 flex h-[40px] items-center space-x-2">
+      <div className="absolute right-4 top-1 flex h-[40px] items-center space-x-2">
         <ChatSecondaryButtons />
       </div>
-
-      {/* 👇 مرحله ۲: هدر با ارتفاع ثابت و غیرقابل تغییر */}
-      <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full shrink-0 items-center justify-center border-b-2 font-bold">
+      <div className="bg-secondary flex max-h-[50px] min-h-[50px] w-full items-center justify-center border-b-2 font-bold">
         <div className="max-w-[200px] truncate sm:max-w-[400px] md:max-w-[500px] lg:max-w-[600px] xl:max-w-[700px]">
           {context.selectedChat?.name || "Chat"}
         </div>
       </div>
-
-      {/* 👇 مرحله ۳: لیست پیام‌ها که تمام فضای باقی‌مانده را پر کرده و فقط خودش اسکرول می‌خورد */}
-      <div className="w-full flex-1 overflow-y-auto" onScroll={handleScroll}>
+      <div
+        className="flex w-full flex-1 flex-col overflow-auto border-b"
+        onScroll={handleScroll}
+      >
         <div ref={messagesStartRef} />
         <ChatMessages />
         <div ref={messagesEndRef} />
       </div>
-
-      {/* 👇 مرحله ۴: بخش ورود متن با ارتفاع ثابت و غیرقابل تغییر */}
-      <div className="relative w-full max-w-4xl shrink-0 items-end px-2 pb-3 pt-2 sm:pb-8 sm:pt-5">
+      <div className="relative w-full max-w-4xl items-end px-2 pb-3 pt-0 sm:pb-8 sm:pt-5">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (
           <ChatInput />
         )}
       </div>
-
-      {/* دکمه ChatHelp هم به صورت absolute باقی می‌ماند */}
       <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
         <ChatHelp />
       </div>

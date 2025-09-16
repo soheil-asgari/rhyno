@@ -23,7 +23,16 @@ function isImageRequest(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase()
 
   // کلیدواژه‌های اصلی برای شناسایی درخواست تصویر
-  const imageNouns = ["عکس", "تصویر", "نقاشی", "طرح", "پوستر", "یه عکس از"]
+  const imageNouns = [
+    "عکس",
+    "تصویر",
+    "نقاشی",
+    "طرح",
+    "پوستر",
+    "یه عکس از",
+    "یه عکس",
+    "یک عکس"
+  ]
   const createVerbs = [
     "بساز",
     "بکش",
