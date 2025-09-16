@@ -93,7 +93,7 @@ export default async function RootLayout({
             resources={resources}
           >
             <ClientToaster />
-            <div className="bg-background text-foreground flex h-full flex-col items-center overflow-hidden">
+            <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
               {session ? <GlobalState>{children}</GlobalState> : children}
             </div>
           </TranslationsProvider>
