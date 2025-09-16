@@ -213,7 +213,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
         </div>
       </div>
       <div
-        className="flex size-full flex-col overflow-auto border-b"
+        className="flex w-full flex-1 flex-col overflow-auto border-b"
         onScroll={handleScroll}
       >
         <div ref={messagesStartRef} />

@@ -23,8 +23,15 @@ function isImageRequest(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase()
 
   // کلیدواژه‌های اصلی برای شناسایی درخواست تصویر
-  const imageNouns = ["عکس", "تصویر", "نقاشی", "طرح", "پوستر"]
-  const createVerbs = ["بساز", "بکش", "طراحی کن", "درست کن", "ایجاد کن"]
+  const imageNouns = ["عکس", "تصویر", "نقاشی", "طرح", "پوستر", "یه عکس از"]
+  const createVerbs = [
+    "بساز",
+    "بکش",
+    "طراحی کن",
+    "درست کن",
+    "ایجاد کن",
+    "یه عکس از"
+  ]
 
   // آیا حداقل یکی از اسم‌های تصویر در متن هست؟
   const hasImageNoun = imageNouns.some(noun => lowerCasePrompt.includes(noun))
@@ -44,56 +51,6 @@ function isImageRequest(prompt: string): boolean {
   }
 
   return false
-}
-function isTtsRequest(prompt: string): boolean {
-  const lowerCasePrompt = prompt.toLowerCase()
-
-  // لیست فعل‌ها با در نظر گرفتن پسوندهای رایج مثل «ش»
-  const actionVerbs = [
-    "بخون",
-    "بخوان", // Read
-    "بگو", // Say
-    "صدا کن",
-    "صداش کن", // Voice it
-    "تبدیل کن",
-    "تبدیلش کن", // Convert, Convert it  <-- ✨ اصلاح کلیدی
-    "پخش کن",
-    "پخشش کن" // Play, Play it
-  ]
-
-  // لیست اسم‌ها (بدون تغییر)
-  const targetNouns = ["صدا", "صوتی", "متن", "نوشته", "اینو", "این رو"]
-
-  let foundAction = "NONE"
-  let foundTarget = "NONE"
-
-  for (const verb of actionVerbs) {
-    if (lowerCasePrompt.includes(verb)) {
-      foundAction = verb
-      break
-    }
-  }
-
-  for (const noun of targetNouns) {
-    if (lowerCasePrompt.includes(noun)) {
-      foundTarget = noun
-      break
-    }
-  }
-
-  const isMatch = foundAction !== "NONE" && foundTarget !== "NONE"
-
-  // لاگ دیباگ را نگه می‌داریم تا از صحت کارکرد مطمئن شویم
-  console.log(`
-    ---------------- TTS DEBUG ----------------
-    Prompt:          "${prompt}"
-    Action Found:    ${foundAction}
-    Target Found:    ${foundTarget}
-    Final Result:    ${isMatch}
-    -------------------------------------------
-    `)
-
-  return isMatch
 }
 
 // تابع تشخیص ورودی گفتار به متن (STT)
@@ -364,52 +321,6 @@ export async function POST(request: Request) {
         headers: docgenResponse.headers
       })
     }
-
-    // if (isSttRequest(messages)) {
-    //   console.log("🎙️ ورودی صوتی شناسایی شد. هدایت به مسیر Transcribe...");
-    //   const transcribeUrl = new URL("/api/handlers/stt", request.url);
-
-    //   // بازسازی بدنه درخواست از متغیرهای موجود برای ارسال
-    //   const originalBody = { chatSettings, messages, enableWebSearch };
-
-    //   const sttResponse = await fetch(transcribeUrl, {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       Cookie: request.headers.get("Cookie") || ""
-    //     },
-    //     body: JSON.stringify(originalBody)
-    //   });
-
-    //   // پاسخ از مسیر transcribe مستقیماً به کاربر بازگردانده می‌شود
-    //   return new Response(sttResponse.body, {
-    //     status: sttResponse.status,
-    //     headers: sttResponse.headers
-    //   });
-    // }
-
-    // const lastUserMessageContent = messages[messages.length - 1]?.content || "";
-    // if (isTtsRequest(lastUserMessageContent)) {
-    //   console.log("🔊 درخواست TTS شناسایی شد. هدایت به مسیر TTS...");
-
-    //   // ساخت URL برای مسیر جدید و اختصاصی TTS
-    //   const ttsUrl = new URL("/api/chat/tts", request.url);
-    //   const forwardBody = { chatSettings, messages, enableWebSearch };
-    //   const ttsResponse = await fetch(ttsUrl, {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       Cookie: request.headers.get("Cookie") || ""
-    //     },
-    //     body: JSON.stringify(forwardBody) // ارسال کامل بدنه به مسیر جدید
-    //   });
-
-    //   // بازگرداندن مستقیم پاسخ از مسیر TTS
-    //   return new Response(ttsResponse.body, {
-    //     status: ttsResponse.status,
-    //     headers: ttsResponse.headers
-    //   });
-    // }
 
     if (selectedModel === "gpt-5-nano") {
       console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")

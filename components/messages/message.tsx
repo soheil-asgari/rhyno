@@ -197,8 +197,6 @@ const MessageBody: FC<{
   onDownloadTTS: () => void
   selectedVoice: string
   setSelectedVoice: (voice: string) => void
-  audioUrl: string | null
-  setAudioUrl: (url: string | null) => void
   selectedSpeed: number
   setSelectedSpeed: (speed: number) => void
 }> = memo(
@@ -217,21 +215,18 @@ const MessageBody: FC<{
     selectedVoice,
     setSelectedVoice,
     selectedSpeed,
-    setSelectedSpeed,
-    setAudioUrl,
-    audioUrl
+    setSelectedSpeed
   }) => {
-    // console.log(
-    //   ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
-    //   audioUrl
-    // )
     const content = message.content
     const isTTSMessage = message.model === "gpt-4o-mini-tts"
-    const audioContent = isTTSMessage ? audioUrl : null
-    // console.log(
-    //   ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
-    //   audioContent
-    // )
+
+    const audioSrc =
+      isTTSMessage && typeof content === "string" && content.startsWith("blob:")
+        ? content
+        : null
+    console.log(
+      `[MessageBody DEBUG] ID: ${message.id}, isTTS: ${isTTSMessage}, Content: "${content}", audioSrc: ${audioSrc}`
+    )
     const audioRef = useRef<HTMLAudioElement>(null)
 
     let isImageResponse = false
@@ -371,21 +366,17 @@ const MessageBody: FC<{
     if (isTTSMessage) {
       if (isGenerating && isLast) {
         return (
-          <div className="flex animate-pulse items-center space-x-2">
-            <IconPlayerPlayFilled size={20} />
-            <div>Generating speech...</div>
-          </div>
+          <div className="text-yellow-400">⏳ DEBUG: در حال ساخت صدا...</div>
         )
       }
-
-      if (audioContent) {
+      if (audioSrc) {
         return (
           <div className="flex flex-col space-y-4">
-            {audioContent && (
+            {audioSrc && (
               <audio
                 ref={audioRef}
                 controls
-                src={audioContent}
+                src={audioSrc}
                 className="w-full"
               ></audio>
             )}
@@ -594,7 +585,7 @@ export const Message: FC<MessageProps> = ({
     files,
     models
   } = useContext(ChatbotUIContext)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+
   const { handleSendMessage } = useChatHandler()
   const editInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -609,36 +600,6 @@ export const Message: FC<MessageProps> = ({
   // ✨ وضعیت و رفرنس برای مدیریت فایل صوتی اضافه شد
   const [selectedVoice, setSelectedVoice] = useState<string>("coral")
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0)
-  const audioUrlRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    // console.log(
-    //   " M [Message Component] useEffect triggered for message ID:",
-    //   message.id
-    // ) // <--- این خط را اضافه کنید
-    // console.log(" M [Message Component] Model:", message.model)
-    // console.log(" M [Message Component] Content:", message.content)
-
-    // اگر پیام از نوع TTS بود و محتوای آن یک Blob URL بود
-    if (
-      message.model === "gpt-4o-mini-tts" &&
-      message.content.startsWith("blob:")
-    ) {
-      // console.log(" M [Message Component] Conditions met! Setting audio URL.")
-      setAudioUrl(message.content) // استیت محلی را آپدیت کن
-      audioUrlRef.current = message.content // رف را هم برای دانلود آپدیت کن
-    }
-  }, [message.content, message.model]) // این افکت با تغییر محتوای پیام اجرا می‌شود
-
-  const audioRef = useRef<HTMLAudioElement>(null)
-
-  // وقتی audioUrl تغییر کرد، فقط آماده پخش کن
-  useEffect(() => {
-    if (audioUrl && audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
-  }, [audioUrl])
 
   const modelData = useMemo(
     () =>
@@ -735,32 +696,18 @@ export const Message: FC<MessageProps> = ({
 
     try {
       const response = await fetch("/api/chat/openai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chatSettings: {
-            model: "gpt-4o-mini-tts",
-            voice: voiceId,
-            speed: speedValue
-          },
-          messages: [
-            {
-              role: "user",
-              content: lastUserMessage.message.content
-            }
-          ]
-        })
+        /* ... (بدون تغییر) */
       })
       if (!response.ok) throw new Error("Failed to regenerate audio.")
 
       const audioBlob = await response.blob()
       const newAudioUrl = URL.createObjectURL(audioBlob)
 
-      // ⚡ آپدیت همزمان state و ref
-      console.log(newAudioUrl)
-      setAudioUrl(newAudioUrl)
-      audioUrlRef.current = newAudioUrl
+      // ❌ این دو خط رو حذف کنید چون state و ref حذف شدن
+      // setAudioUrl(newAudioUrl)
+      // audioUrlRef.current = newAudioUrl
 
+      // ✅ این بخش درسته و باقی می‌مونه
       setChatMessages(prev =>
         prev.map(chatMsg =>
           chatMsg.message.id === message.id
@@ -780,27 +727,16 @@ export const Message: FC<MessageProps> = ({
 
   // ✨ در handleDownloadTTS
   const handleDownloadTTS = () => {
-    const url = audioUrlRef.current || audioUrl
-    if (!url) return
+    // مستقیماً از message.content استفاده می‌کنیم
+    const url = message.content
+    if (!url || !url.startsWith("blob:")) return
+
     const a = document.createElement("a")
     a.href = url
     a.download = `rhyno-tts-${Date.now()}.mp3`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-  }
-  // ✨ تابع handleRegenerate برای پشتیبانی از TTS اصلاح شد
-  const handleRegenerate = async () => {
-    if (message.model === "gpt-4o-mini-tts") {
-      await handleRegenerateTTS(selectedVoice, selectedSpeed)
-    } else {
-      setIsGenerating(true)
-      await handleSendMessage(
-        chatMessages[chatMessages.length - 2].message.content,
-        chatMessages,
-        true
-      )
-    }
   }
 
   const handleFileItemClick = (fileItem: Tables<"file_items">) => {
@@ -837,7 +773,7 @@ export const Message: FC<MessageProps> = ({
             isLast={isLast}
             isEditing={isEditing}
             isHovering={isHovering}
-            onRegenerate={handleRegenerate}
+            onRegenerate={handleRegenerateTTS}
           />
         </div>
 
@@ -866,8 +802,6 @@ export const Message: FC<MessageProps> = ({
             onDownloadTTS={handleDownloadTTS}
             selectedVoice={selectedVoice}
             setSelectedVoice={setSelectedVoice}
-            audioUrl={audioUrl}
-            setAudioUrl={setAudioUrl}
           />
         </div>
 

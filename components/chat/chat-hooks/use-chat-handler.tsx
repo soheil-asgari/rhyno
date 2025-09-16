@@ -294,7 +294,7 @@ export const useChatHandler = () => {
         const audioBlob = await response.blob()
         const audioUrl = URL.createObjectURL(audioBlob)
         console.log("✅ [Chat Handler] Audio URL created:", audioUrl)
-
+        generatedText = audioUrl
         // به‌روزرسانی پیام دستیار در UI
         setChatMessages(prevMessages =>
           prevMessages.map(msg =>
