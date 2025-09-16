@@ -20,7 +20,7 @@ import { useScroll } from "./chat-hooks/use-scroll"
 import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
-import useDynamicVh from "@/lib/hooks/use-dynamic-vh"
+
 const ChatHelp = dynamic(() => import("./chat-help").then(mod => mod.ChatHelp))
 const ChatSecondaryButtons = dynamic(() =>
   import("./chat-secondary-buttons").then(mod => mod.ChatSecondaryButtons)
@@ -32,7 +32,6 @@ interface ChatUIProps {
 }
 
 export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
-  useDynamicVh()
   const params = useParams()
   const context = useContext(ChatbotUIContext)
   const {
@@ -194,7 +193,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   }
 
   return (
-    <div className="relative flex h-[calc(var(--vh,1vh)*100)] flex-col items-center">
+    <div className="relative flex h-full flex-col items-center">
       <div className="absolute left-4 top-2.5 flex justify-center">
         <ChatScrollButtons
           isAtTop={isAtTop}

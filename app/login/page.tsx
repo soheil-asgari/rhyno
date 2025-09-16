@@ -310,7 +310,7 @@ export default async function LoginPage({
           >
             ورود
           </SubmitButton>
-          <div className="text-muted-foreground mt-1 flex justify-center text-sm">
+          <div className="text-muted-foreground mt-1 flex justify-center text-sm text-white">
             <span className="mr-1">Forgot your password?</span>
             <button
               formAction={handleResetPassword}
