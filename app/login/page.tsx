@@ -63,12 +63,19 @@ export default async function LoginPage({
     console.error("Error decoding searchParams:", e)
     return redirect(`/login?error=${encodeURIComponent("invalid_params")}`)
   }
-
   const handleResetPassword = async (formData: FormData) => {
     "use server"
 
-    const origin = headers().get("origin")
     const email = formData.get("email") as string
+
+    // 1. اعتبارسنجی اولیه ایمیل
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("invalid_email")}`
+      )
+    }
+
+    const origin = headers().get("origin")
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
@@ -76,11 +83,21 @@ export default async function LoginPage({
       redirectTo: `${origin}/auth/callback?next=/login/password`
     })
 
+    // 2. مدیریت بهتر خطا
     if (error) {
-      return redirect(`/login?message=${error.message}`)
+      // به جای ارسال پیام خام خطا، یک کد استاندارد ارسال می‌کنیم
+      console.error("Reset Password Error:", error.message)
+      return redirect(
+        `/login?method=email&error=${encodeURIComponent("reset_password_failed")}`
+      )
     }
 
-    return redirect("/login?message=Check email to reset password")
+    // 3. پیغام موفقیت‌آمیز کاربرپسندتر
+    const successMessage =
+      "لینک بازیابی رمز عبور به ایمیل شما ارسال شد. لطفاً پوشه اسپم (spam) را نیز بررسی کنید."
+    return redirect(
+      `/login?method=email&message=${encodeURIComponent(successMessage)}`
+    )
   }
   const displayMessage = error
     ? errorMessages[error] || "یک خطای ناشناخته رخ داد."
@@ -310,8 +327,8 @@ export default async function LoginPage({
           >
             ورود
           </SubmitButton>
-          <div className="text-muted-foreground mt-1 flex justify-center text-sm text-white">
-            <span className="mr-1">Forgot your password?</span>
+          <div className="font-vazir text-muted-foreground mt-1 flex justify-center text-sm text-white">
+            <span className="mr-1">رمز عبور را فراموش کریده اید ؟</span>
             <button
               formAction={handleResetPassword}
               className="text-primary ml-1 underline hover:opacity-80"
