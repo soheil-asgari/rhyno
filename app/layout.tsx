@@ -41,8 +41,13 @@ export const metadata: Metadata = {
   }
 }
 
+// ✅ کد اصلاح شده
 export const viewport: Viewport = {
-  themeColor: "#000000"
+  themeColor: "#000000",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false
 }
 
 const i18nNamespaces = ["translation"]

@@ -194,8 +194,8 @@ function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
 export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
-    const { chatSettings, messages, enableWebSearch } = await request.json()
-
+    const { chatSettings, messages, enableWebSearch, input } =
+      await request.json()
     console.log("--- RECEIVED MESSAGES ARRAY ---")
     console.log(JSON.stringify(messages, null, 2))
     console.log("-----------------------------")
@@ -243,9 +243,40 @@ export async function POST(request: Request) {
       apiKey: profile.openai_api_key || "",
       organization: profile.openai_organization_id
     })
-    const lastUserMessage = messages[messages.length - 1]?.content || ""
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    if (selectedModel === "gpt-4o-mini-tts") {
+      console.log("🔊 درخواست TTS شناسایی شد.")
+
+      const ttsInput =
+        input ||
+        (messages && messages.length > 0
+          ? messages[messages.length - 1]?.content
+          : "") ||
+        ""
+
+      if (!ttsInput) {
+        return NextResponse.json(
+          { message: "Input text is required for TTS." },
+          { status: 400 }
+        )
+      }
+      const ttsBody = {
+        input: ttsInput,
+        voice: chatSettings.voice || "coral",
+        speed: chatSettings.speed || 1.0,
+        model: selectedModel
+      }
+
+      return await handleTTS({ body: ttsBody, user, supabase })
+    }
+    if (!messages) {
+      return NextResponse.json(
+        { message: "Missing 'messages' array for non-TTS request." },
+        { status: 400 }
+      )
+    }
+    const lastUserMessage = messages[messages.length - 1]?.content || ""
 
     if (selectedModel === "gpt-4o-transcribe") {
       console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
@@ -258,55 +289,6 @@ export async function POST(request: Request) {
         },
         { status: 400 } // Bad Request
       )
-    }
-    if (isImageRequest(lastUserMessage)) {
-      console.log("🎨 درخواست ساخت تصویر شناسایی شد. هدایت به مسیر DALL-E...")
-
-      // ساخت URL کامل برای مسیر DALL-E
-      const dalleUrl = new URL("/api/chat/dalle", request.url)
-
-      // ارسال درخواست به مسیر DALL-E با همان بدنه
-      // فقط prompt را به آخرین پیام کاربر محدود می‌کنیم تا بهینه باشد
-      const dalleResponse = await fetch(dalleUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // ارسال کوکی‌ها برای اینکه احراز هویت در مسیر DALL-E هم کار کند
-          Cookie: request.headers.get("Cookie") || ""
-        },
-        body: JSON.stringify({
-          chatSettings, // تنظیمات چت را هم می‌فرستیم
-          prompt: lastUserMessage // فقط آخرین پیام را به عنوان پرامپت می‌فرستیم
-        })
-      })
-      // بلاک ۲: بررسی درخواست MCP (Nano)
-
-      // بازگرداندن مستقیم پاسخ از مسیر DALL-E به کاربر
-      // این پاسخ می‌تواند شامل URL عکس ساخته شده باشد
-      return new Response(dalleResponse.body, {
-        status: dalleResponse.status,
-        headers: dalleResponse.headers
-      })
-    }
-    if (isMcpRequest(lastUserMessage)) {
-      console.log("🔹 درخواست MCP (Nano) شناسایی شد. هدایت به مسیر MCP...")
-      const mcpUrl = new URL("/api/chat/mcp", request.url)
-
-      // درخواست را با تمام محتوای اصلی به مسیر MCP فوروارد می‌کنیم
-      const mcpResponse = await fetch(mcpUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: request.headers.get("Cookie") || ""
-        },
-        // مسیر MCP احتمالاً به تمام اطلاعات نیاز دارد، نه فقط پرامپت
-        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
-      })
-
-      return new Response(mcpResponse.body, {
-        status: mcpResponse.status,
-        headers: mcpResponse.headers
-      })
     }
 
     if (isDocgenRequest(lastUserMessage)) {
@@ -356,33 +338,7 @@ export async function POST(request: Request) {
       })
     }
     // اگر مدل انتخاب شده برای تبدیل متن به گفتار است، آن را به کنترل‌کننده مربوطه بفرست
-    if (selectedModel === "gpt-4o-mini-tts") {
-      console.log("🔊 درخواست TTS شناسایی شد. ارسال به handleTTS...")
 
-      // آخرین پیام کاربر را به عنوان ورودی در نظر بگیر
-      const input = messages[messages.length - 1]?.content || ""
-      if (!input) {
-        return NextResponse.json(
-          { message: "Input text is required for TTS." },
-          { status: 400 }
-        )
-      }
-
-      // بدنه درخواست را برای handleTTS بساز
-      const ttsBody = {
-        input,
-        voice: chatSettings.voice || "coral",
-        speed: chatSettings.speed || 1.0, // استفاده از صدای پیش‌فرض در صورت عدم وجود
-        model: selectedModel
-      }
-
-      // درخواست را به کنترل‌کننده TTS ارسال کرده و نتیجه را بازگردان
-      return await handleTTS({
-        body: ttsBody,
-        user,
-        supabase
-      })
-    }
     // ✨ مدیریت پیام سیستم
     const finalMessages = [
       {
@@ -711,6 +667,15 @@ export async function POST(request: Request) {
               console.log(
                 "⚠️ No usage data from stream. Trying fallback non-stream request..."
               )
+              const finalMessages = [
+                {
+                  role: "system",
+                  content:
+                    MODEL_PROMPTS[selectedModel] ||
+                    "You are a helpful AI assistant."
+                },
+                ...messages
+              ]
               const usageResponsePayload: ChatCompletionCreateParams = {
                 model: selectedModel,
                 messages: finalMessages,

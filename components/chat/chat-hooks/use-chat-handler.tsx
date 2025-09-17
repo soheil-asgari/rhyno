@@ -178,6 +178,13 @@ export const useChatHandler = () => {
     const startingInput = messageContent
 
     try {
+      // ✅✅✅ تغییر کلیدی اینجاست ✅✅✅
+      // اگر در حال بازسازی پیام هستیم، ابتدا باید تاریخچه پیام‌ها را کوتاه کنیم
+      if (isRegeneration) {
+        setChatMessages(chatMessages)
+      }
+      // ✅✅✅ پایان تغییر کلیدی ✅✅✅
+
       setUserInput("")
       setIsGenerating(true)
       setIsPromptPickerOpen(false)
