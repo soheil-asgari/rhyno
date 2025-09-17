@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
   // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
 
   const { pathname } = request.nextUrl;
-  const publicRoutes = ['/login', '/signup', '/payment/success', 'landing', 'blog', '/app'];
+  const publicRoutes = ['/login', '/signup', '/payment/success', '/landing', '/blog', '/app', '/about', '/contact'];
 
   const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
   if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {

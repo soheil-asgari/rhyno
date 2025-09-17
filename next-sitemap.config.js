@@ -25,5 +25,8 @@ module.exports = {
         await config.transform(config, '/landing'),
         await config.transform(config, '/chat'),
         await config.transform(config, '/blog'),
+        await config.transform(config, '/about'),
+        await config.transform(config, '/contact')
+
     ],
 };

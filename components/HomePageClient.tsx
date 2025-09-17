@@ -50,8 +50,6 @@ const SectionTitle = memo(({ children, className = "" }: SectionTitleProps) => (
 ))
 SectionTitle.displayName = "SectionTitle"
 
-SectionTitle.displayName = "SectionTitle"
-
 const HeaderBrand: React.FC = () => (
   <div className="flex items-center space-x-2 rtl:space-x-reverse">
     <Image
@@ -125,6 +123,35 @@ export default function HomePageClient() {
       >
         <nav className="container mx-auto flex items-center justify-between px-4">
           <HeaderBrand />
+
+          {/* [تغییر] - لینک‌های ناوبری اینجا اضافه شد */}
+          <div className="hidden items-center space-x-6 md:flex">
+            <a
+              href="/about"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+            >
+              درباره ما
+            </a>
+            <a
+              href="/contact"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+            >
+              تماس با ما
+            </a>
+            <a
+              href="#features"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+            >
+              ویژگی‌ها
+            </a>
+            <a
+              href="#pricing"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+            >
+              تعرفه‌ها
+            </a>
+          </div>
+
           <AnimatedButton
             href="/login"
             className="flex items-center space-x-1.5 rounded-lg border border-gray-800 px-3 py-1.5 text-sm font-bold text-black hover:bg-gray-800 hover:text-white sm:space-x-2 sm:px-4 sm:py-2 rtl:space-x-reverse"
@@ -182,7 +209,7 @@ export default function HomePageClient() {
           autoplay
           style={{
             width: "100%",
-            maxWidth: 800, // حداکثر اندازه دسکتاپ
+            maxWidth: 800,
             height: "auto",
             margin: "0 auto"
           }}
@@ -196,8 +223,8 @@ export default function HomePageClient() {
           <LogoTicker />
         </section>
 
-        {/* Features Section */}
-        <section className="py-16 md:py-24">
+        {/* [تغییر] - شناسه id="features" اینجا اضافه شد */}
+        <section id="features" className="py-16 md:py-24">
           <SectionTitle>
             چرا <span dir="ltr">Rhyno AI</span> بهترین انتخاب است؟
           </SectionTitle>
@@ -284,6 +311,7 @@ export default function HomePageClient() {
             ))}
           </div>
         </section>
+
         {/* Pricing Section */}
         <section id="pricing" className="py-16 text-center md:py-24">
           <motion.div
@@ -300,10 +328,7 @@ export default function HomePageClient() {
             </h3>
             <p className="mb-6 text-base text-gray-400" dir="rtl">
               همه ابزارها، همیشه و بدون محدودیت، با پلن{" "}
-              <span
-                dir="ltr"
-                className="group relative cursor-help font-medium text-white"
-              >
+              <span className="group relative cursor-help font-medium text-white">
                 pay as you go
                 <span className="absolute bottom-full left-1/2 mb-2 w-max -translate-x-1/2 rounded-lg bg-gray-800 px-3 py-1 text-sm text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   در این پلن فقط به اندازه استفاده‌تون پرداخت می‌کنید
@@ -332,7 +357,6 @@ export default function HomePageClient() {
             &copy; {new Date().getFullYear()}. تمامی حقوق محفوظ است.
           </p>
 
-          {/* کد اینماد به صورت مستقیم و بدون بررسی تزریق می‌شود */}
           <div
             dangerouslySetInnerHTML={{
               __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT' alt='نماد اعتماد الکترونیکی' style='cursor:pointer; width:125px; height:125px;' code='snXTJxUEZgVAphAqD5lpep29PJRZ2haT'></a>`
