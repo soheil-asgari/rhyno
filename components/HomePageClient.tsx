@@ -23,6 +23,7 @@ import AnimatedButton from "@/components/AnimatedButton"
 import Image from "next/image"
 import Lottie from "lottie-react"
 import roboticsAnimation from "../public/animations/robotics.json"
+import Link from "next/link"
 
 // Hooks and helpers
 const useIsMobile = (breakpoint = 768) => {
@@ -124,32 +125,32 @@ export default function HomePageClient() {
         <nav className="container mx-auto flex items-center justify-between px-4">
           <HeaderBrand />
 
-          {/* [تغییر] - لینک‌های ناوبری اینجا اضافه شد */}
-          <div className="hidden items-center space-x-6 md:flex">
-            <a
-              href="/about"
-              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
-            >
-              درباره ما
-            </a>
-            <a
+          {/* [تغییر] - تمام تگ‌های a با Link جایگزین شدند */}
+          <div className="hidden items-center space-x-6 md:flex rtl:space-x-reverse">
+            <Link
               href="/contact"
               className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
             >
               تماس با ما
-            </a>
-            <a
-              href="#features"
+            </Link>
+            <Link
+              href="/about"
               className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
             >
-              ویژگی‌ها
-            </a>
-            <a
+              درباره ما
+            </Link>
+            <Link
               href="#pricing"
               className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
             >
               تعرفه‌ها
-            </a>
+            </Link>
+            <Link
+              href="#features"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+            >
+              ویژگی‌ها
+            </Link>
           </div>
 
           <AnimatedButton
