@@ -270,6 +270,67 @@ export async function POST(request: Request) {
 
       return await handleTTS({ body: ttsBody, user, supabase })
     }
+    if (selectedModel.includes("realtime")) {
+      const response = await fetch(
+        "https://api.openai.com/v1/realtime/sessions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${profile.openai_api_key}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            voice: "alloy",
+            instructions: `
+  You are Rhyno, a realtime Persian-speaking assistant.
+  ✅ Always respond in Persian (Farsi).
+  ✅ Only speak in voice (no text output).
+  ✅ Introduce yourself as Rhyno when asked.
+  ✅ Keep your answers short and concise. Do not over-explain.
+`,
+
+            tools: [
+              {
+                type: "function",
+                name: "web_search",
+                description: "Search the web for up-to-date information",
+                parameters: {
+                  type: "object",
+                  properties: { query: { type: "string" } },
+                  required: ["query"]
+                }
+              }
+            ]
+          })
+        }
+      )
+
+      if (!response.ok) {
+        const errorBody = await response.json()
+        throw new Error(
+          errorBody.error?.message || "Failed to create realtime session"
+        )
+      }
+      const session = await response.json()
+      console.log("🌐 Realtime session raw response:", session)
+      console.log("🔊 Session modalities:", session.modalities)
+      console.log("🔊 Session voice:", session.voice)
+      console.log("🔊 Session instructions:", session.instructions)
+
+      const { error: insertError } = await supabase
+        .from("realtime_sessions")
+        .insert({
+          user_id: userId,
+          openai_session_id: session.id // یا هر فیلدی که ID جلسه در آن است
+        })
+
+      if (insertError) {
+        console.error("Failed to save realtime session to DB:", insertError)
+        // می‌توانید اینجا خطا را مدیریت کنید
+      }
+      return NextResponse.json(session)
+    }
     if (!messages) {
       return NextResponse.json(
         { message: "Missing 'messages' array for non-TTS request." },
@@ -357,68 +418,6 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       )
-    }
-
-    if (selectedModel.includes("realtime")) {
-      const response = await fetch(
-        "https://api.openai.com/v1/realtime/sessions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${profile.openai_api_key}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            voice: "alloy",
-            instructions: `
-  You are Rhyno, a realtime Persian-speaking assistant.
-  ✅ Always respond in Persian (Farsi).
-  ✅ Only speak in voice (no text output).
-  ✅ Introduce yourself as Rhyno when asked.
-  ✅ Keep your answers short and concise. Do not over-explain.
-`,
-
-            tools: [
-              {
-                type: "function",
-                name: "web_search",
-                description: "Search the web for up-to-date information",
-                parameters: {
-                  type: "object",
-                  properties: { query: { type: "string" } },
-                  required: ["query"]
-                }
-              }
-            ]
-          })
-        }
-      )
-
-      if (!response.ok) {
-        const errorBody = await response.json()
-        throw new Error(
-          errorBody.error?.message || "Failed to create realtime session"
-        )
-      }
-      const session = await response.json()
-      console.log("🌐 Realtime session raw response:", session)
-      console.log("🔊 Session modalities:", session.modalities)
-      console.log("🔊 Session voice:", session.voice)
-      console.log("🔊 Session instructions:", session.instructions)
-
-      const { error: insertError } = await supabase
-        .from("realtime_sessions")
-        .insert({
-          user_id: userId,
-          openai_session_id: session.id // یا هر فیلدی که ID جلسه در آن است
-        })
-
-      if (insertError) {
-        console.error("Failed to save realtime session to DB:", insertError)
-        // می‌توانید اینجا خطا را مدیریت کنید
-      }
-      return NextResponse.json(session)
     }
 
     const cs = chatSettings as ExtendedChatSettings
