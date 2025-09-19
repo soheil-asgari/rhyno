@@ -18,6 +18,8 @@ import {
   FiFileText,
   FiBookOpen
 } from "react-icons/fi"
+import { FcVoicemail } from "react-icons/fc"
+
 import React, { memo, useState, useEffect } from "react"
 import AnimatedButton from "@/components/AnimatedButton"
 import Image from "next/image"
@@ -190,7 +192,7 @@ export default function HomePageClient() {
               {" "}
               AI{" "}
             </span>
-            تست در دستان شما، سریع و بدون پیچیدگی.
+            در دستان شما، سریع و بدون پیچیدگی.
           </motion.p>
 
           <motion.div variants={fadeInUp} className="mt-8">
@@ -247,7 +249,7 @@ export default function HomePageClient() {
                 desc: "تمام ابزارها در یک داشبورد یکپارچه، مدیریت ساده‌تر"
               },
               {
-                icon: <FiLock />,
+                icon: <FcVoicemail />,
                 title: "امنیت کامل",
                 desc: "امنیت و حریم خصوصی شما، اولویت ماست"
               },

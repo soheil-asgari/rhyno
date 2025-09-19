@@ -25,6 +25,10 @@ import Lottie from "lottie-react"
 import roboticsAnimation from "../public/animations/robotics.json"
 import Link from "next/link"
 import { FiMenu, FiX } from "react-icons/fi"
+import { FcVoicemail, FcVoicePresentation } from "react-icons/fc"
+import { BsCodeSlash } from "react-icons/bs"
+import { FaVoicemail } from "react-icons/fa"
+import { BiSolidUserVoice } from "react-icons/bi"
 
 // Hooks and helpers
 const useIsMobile = (breakpoint = 768) => {
@@ -124,11 +128,10 @@ export default function HomePageClient() {
         transition={{ duration: 0.8 }}
         className="border-b border-gray-800 py-4"
       >
-        <nav className="container mx-auto flex items-center justify-between px-4">
+        <nav className="container relative mx-auto flex items-center justify-between px-4">
           <HeaderBrand />
 
-          {/* منوی دسکتاپ */}
-          <div className="hidden items-center space-x-6 md:flex rtl:space-x-reverse">
+          <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center space-x-6 md:flex rtl:space-x-reverse">
             <Link
               href="/contact"
               className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
@@ -154,20 +157,19 @@ export default function HomePageClient() {
               ویژگی‌ها
             </Link>
           </div>
+          <div className="flex items-center">
+            {/* دکمه ورود فقط برای دسکتاپ */}
+            <div className="hidden md:block">
+              <AnimatedButton
+                href="/login"
+                className="flex items-center space-x-1.5 rounded-lg border border-gray-800 bg-white px-3 py-1.5 text-sm font-bold text-black hover:bg-gray-300 sm:space-x-2 sm:px-4 sm:py-2 rtl:space-x-reverse"
+              >
+                <span>ورود</span>
+                <FiArrowRight />
+              </AnimatedButton>
+            </div>
 
-          {/* ✨ بخش اصلاح شده: دکمه‌ها در یک div جدا قرار گرفتند */}
-          <div className="flex items-center space-x-4 rtl:space-x-reverse">
-            {/* دکمه ورود (که حالا به درستی بسته شده) */}
-            <AnimatedButton
-              href="/login"
-              className="flex items-center space-x-1.5 rounded-lg border border-gray-800 px-3 py-1.5 text-sm font-bold text-black hover:bg-gray-800 hover:text-white sm:space-x-2 sm:px-4 sm:py-2 rtl:space-x-reverse"
-            >
-              <span className="hidden sm:inline">ورود به حساب</span>
-              <span className="sm:hidden">ورود</span>
-              <FiArrowRight />
-            </AnimatedButton>
-
-            {/* دکمه منوی همبرگری (که حالا کنار دکمه ورود است) */}
+            {/* ✨ تغییر ۲: دکمه همبرگر فقط در موبایل نمایش داده می‌شود */}
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -188,6 +190,14 @@ export default function HomePageClient() {
             exit={{ opacity: 0, height: 0 }}
             className="mt-4 flex flex-col items-center space-y-4 md:hidden"
           >
+            {/* ✨ تغییر ۳: لینک ورود به منوی موبایل اضافه شد */}
+            <Link
+              href="/login"
+              className="w-full rounded-lg bg-white py-2 text-center text-sm font-bold text-black"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              ورود به حساب
+            </Link>
             <Link
               href="/contact"
               className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
@@ -246,7 +256,7 @@ export default function HomePageClient() {
               {" "}
               AI{" "}
             </span>
-            تست در دستان شما، سریع و بدون پیچیدگی.
+            در دستان شما، سریع و بدون پیچیدگی.
           </motion.p>
 
           <motion.div variants={fadeInUp} className="mt-8">
@@ -293,19 +303,19 @@ export default function HomePageClient() {
                 desc: "پاسخ‌ها را در کسری از ثانیه دریافت کنید"
               },
               {
-                icon: <FiCpu />,
-                title: "مدل‌های بهینه",
-                desc: "بهترین عملکرد با مدل‌های بهینه و آماده استفاده"
+                icon: <BsCodeSlash />,
+                title: " کد نویسی",
+                desc: "مدل بهینه شده مخصوص کد نویسی"
               },
               {
-                icon: <FiRepeat />,
-                title: "تجربه یکپارچه",
-                desc: "تمام ابزارها در یک داشبورد یکپارچه، مدیریت ساده‌تر"
+                icon: <BiSolidUserVoice />,
+                title: "تبدیل متن به صدا",
+                desc: "تبدیل به صدا با بهترین کیفیت "
               },
               {
-                icon: <FiLock />,
-                title: "امنیت کامل",
-                desc: "امنیت و حریم خصوصی شما، اولویت ماست"
+                icon: <FaVoicemail />,
+                title: "تبدیل صدا به متن",
+                desc: "تبدیل صدا  به متن با تشخیص بسیار دقیق"
               },
               {
                 icon: <FiActivity />,
@@ -319,7 +329,7 @@ export default function HomePageClient() {
               },
               {
                 icon: <FiTrendingUp />,
-                title: "مقیاس‌پذیری نامحدود",
+                title: "مقیاس‌ پذیری نامحدود",
                 desc: "با رشد کسب‌وکارتان بدون نگرانی منابع را افزایش دهید"
               },
               {
