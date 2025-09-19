@@ -1,28 +1,24 @@
-// CircularAudioVisualizer.tsx
+// CircularAudioVisualizer.tsx (نسخه بهینه‌سازی شده)
 import { FC, useMemo } from "react"
 import { motion } from "framer-motion"
 
-// Props را گسترش می‌دهیم تا کامپوننت قابل تنظیم باشد
 interface CircularAudioVisualizerProps {
-  volume: number // ورودی صدا بین 0 تا ~100
+  volume: number
   numBars?: number
   radius?: number
   barWidth?: number
-  // رنگ پایه برای شروع گرادیانت (مقدار hue در HSL)
   baseHue?: number
 }
 
 export const CircularAudioVisualizer: FC<CircularAudioVisualizerProps> = ({
   volume,
-  numBars = 90,
+  numBars = 50, // ✨ ۱. تعداد نوارها کاهش یافت
   radius = 90,
-  barWidth = 2,
-  baseHue = 200 // شروع از رنگ آبی
+  barWidth = 3, // کمی ضخیم‌تر برای جبران تعداد کمتر
+  baseHue = 200
 }) => {
-  // ارتفاع پایه نوارها را محاسبه می‌کنیم
   const baseHeight = Math.max(4, volume * 1.5)
 
-  // ✨ بهینه‌سازی: محاسبات زوایا فقط یک بار انجام می‌شود
   const bars = useMemo(
     () =>
       Array.from({ length: numBars }).map((_, i) => ({
@@ -31,22 +27,13 @@ export const CircularAudioVisualizer: FC<CircularAudioVisualizerProps> = ({
     [numBars]
   )
 
-  // ✨ واریانت‌های انیمیشن برای افکت آبشاری
-  const containerVariants = {
-    animate: {
-      transition: {
-        staggerChildren: 0.02 // تاخیر بین انیمیشن هر نوار
-      }
-    }
-  }
-
   const barVariants = {
     initial: { height: 4, opacity: 0.5 },
     animate: (custom: { height: number }) => ({
       height: custom.height,
       opacity: 1,
-      // ✨ استفاده از انیمیشن فنری برای حس طبیعی‌تر
-      transition: { type: "spring" as const, damping: 10, stiffness: 100 }
+      // ✨ ۳. انیمیشن ساده‌تر شد
+      transition: { duration: 0.1, ease: "easeOut" as const }
     })
   }
 
@@ -54,17 +41,13 @@ export const CircularAudioVisualizer: FC<CircularAudioVisualizerProps> = ({
     <motion.div
       className="relative"
       style={{ width: radius * 2, height: radius * 2 }}
-      variants={containerVariants}
       initial="initial"
       animate="animate"
     >
       {bars.map(({ angle }, i) => {
-        // ارتفاع هر نوار را با یک الگوی سینوسی تغییر می‌دهیم تا زیباتر شود
         const barHeight =
           baseHeight + Math.sin((i / numBars) * Math.PI) * baseHeight * 0.6
-
-        // ✨ رنگ هر نوار بر اساس زاویه آن تغییر می‌کند
-        const hue = baseHue + (angle / 360) * 80 // گرادیانت از آبی به بنفش
+        const hue = baseHue + (angle / 360) * 80
 
         return (
           <motion.div
@@ -74,9 +57,8 @@ export const CircularAudioVisualizer: FC<CircularAudioVisualizerProps> = ({
               width: barWidth,
               transformOrigin: "center bottom",
               transform: `rotate(${angle}deg) translateY(-${radius}px)`,
-              backgroundColor: `hsl(${hue}, 100%, 60%)`, // رنگ‌بندی HSL
-              // ✨ افکت درخشش برای زیبایی بیشتر
-              filter: `drop-shadow(0 0 4px hsl(${hue}, 100%, 70%))`
+              backgroundColor: `hsl(${hue}, 100%, 60%)`
+              // ✨ ۲. افکت سنگین drop-shadow حذف شد
             }}
             variants={barVariants}
             custom={{ height: Math.min(barHeight, radius - 20) }}

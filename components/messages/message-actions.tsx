@@ -1,5 +1,12 @@
 import { ChatbotUIContext } from "@/context/context"
-import { IconCheck, IconCopy, IconEdit, IconRepeat } from "@tabler/icons-react"
+import {
+  IconCheck,
+  IconCopy,
+  IconEdit,
+  IconRepeat,
+  IconArrowsMinimize,
+  IconArrowsMaximize
+} from "@tabler/icons-react"
 import { FC, useContext, useEffect, useState } from "react"
 import { WithTooltip } from "../ui/with-tooltip"
 
@@ -13,10 +20,16 @@ interface MessageActionsProps {
   onCopy: () => void
   onEdit: () => void
   onRegenerate: () => void
+  isLongMessage: boolean
+  isCollapsed: boolean
+  onToggleCollapse: () => void
 }
 
 export const MessageActions: FC<MessageActionsProps> = ({
   isAssistant,
+  isLongMessage,
+  isCollapsed,
+  onToggleCollapse,
   isLast,
   isEditing,
   isHovering,
@@ -25,7 +38,6 @@ export const MessageActions: FC<MessageActionsProps> = ({
   onRegenerate
 }) => {
   const { isGenerating } = useContext(ChatbotUIContext)
-
   const [showCheckmark, setShowCheckmark] = useState(false)
 
   const handleCopy = () => {
@@ -33,34 +45,37 @@ export const MessageActions: FC<MessageActionsProps> = ({
     setShowCheckmark(true)
   }
 
-  const handleForkChat = async () => {}
-
   useEffect(() => {
     if (showCheckmark) {
       const timer = setTimeout(() => {
         setShowCheckmark(false)
       }, 2000)
-
       return () => clearTimeout(timer)
     }
   }, [showCheckmark])
 
   return (isLast && isGenerating) || isEditing ? null : (
     <div className="text-muted-foreground flex items-center space-x-2">
-      {/* {((isAssistant && isHovering) || isLast) && (
+      {/* ✨ دکمه باز/بسته کردن پیام در اینجا اضافه می‌شود */}
+      {isLongMessage && !isAssistant && isHovering && (
         <WithTooltip
           delayDuration={1000}
           side="bottom"
-          display={<div>Fork Chat</div>}
+          display={<div>{isCollapsed ? "نمایش کامل" : "نمایش خلاصه"}</div>}
           trigger={
-            <IconGitFork
+            <div
+              onClick={onToggleCollapse}
               className="cursor-pointer hover:opacity-50"
-              size={MESSAGE_ICON_SIZE}
-              onClick={handleForkChat}
-            />
+            >
+              {isCollapsed ? (
+                <IconArrowsMaximize size={MESSAGE_ICON_SIZE} />
+              ) : (
+                <IconArrowsMinimize size={MESSAGE_ICON_SIZE} />
+              )}
+            </div>
           }
         />
-      )} */}
+      )}
 
       {!isAssistant && isHovering && (
         <WithTooltip
@@ -110,8 +125,6 @@ export const MessageActions: FC<MessageActionsProps> = ({
           }
         />
       )}
-
-      {/* {1 > 0 && isAssistant && <MessageReplies />} */}
     </div>
   )
 }

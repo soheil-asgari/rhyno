@@ -24,10 +24,12 @@ import Image from "next/image"
 import Lottie from "lottie-react"
 import roboticsAnimation from "../public/animations/robotics.json"
 import Link from "next/link"
+import { FiMenu, FiX } from "react-icons/fi"
 
 // Hooks and helpers
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(false)
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < breakpoint)
     handleResize()
@@ -95,7 +97,7 @@ LogoTicker.displayName = "LogoTicker"
 // Main client component
 export default function HomePageClient() {
   const isMobile = useIsMobile()
-
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const fadeInUp: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -125,7 +127,7 @@ export default function HomePageClient() {
         <nav className="container mx-auto flex items-center justify-between px-4">
           <HeaderBrand />
 
-          {/* [تغییر] - تمام تگ‌های a با Link جایگزین شدند */}
+          {/* منوی دسکتاپ */}
           <div className="hidden items-center space-x-6 md:flex rtl:space-x-reverse">
             <Link
               href="/contact"
@@ -153,15 +155,69 @@ export default function HomePageClient() {
             </Link>
           </div>
 
-          <AnimatedButton
-            href="/login"
-            className="flex items-center space-x-1.5 rounded-lg border border-gray-800 px-3 py-1.5 text-sm font-bold text-black hover:bg-gray-800 hover:text-white sm:space-x-2 sm:px-4 sm:py-2 rtl:space-x-reverse"
-          >
-            <span className="hidden sm:inline">ورود به حساب</span>
-            <span className="sm:hidden">ورود</span>
-            <FiArrowRight />
-          </AnimatedButton>
+          {/* ✨ بخش اصلاح شده: دکمه‌ها در یک div جدا قرار گرفتند */}
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
+            {/* دکمه ورود (که حالا به درستی بسته شده) */}
+            <AnimatedButton
+              href="/login"
+              className="flex items-center space-x-1.5 rounded-lg border border-gray-800 px-3 py-1.5 text-sm font-bold text-black hover:bg-gray-800 hover:text-white sm:space-x-2 sm:px-4 sm:py-2 rtl:space-x-reverse"
+            >
+              <span className="hidden sm:inline">ورود به حساب</span>
+              <span className="sm:hidden">ورود</span>
+              <FiArrowRight />
+            </AnimatedButton>
+
+            {/* دکمه منوی همبرگری (که حالا کنار دکمه ورود است) */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="text-white focus:outline-none"
+                aria-label="Open menu"
+              >
+                {isMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+              </button>
+            </div>
+          </div>
         </nav>
+
+        {/* منوی کشویی موبایل */}
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4 flex flex-col items-center space-y-4 md:hidden"
+          >
+            <Link
+              href="/contact"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              تماس با ما
+            </Link>
+            <Link
+              href="/about"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              درباره ما
+            </Link>
+            <Link
+              href="#pricing"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              تعرفه‌ها
+            </Link>
+            <Link
+              href="#features"
+              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              ویژگی‌ها
+            </Link>
+          </motion.div>
+        )}
       </motion.header>
 
       <main className="container mx-auto px-4">

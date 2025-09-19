@@ -41,6 +41,7 @@ import { TextareaAutosize } from "../ui/textarea-autosize"
 import { WithTooltip } from "../ui/with-tooltip"
 import { MessageActions } from "./message-actions"
 import { MessageMarkdown } from "./message-markdown"
+import { CollapsibleText } from "../CollapsibleText"
 
 const ICON_SIZE = 32
 
@@ -181,6 +182,7 @@ const MessageHeader: FC<{
     </div>
   )
 })
+
 MessageHeader.displayName = "MessageHeader"
 // ✨ Props کامپوننت MessageBody اصلاح شد
 const MessageBody: FC<{
@@ -190,6 +192,7 @@ const MessageBody: FC<{
   isLast: boolean
   firstTokenReceived: boolean
   toolInUse: string
+  isCollapsed: boolean
   editedMessage: string
   setEditedMessage: (value: string) => void
   editInputRef: React.RefObject<HTMLTextAreaElement>
@@ -219,6 +222,7 @@ const MessageBody: FC<{
     selectedSpeed,
     setSelectedSpeed,
     setAudioUrl,
+    isCollapsed,
     audioUrl
   }) => {
     console.log(
@@ -278,9 +282,12 @@ const MessageBody: FC<{
     }
     if (message.role === "user") {
       return (
-        <div className="font-vazir whitespace-pre-wrap text-right text-[15px] leading-relaxed text-white">
-          {content}
-        </div>
+        <CollapsibleText
+          text={content}
+          isCollapsed={isCollapsed}
+          maxLength={100} // می‌توانید این عدد را به دلخواه تغییر دهید
+          className="font-vazir text-right text-[15px] leading-relaxed text-white"
+        />
       )
     }
 
@@ -535,6 +542,10 @@ export const Message: FC<MessageProps> = ({
   const [showFileItemPreview, setShowFileItemPreview] = useState(false)
   const [selectedFileItem, setSelectedFileItem] =
     useState<Tables<"file_items"> | null>(null)
+  const MAX_LENGTH = 250
+  const isLongMessage =
+    message.role === "user" && message.content.length > MAX_LENGTH
+  const [isCollapsed, setIsCollapsed] = useState(isLongMessage)
 
   // ✨ وضعیت و رفرنس برای مدیریت فایل صوتی اضافه شد
   const [selectedVoice, setSelectedVoice] = useState<string>("coral")
@@ -768,6 +779,9 @@ export const Message: FC<MessageProps> = ({
             isEditing={isEditing}
             isHovering={isHovering}
             onRegenerate={handleRegenerate}
+            isLongMessage={isLongMessage}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={() => setIsCollapsed((prev: boolean) => !prev)}
           />
         </div>
 
@@ -798,6 +812,7 @@ export const Message: FC<MessageProps> = ({
             setSelectedVoice={setSelectedVoice}
             audioUrl={audioUrl}
             setAudioUrl={setAudioUrl}
+            isCollapsed={isCollapsed}
           />
         </div>
 
