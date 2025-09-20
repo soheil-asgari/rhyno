@@ -5,7 +5,7 @@ Disallow: /api
 Disallow: /secret
 
 # Host
-Host: https://rhynoai.ir
+Host: https://www.rhynoai.ir
 
 # Sitemaps
-Sitemap: https://rhynoai.ir/sitemap.xml
+Sitemap: https://www.rhynoai.ir/sitemap.xml

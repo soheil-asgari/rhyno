@@ -1,6 +1,6 @@
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-    siteUrl: 'https://rhynoai.ir',
+    siteUrl: 'https://www.rhynoai.ir', // 👈 اصلاح شد
     generateRobotsTxt: true,
     sitemapSize: 5000,
     changefreq: 'weekly',
@@ -19,7 +19,6 @@ module.exports = {
         ],
     },
 
-    // مسیرهای دستی
     additionalPaths: async (config) => [
         await config.transform(config, '/'),        // صفحه اصلی
         await config.transform(config, '/chat'),
