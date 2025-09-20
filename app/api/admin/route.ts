@@ -1,11 +1,7 @@
-// app/api/admin/route.ts (کد نهایی و کامل)
-
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import type { Database } from "../../../supabase/types"
 
-// app/api/admin/route.ts -> لطفاً فقط تابع GET را با این کد نهایی جایگزین کنید
 const ADMIN_EMAIL = "soheil2833@gmail.com"
 
 type TicketFromRPC = {
@@ -52,16 +48,15 @@ export async function GET(request: Request) {
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value
+          return undefined
         },
-        set(name, value, options) {
-          cookieStore.set({ name, value, ...options })
+        set(name: string, value: string, options: CookieOptions) {
+          // Do nothing
         },
-        remove(name, options) {
-          cookieStore.set({ name, value: "", ...options })
+        remove(name: string, options: CookieOptions) {
+          // Do nothing
         }
-      },
-      auth: { persistSession: false }
+      }
     }
   )
 
@@ -90,15 +85,13 @@ export async function GET(request: Request) {
   )
 
   if (error) {
-    console.error("Error calling RPC 'get_all_tickets_with_user_email':", error)
+    console.error("Error calling RPC:", error)
     return NextResponse.json(
       { message: "خطا در دریافت تیکت‌ها از تابع RPC" },
       { status: 500 }
     )
   }
 
-  // --- تغییر نهایی اینجاست ---
-  // ما به پارامتر 'ticket' به صورت دستی Type می‌دهیم تا خطا برطرف شود
   const formattedTickets =
     tickets?.map((ticket: TicketFromRPC) => ({
       ...ticket,
@@ -136,15 +129,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "دسترسی غیرمجاز" }, { status: 403 })
   }
 
-  const { ticketId, content } = await request.json()
+  const supabaseAdmin = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return undefined
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          // Do nothing
+        },
+        remove(name: string, options: CookieOptions) {
+          // Do nothing
+        }
+      }
+    }
+  )
 
-  const { data: newMessage, error: messageError } = await supabase
+  let attachmentUrl: string | null = null
+  const formData = await request.formData()
+  const ticketId = formData.get("ticketId") as string
+  const content = formData.get("content") as string
+  const attachment = formData.get("attachment") as File | null
+
+  if (attachment) {
+    const fileExt = attachment.name.split(".").pop()
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`
+    const filePath = `${user.id}/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("ticket_attachments")
+      .upload(filePath, attachment)
+
+    if (uploadError) {
+      console.error("Storage Error:", uploadError)
+      return NextResponse.json(
+        { message: "خطا در آپلود فایل" },
+        { status: 500 }
+      )
+    }
+
+    const { data } = supabaseAdmin.storage
+      .from("ticket_attachments")
+      .getPublicUrl(filePath)
+    attachmentUrl = data.publicUrl
+  }
+
+  const { data: newMessage, error: messageError } = await supabaseAdmin
     .from("ticket_messages")
     .insert({
       ticket_id: ticketId,
       user_id: user.id,
       content: content,
-      is_admin_reply: true
+      is_admin_reply: true,
+      attachment_url: attachmentUrl
     })
     .select()
     .single()
@@ -154,8 +193,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "خطا در ثبت پیام" }, { status: 500 })
   }
 
-  // ... بقیه کد POST handler بدون تغییر ...
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from("tickets")
     .update({
       status: "in-progress",
@@ -165,11 +203,90 @@ export async function POST(request: Request) {
 
   if (updateError) {
     console.error("Error updating ticket:", updateError)
-    return NextResponse.json(
-      { message: "خطا در بروزرسانی تیکت" },
-      { status: 500 }
-    )
   }
 
   return NextResponse.json(newMessage)
+}
+
+export async function PUT(request: Request) {
+  const cookieStore = cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: "", ...options })
+        }
+      }
+    }
+  )
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return NextResponse.json({ message: "دسترسی غیرمجاز" }, { status: 403 })
+  }
+
+  const supabaseAdmin = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return undefined
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          // Do nothing
+        },
+        remove(name: string, options: CookieOptions) {
+          // Do nothing
+        }
+      }
+    }
+  )
+
+  const { ticketId } = await request.json()
+
+  if (!ticketId) {
+    return NextResponse.json(
+      { message: "شناسه تیکت لازم است" },
+      { status: 400 }
+    )
+  }
+
+  const { data: ticket, error } = await supabaseAdmin
+    .from("tickets")
+    .update({ status: "closed", updated_at: new Date().toISOString() })
+    .eq("id", ticketId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error closing ticket:", error)
+    return NextResponse.json({ message: "خطا در بستن تیکت" }, { status: 500 })
+  }
+
+  const { data: userData } = await supabaseAdmin
+    .from("users")
+    .select("email")
+    .eq("id", ticket.user_id)
+    .single()
+
+  const formattedUpdatedTicket = {
+    ...ticket,
+    user: {
+      email: userData?.email || "کاربر نامشخص"
+    }
+  }
+
+  return NextResponse.json(formattedUpdatedTicket)
 }

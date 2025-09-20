@@ -1,11 +1,10 @@
-// app/tickets/page.tsx
-
 "use client"
 
-import { supabase } from "../../lib/supabase/client" // ✔️ استفاده از کلاینت متمرکز و صحیح
-import type { User } from "@supabase/supabase-js"
-import { useEffect, useState } from "react"
+import { supabase } from "../../lib/supabase/client"
+import type { User, RealtimeChannel } from "@supabase/supabase-js"
+import { useEffect, useState, useRef } from "react"
 import { toast } from "sonner"
+import Image from "next/image"
 
 // --- کامپوننت‌های UI ---
 import { Badge } from "@/components/ui/badge"
@@ -24,18 +23,31 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import type { Tables } from "@/supabase/types"
 
-// --- ایمپورت آیکون‌ها از فایل جداگانه ---
+// --- ایمپورت آیکون‌ها ---
 import {
   IconArrowLeft,
   IconMessageCircle,
+  IconPaperclip,
   IconPlus,
   IconSend,
-  IconTicket
+  IconTicket,
+  IconX
 } from "./icons"
 
 // --- تعریف Type ها ---
+type TicketMessage = Tables<"ticket_messages"> & {
+  attachment_url?: string | null
+}
 type Ticket = Tables<"tickets">
-type TicketMessage = Tables<"ticket_messages">
+
+// --- کامپوننت آواتار ---
+const Avatar = ({ isAdmin }: { isAdmin: boolean }) => (
+  <div
+    className={`flex size-8 items-center justify-center rounded-full text-sm font-bold text-white ${isAdmin ? "bg-blue-600" : "bg-gray-500"}`}
+  >
+    {isAdmin ? "P" : "K"}
+  </div>
+)
 
 export default function TicketsPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -50,6 +62,99 @@ export default function TicketsPage() {
   const [newTicketContent, setNewTicketContent] = useState("")
   const [replyContent, setReplyContent] = useState("")
 
+  const [newTicketFile, setNewTicketFile] = useState<File | null>(null)
+  const [replyFile, setReplyFile] = useState<File | null>(null)
+  const [newTicketPreview, setNewTicketPreview] = useState<string | null>(null)
+  const [replyPreview, setReplyPreview] = useState<string | null>(null)
+
+  const newTicketFileRef = useRef<HTMLInputElement>(null)
+  const replyFileRef = useRef<HTMLInputElement>(null)
+
+  // ✔️ برای مدیریت اشتراک Realtime
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
+  // --- افکت برای Realtime ---
+  useEffect(() => {
+    // اگر تیکتی انتخاب نشده، کاری نکن
+    if (!selectedTicket) return
+
+    // پاک کردن اشتراک قبلی
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
+    // ایجاد یک کانال جدید برای گوش دادن به تغییرات
+    const channel = supabase
+      .channel(`ticket_messages_${selectedTicket.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ticket_messages",
+          filter: `ticket_id=eq.${selectedTicket.id}`
+        },
+        payload => {
+          // افزودن پیام جدید به لیست پیام‌ها
+          setMessages(prevMessages => [
+            ...prevMessages,
+            payload.new as TicketMessage
+          ])
+        }
+      )
+      .subscribe()
+
+    channelRef.current = channel
+
+    // تابع پاکسازی: هنگام خروج از کامپوننت یا تغییر تیکت، اشتراک را لغو می‌کند
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [selectedTicket])
+
+  const uploadAttachment = async (file: File): Promise<string | null> => {
+    if (!user) return null
+
+    const fileExt = file.name.split(".").pop()
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`
+    const filePath = `${user.id}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from("ticket_attachments")
+      .upload(filePath, file)
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError)
+      toast.error("خطا در آپلود فایل ضمیمه.")
+      return null
+    }
+
+    const { data } = supabase.storage
+      .from("ticket_attachments")
+      .getPublicUrl(filePath)
+
+    return data.publicUrl
+  }
+
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "new" | "reply"
+  ) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (type === "new") {
+        setNewTicketFile(file)
+        setNewTicketPreview(URL.createObjectURL(file))
+      } else {
+        setReplyFile(file)
+        setReplyPreview(URL.createObjectURL(file))
+      }
+    }
+  }
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
@@ -59,7 +164,6 @@ export default function TicketsPage() {
       setUser(user)
 
       if (user) {
-        // به لطف RLS، این کوئری به صورت خودکار فقط تیکت‌های کاربر لاگین کرده را برمی‌گرداند
         const { data, error } = await supabase
           .from("tickets")
           .select("*")
@@ -67,7 +171,6 @@ export default function TicketsPage() {
 
         if (error) {
           toast.error("خطا در دریافت تیکت‌ها.")
-          console.error("Fetch tickets error:", error)
         } else {
           setTickets(data || [])
         }
@@ -82,7 +185,6 @@ export default function TicketsPage() {
         const currentUser = session?.user
         setUser(currentUser ?? null)
         if (!currentUser) {
-          // اگر کاربر خارج شد
           setTickets([])
           setView("list")
         }
@@ -112,20 +214,28 @@ export default function TicketsPage() {
 
   const handleSelectTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket)
+    setReplyContent("")
+    setReplyFile(null)
+    setReplyPreview(null)
     fetchMessages(ticket.id)
     setView("details")
   }
 
   const handleCreateTicket = async () => {
-    if (!user) {
-      toast.error("لطفاً ابتدا وارد شوید.")
-      return
-    }
-    if (!newTicketSubject.trim() || !newTicketContent.trim()) {
-      toast.error("لطفاً موضوع و متن تیکت را وارد کنید.")
-      return
-    }
+    if (!user) return toast.error("لطفاً ابتدا وارد شوید.")
+    if (!newTicketSubject.trim() || !newTicketContent.trim())
+      return toast.error("لطفاً موضوع و متن تیکت را وارد کنید.")
+
     setIsSubmitting(true)
+
+    let attachmentUrl: string | null = null
+    if (newTicketFile) {
+      attachmentUrl = await uploadAttachment(newTicketFile)
+      if (!attachmentUrl) {
+        setIsSubmitting(false)
+        return
+      }
+    }
 
     const { data: newTicket, error: ticketError } = await supabase
       .from("tickets")
@@ -148,7 +258,8 @@ export default function TicketsPage() {
       .insert({
         ticket_id: newTicket.id,
         user_id: user.id,
-        content: newTicketContent.trim()
+        content: newTicketContent.trim(),
+        attachment_url: attachmentUrl
       })
 
     if (messageError) {
@@ -167,13 +278,24 @@ export default function TicketsPage() {
     )
     setNewTicketSubject("")
     setNewTicketContent("")
+    setNewTicketFile(null)
+    setNewTicketPreview(null)
     setView("list")
     setIsSubmitting(false)
   }
 
   const handleSendReply = async () => {
-    if (!user || !selectedTicket || !replyContent.trim()) return
+    if (!user || !selectedTicket || (!replyContent.trim() && !replyFile)) return
     setIsSubmitting(true)
+
+    let attachmentUrl: string | null = null
+    if (replyFile) {
+      attachmentUrl = await uploadAttachment(replyFile)
+      if (!attachmentUrl) {
+        setIsSubmitting(false)
+        return
+      }
+    }
 
     const { data: newMessage, error } = await supabase
       .from("ticket_messages")
@@ -181,7 +303,8 @@ export default function TicketsPage() {
         ticket_id: selectedTicket.id,
         user_id: user.id,
         content: replyContent.trim(),
-        is_admin_reply: false
+        is_admin_reply: false,
+        attachment_url: attachmentUrl
       })
       .select()
       .single()
@@ -212,8 +335,12 @@ export default function TicketsPage() {
       )
     }
 
-    setMessages(prev => [...prev, newMessage])
+    // دیگر نیازی به آپدیت دستی پیام‌ها نیست چون Realtime این کار را انجام می‌دهد
+    // setMessages(prev => [...prev, newMessage])
+
     setReplyContent("")
+    setReplyFile(null)
+    setReplyPreview(null)
     toast.success("پاسخ شما ارسال شد.")
     setIsSubmitting(false)
   }
@@ -233,7 +360,7 @@ export default function TicketsPage() {
           </Badge>
         )
       case "closed":
-        return <Badge variant="secondary">بسته شده</Badge>
+        return <Badge variant="destructive">بسته شده</Badge>
       default:
         return <Badge>{status}</Badge>
     }
@@ -266,9 +393,9 @@ export default function TicketsPage() {
       case "details":
         if (!selectedTicket) return null
         return (
-          <Card>
+          <Card className="flex h-[calc(100vh-2rem)] flex-col">
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="font-vazir flex items-start justify-between">
                 <div>
                   <Button
                     variant="ghost"
@@ -289,23 +416,55 @@ export default function TicketsPage() {
                 {getStatusBadge(selectedTicket.status)}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="font-vazir bg-muted/50 max-h-[400px] space-y-4 overflow-y-auto rounded-md border p-4">
+            <CardContent className="flex flex-1 flex-col overflow-hidden">
+              <div className="font-vazir bg-muted/50 mb-4 flex-1 space-y-4 overflow-y-auto rounded-md border p-4">
                 {loadingMessages ? (
-                  <Skeleton className="h-24 w-full" />
+                  <div className="space-y-4">
+                    <Skeleton className="h-16 w-3/4" />
+                    <Skeleton className="h-16 w-3/4 self-end" />
+                    <Skeleton className="h-12 w-1/2" />
+                  </div>
                 ) : messages.length > 0 ? (
                   messages.map(msg => (
                     <div
                       key={msg.id}
-                      className={`flex flex-col rounded-lg p-3 ${msg.is_admin_reply ? "bg-background items-start" : "items-end bg-blue-50 dark:bg-blue-900/30"}`}
+                      className={`flex items-start gap-3 ${!msg.is_admin_reply && "flex-row-reverse"}`}
                     >
-                      <p className="whitespace-pre-wrap text-sm">
-                        {msg.content}
-                      </p>
-                      <span className="font-vazir text-muted-foreground mt-2 text-xs">
-                        {new Date(msg.created_at).toLocaleString("fa-IR")}
-                        {msg.is_admin_reply ? " - (پشتیبانی)" : " - (شما)"}
-                      </span>
+                      <Avatar isAdmin={!!msg.is_admin_reply} />
+                      <div
+                        className={`max-w-xl rounded-lg p-3 ${msg.is_admin_reply ? "bg-blue-600/20" : "bg-card"}`}
+                      >
+                        <p className="font-vazir text-sm font-bold">
+                          {msg.is_admin_reply ? "پشتیبانی" : "شما"}
+                        </p>
+                        {msg.content && (
+                          <p className="whitespace-pre-wrap text-sm">
+                            {msg.content}
+                          </p>
+                        )}
+                        {msg.attachment_url && (
+                          <a
+                            href={msg.attachment_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 block"
+                          >
+                            <Image
+                              src={msg.attachment_url}
+                              alt="Attachment"
+                              width={200}
+                              height={200}
+                              className="rounded-md object-cover"
+                            />
+                          </a>
+                        )}
+                        <p className="text-muted-foreground mt-1 text-right text-xs">
+                          {new Date(msg.created_at).toLocaleTimeString(
+                            "fa-IR",
+                            { hour: "2-digit", minute: "2-digit" }
+                          )}
+                        </p>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -315,21 +474,71 @@ export default function TicketsPage() {
                 )}
               </div>
             </CardContent>
-            {selectedTicket.status !== "closed" && (
-              <CardFooter className="font-vazir flex flex-col items-stretch gap-2">
+            {selectedTicket.status !== "closed" ? (
+              <CardFooter className="font-vazir flex flex-col items-stretch gap-2 border-t pt-4">
                 <Textarea
                   placeholder="پاسخ خود را اینجا بنویسید..."
                   value={replyContent}
                   onChange={e => setReplyContent(e.target.value)}
-                  rows={4}
+                  rows={3}
                 />
-                <Button
-                  onClick={handleSendReply}
-                  disabled={isSubmitting || !replyContent.trim()}
-                >
-                  <IconSend className="font-vazir ml-2 size-4" />
-                  {isSubmitting ? "در حال ارسال..." : "ارسال پاسخ"}
-                </Button>
+                {replyPreview && (
+                  <div className="relative size-24">
+                    <Image
+                      src={replyPreview}
+                      alt="Preview"
+                      fill
+                      className="rounded-md object-cover"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -right-2 -top-2 size-6 rounded-full"
+                      onClick={() => {
+                        setReplyFile(null)
+                        setReplyPreview(null)
+                        if (replyFileRef.current)
+                          replyFileRef.current.value = ""
+                      }}
+                    >
+                      <IconX className="size-4" />
+                    </Button>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleSendReply}
+                    disabled={
+                      isSubmitting || (!replyContent.trim() && !replyFile)
+                    }
+                    className="grow"
+                  >
+                    <IconSend className="font-vazir ml-2 size-4" />
+                    {isSubmitting ? "در حال ارسال..." : "ارسال"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => replyFileRef.current?.click()}
+                  >
+                    <IconPaperclip />
+                  </Button>
+                  <Input
+                    type="file"
+                    ref={replyFileRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={e => handleFileChange(e, "reply")}
+                  />
+                </div>
+              </CardFooter>
+            ) : (
+              <CardFooter className="border-t pt-4">
+                <div className="border-destructive bg-destructive/10 w-full rounded-md border-l-4 p-4 text-center">
+                  <p className="font-bold">
+                    این تیکت توسط پشتیبانی بسته شده است.
+                  </p>
+                </div>
               </CardFooter>
             )}
           </Card>
@@ -353,7 +562,6 @@ export default function TicketsPage() {
                 </CardDescription>
               </div>
             </CardHeader>
-
             <CardContent className="font-vazir space-y-4">
               <div className="font-vazir space-y-2">
                 <Label htmlFor="subject">موضوع</Label>
@@ -372,6 +580,48 @@ export default function TicketsPage() {
                   onChange={e => setNewTicketContent(e.target.value)}
                   placeholder="لطفاً جزئیات کامل مشکل خود را در اینجا بنویسید..."
                   rows={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>فایل ضمیمه (اختیاری)</Label>
+                {newTicketPreview ? (
+                  <div className="relative size-24">
+                    <Image
+                      src={newTicketPreview}
+                      alt="Preview"
+                      fill
+                      className="rounded-md object-cover"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -right-2 -top-2 size-6 rounded-full"
+                      onClick={() => {
+                        setNewTicketFile(null)
+                        setNewTicketPreview(null)
+                        if (newTicketFileRef.current)
+                          newTicketFileRef.current.value = ""
+                      }}
+                    >
+                      <IconX className="size-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => newTicketFileRef.current?.click()}
+                    className="w-full"
+                  >
+                    <IconPaperclip className="ml-2" />
+                    انتخاب عکس
+                  </Button>
+                )}
+                <Input
+                  type="file"
+                  ref={newTicketFileRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={e => handleFileChange(e, "new")}
                 />
               </div>
             </CardContent>
