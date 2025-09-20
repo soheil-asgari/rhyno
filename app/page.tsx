@@ -3,7 +3,7 @@
 import type { Metadata } from "next"
 import HomePageClient from "@/components/HomePageClient"
 
-const LOGO_URL = "https://www.rhynoai.ir/rhyno_white.png"
+const LOGO_URL = "https://www.rhynoai.ir/rhyno.png"
 
 // آبجکت متادیتا به روش مدرن و بهینه برای SEO
 export const metadata: Metadata = {
