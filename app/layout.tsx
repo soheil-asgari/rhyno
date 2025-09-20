@@ -38,7 +38,8 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   icons: {
     icon: "/favicon.ico"
-  }
+  },
+  manifest: "/manifest.json"
 }
 
 // ✅ کد اصلاح شده

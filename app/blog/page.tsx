@@ -12,19 +12,42 @@ type Post = {
   author: string
   excerpt: string
   category: string
+  image?: string
 }
 
+// Metadata بهینه برای SEO
 export const metadata: Metadata = {
   title: "بلاگ هوش مصنوعی Rhyno AI | مقالات، آموزش‌ها و اخبار AI",
   description:
     "جدیدترین تحلیل‌ها، آموزش‌ها و اخبار دنیای هوش مصنوعی را در بلاگ Rhyno AI دنبال کنید.",
+  keywords: [
+    "بلاگ هوش مصنوعی",
+    "مقالات AI",
+    "آموزش هوش مصنوعی",
+    "اخبار AI",
+    "Rhyno AI"
+  ],
   robots: "index, follow",
   alternates: {
-    canonical: "https://yourdomain.com/blog"
+    canonical: "https://rhynoai.ir/blog"
+  },
+  openGraph: {
+    title: "بلاگ هوش مصنوعی Rhyno AI",
+    description:
+      "تحلیل‌ها، آموزش‌ها و جدیدترین اخبار دنیای هوش مصنوعی – بلاگ Rhyno AI",
+    url: "https://rhynoai.ir/blog",
+    siteName: "Rhyno AI",
+    locale: "fa_IR",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "بلاگ هوش مصنوعی Rhyno AI",
+    description: "تحلیل‌ها، آموزش‌ها و اخبار AI در Rhyno AI"
   }
 }
 
-// کارت مقاله بدون تصویر
+// کارت مقاله بهینه با تصویر
 const BlogCard = ({ post }: { post: Post }) => {
   const postDate = post.date
     ? new Date(post.date).toLocaleDateString("fa-IR", {
@@ -35,25 +58,49 @@ const BlogCard = ({ post }: { post: Post }) => {
     : new Date().toLocaleDateString("fa-IR")
 
   return (
-    <article className="group flex flex-col rounded-xl border border-gray-800 bg-gray-900/50 p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20">
+    <article
+      className="group flex flex-col rounded-xl border border-gray-800 bg-gray-900/50 p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20"
+      itemScope
+      itemType="https://schema.org/BlogPosting"
+    >
       <div className="flex flex-col" dir="rtl">
         {post.category && (
           <span className="mb-2 inline-block rounded-full bg-blue-600/20 px-3 py-1 text-xs font-semibold text-blue-400">
             {post.category}
           </span>
         )}
-        <h3 className="mb-2 text-lg font-semibold text-white">
+
+        {post.image && (
+          <img
+            src={post.image}
+            alt={post.title}
+            className="mb-3 w-full rounded-lg object-cover"
+            loading="lazy"
+          />
+        )}
+
+        <h3
+          className="mb-2 text-lg font-semibold text-white"
+          itemProp="headline"
+        >
           <Link href={`/blog/${post.slug}`}>{post.title}</Link>
         </h3>
-        <p className="flex-1 text-sm text-gray-400">{post.excerpt || ""}</p>
+
+        <p className="flex-1 text-sm text-gray-400" itemProp="description">
+          {post.excerpt || ""}
+        </p>
+
         <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center gap-2">
             <FiUser />
-            <span>{post.author || "RhynoAI"}</span>
+            <span itemProp="author">{post.author || "RhynoAI"}</span>
           </div>
           <div className="flex items-center gap-2">
             <FiCalendar />
-            <time dateTime={post.date || new Date().toISOString()}>
+            <time
+              dateTime={post.date || new Date().toISOString()}
+              itemProp="datePublished"
+            >
               {postDate}
             </time>
           </div>
@@ -91,22 +138,38 @@ export default function BlogPage() {
           </p>
         </header>
 
-        {/* Featured Post بدون تصویر */}
+        {/* Featured Post */}
         <section className="mb-16">
           <article className="group rounded-2xl border border-gray-800 bg-gray-900/50 p-6 transition-all duration-300 hover:bg-gray-800/60">
-            <div dir="rtl">
+            <div dir="rtl" itemScope itemType="https://schema.org/BlogPosting">
               {featuredPost.category && (
                 <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-400">
                   {featuredPost.category}
                 </span>
               )}
-              <h2 className="mb-3 text-xl font-semibold text-white hover:text-blue-400 md:text-2xl">
+
+              {featuredPost.image && (
+                <img
+                  src={featuredPost.image}
+                  alt={featuredPost.title}
+                  className="mb-3 w-full rounded-lg object-cover"
+                  loading="lazy"
+                />
+              )}
+
+              <h2
+                className="mb-3 text-xl font-semibold text-white hover:text-blue-400 md:text-2xl"
+                itemProp="headline"
+              >
                 <Link href={`/blog/${featuredPost.slug}`}>
                   {featuredPost.title || "مقاله بدون عنوان"}
                 </Link>
               </h2>
 
-              <p className="mb-5 text-gray-400">{featuredPost.excerpt || ""}</p>
+              <p className="mb-5 text-gray-400" itemProp="description">
+                {featuredPost.excerpt || ""}
+              </p>
+
               <Link
                 href={`/blog/${featuredPost.slug}`}
                 className="group flex items-center font-semibold text-blue-400"
@@ -118,7 +181,7 @@ export default function BlogPage() {
           </article>
         </section>
 
-        {/* All Posts Grid بدون تصویر */}
+        {/* All Posts Grid */}
         {otherPosts.length > 0 && (
           <section>
             <h2 className="mb-8 text-center text-3xl font-bold text-white">
