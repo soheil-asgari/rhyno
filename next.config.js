@@ -28,14 +28,14 @@ const nextConfig = {
       {
         source: '/:path*',
         has: [
-          { type: 'host', value: 'rhynoai.ir' },       // بدون www
-          { type: 'protocol', value: 'http' }          // HTTP
+          { type: 'host', value: 'rhynoai.ir' }, // فقط بدون www
         ],
-        destination: 'https://www.rhynoai.ir/:path*',  // هدایت مستقیم به HTTPS + www
-        permanent: true,                                // 301 دائمی
+        destination: 'https://www.rhynoai.ir/:path*', // هدایت به www + HTTPS
+        permanent: true, // 301 دائمی
       },
     ];
   }
+
   ,
   webpack: (config, { isServer }) => {
     if (!isServer) {
