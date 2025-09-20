@@ -28,13 +28,15 @@ const nextConfig = {
       {
         source: '/:path*',
         has: [
-          { type: 'host', value: 'rhynoai.ir' }, // نسخه بدون www
+          { type: 'host', value: 'rhynoai.ir' },       // بدون www
+          { type: 'protocol', value: 'http' }          // HTTP
         ],
-        destination: 'https://www.rhynoai.ir/:path*', // هدایت به www
-        permanent: true, // 301 دائمی
+        destination: 'https://www.rhynoai.ir/:path*',  // هدایت مستقیم به HTTPS + www
+        permanent: true,                                // 301 دائمی
       },
     ];
-  },
+  }
+  ,
   webpack: (config, { isServer }) => {
     if (!isServer) {
       const ignored = Array.isArray(config.watchOptions.ignored)

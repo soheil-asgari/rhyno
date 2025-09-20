@@ -12,6 +12,7 @@ import { cookies } from "next/headers"
 import { ReactNode } from "react"
 import dynamic from "next/dynamic"
 import "./globals.css"
+import { Analytics } from "@vercel/analytics/next"
 
 // ✨ Dynamically import toaster (client only)
 const ClientToaster = dynamic(
@@ -102,6 +103,7 @@ export default async function RootLayout({
             <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
               {session ? <GlobalState>{children}</GlobalState> : children}
             </div>
+            <Analytics />
           </TranslationsProvider>
         </Providers>
       </body>
