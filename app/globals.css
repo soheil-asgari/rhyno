@@ -1,15 +1,15 @@
 /* ==========================================================================
-   ۱. دستورات اصلی Tailwind (Tailwind Directives)
+   ۱. وارد کردن فونت‌ها (Font Imports)
+   ========================================================================== */
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/fira-code/400.css";
+
+/* ==========================================================================
+   ۲. دستورات اصلی Tailwind (Tailwind Directives)
    ========================================================================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ==========================================================================
-   ۲. وارد کردن فونت‌ها (Font Imports)
-   ========================================================================== */
-@import "@fontsource/vazirmatn/400.css";
-@import "@fontsource/fira-code";
 
 /* ==========================================================================
    ۳. لایه پایه و متغیرهای پوسته (Base Layer & Theming)
@@ -62,13 +62,21 @@
     --ring: 0 0% 14.9%;
   }
 
-  /* استایل‌های پایه برای کل صفحه */
+  /* استایل‌های پایه */
   * {
     @apply box-border border-border;
   }
 
   body {
-    @apply min-h-screen bg-background font-vazir text-foreground;
+    @apply min-h-screen font-vazir text-foreground bg-background;
+    /* ✨ پس‌زمینه گرادینت مدرن */
+    background-color: #111827; /* fallback */
+    background-image: radial-gradient(
+      ellipse at top,
+      #111827 0%,
+      rgba(17, 24, 39, 0) 80%
+    );
+    background-attachment: fixed;
   }
 
   /* استایل‌های ریسپانسیو پایه */
@@ -77,43 +85,37 @@
       @apply text-sm;
     }
 
-    /* افزایش اندازه المان‌های قابل کلیک برای دسترسی بهتر در موبایل */
     button,
     a {
       @apply min-h-[44px] min-w-[44px];
     }
   }
-  
 }
 
 /* ==========================================================================
    ۴. کامپوننت‌ها و کلاس‌های سفارشی (Custom Components & Classes)
    ========================================================================== */
 @layer components {
-  /* کلاس برای اعمال فونت وزیرمتن */
   .font-vazir {
     font-family: "Vazirmatn", sans-serif;
   }
 
-  /* کلاس برای گرد کردن کامل تصاویر */
   .rounded-image {
     @apply rounded-full;
   }
 
-  /* کلاس برای کنترل فاصله خطوط در پیام‌ها */
   .message-line-height {
     @apply leading-relaxed;
   }
 
-  /* استایل سفارشی برای لیست‌های شماره‌دار راست‌چین در Markdown */
   .markdown-content-rtl ol {
     @apply list-none pr-0;
     counter-reset: list-counter;
   }
 
   .markdown-content-rtl ol li {
-   counter-increment: list-counter;
-   @apply mb-2;
+    counter-increment: list-counter;
+    @apply mb-2;
   }
 
   .markdown-content-rtl ol li::before {
@@ -126,25 +128,21 @@
    ۵. انیمیشن‌ها و کلاس‌های کاربردی (Animations & Utilities)
    ========================================================================== */
 @layer utilities {
-  /* گرادینت متحرک برای پس‌زمینه */
   .hero-gradient {
     background-size: 200% 200%;
     animation: gradient-hero 12s ease infinite;
     @apply bg-gradient-to-br from-[#0a0a23] via-[#1e0033] to-[#004e92];
   }
 
-  /* انیمیشن برای اسکرول افقی بی‌نهایت */
   .animate-scroll {
     @apply animate-[scroll_30s_linear_infinite];
   }
 
-  /* انیمیشن برای ظاهر شدن متن با حرکت به بالا */
   .text-slide-in {
     animation: slide-in 0.8s ease-out forwards;
     @apply translate-y-6 opacity-0;
   }
 
-  /* متن درخشان با انیمیشن سوسو زدن */
   .glow-text {
     text-shadow:
       0 0 7px rgba(255, 255, 255, 0.8),
@@ -159,10 +157,8 @@
     @apply text-center text-white;
   }
 
-  /* فریم‌های کلیدی انیمیشن‌ها */
   @keyframes gradient-hero {
-    0%,
-    100% {
+    0%, 100% {
       background-position: 0% 50%;
     }
     50% {
@@ -171,12 +167,8 @@
   }
 
   @keyframes scroll {
-    from {
-      transform: translateX(-50%);
-    }
-    to {
-      transform: translateX(0);
-    }
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
   }
 
   @keyframes slide-in {

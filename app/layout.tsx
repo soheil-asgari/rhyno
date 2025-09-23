@@ -7,7 +7,7 @@ import initTranslations from "@/lib/i18n"
 import { Database } from "@/supabase/types"
 import { createServerClient } from "@supabase/ssr"
 import { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Vazirmatn } from "next/font/google" // ✨ تغییر ۱: Vazirmatn را اینجا هم import کنید
 import { cookies } from "next/headers"
 import { ReactNode } from "react"
 import dynamic from "next/dynamic"
@@ -20,7 +20,18 @@ const ClientToaster = dynamic(
   { ssr: false }
 )
 
-const inter = Inter({ subsets: ["latin"] })
+// تعریف فونت‌ها
+const vazirmatn = Vazirmatn({
+  subsets: ["arabic"],
+  weight: ["400", "500", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-vazirmatn"
+})
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter" // متغیر برای فونت انگلیسی
+})
 
 // 📌 SEO + App defaults
 const APP_NAME = "Rhyno AI"
@@ -30,6 +41,7 @@ const APP_DESCRIPTION =
 const LOGO_URL = "https://www.rhynoai.ir/rhyno.png"
 
 export const metadata: Metadata = {
+  // ... محتوای metadata شما بدون تغییر
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
@@ -54,6 +66,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  // ... محتوای viewport شما بدون تغییر
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
@@ -98,7 +111,8 @@ export default async function RootLayout({
   const { resources } = translationResponse
 
   return (
-    <html lang={locale || "fa"} suppressHydrationWarning>
+    // ✨ تغییر ۲: افزودن dir="rtl" برای راست‌چین کردن کل سایت
+    <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
       <head>
         {/* Structured Data for Organization */}
         <script
@@ -113,7 +127,10 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      {/* ✨ تغییر ۳: اعمال متغیر فونت وزیرمتن به body */}
+      <body
+        className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
+      >
         <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
             namespaces={i18nNamespaces}
