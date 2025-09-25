@@ -7,20 +7,19 @@ import initTranslations from "@/lib/i18n"
 import { Database } from "@/supabase/types"
 import { createServerClient } from "@supabase/ssr"
 import { Metadata, Viewport } from "next"
-import { Inter, Vazirmatn } from "next/font/google" // ✨ تغییر ۱: Vazirmatn را اینجا هم import کنید
+import { Inter, Vazirmatn } from "next/font/google"
 import { cookies } from "next/headers"
 import { ReactNode } from "react"
 import dynamic from "next/dynamic"
 import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 
-// ✨ Dynamically import toaster (client only)
 const ClientToaster = dynamic(
   () => import("@/components/utility/client-toaster"),
   { ssr: false }
 )
 
-// تعریف فونت‌ها
+// فونت‌ها
 const vazirmatn = Vazirmatn({
   subsets: ["arabic"],
   weight: ["400", "500", "700", "800", "900"],
@@ -30,7 +29,7 @@ const vazirmatn = Vazirmatn({
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-inter" // متغیر برای فونت انگلیسی
+  variable: "--font-inter"
 })
 
 // 📌 SEO + App defaults
@@ -41,13 +40,16 @@ const APP_DESCRIPTION =
 const LOGO_URL = "https://www.rhynoai.ir/rhyno.png"
 
 export const metadata: Metadata = {
-  // ... محتوای metadata شما بدون تغییر
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
-  icons: { icon: "/favicon.ico" },
   manifest: "/manifest.json",
   alternates: { canonical: "https://www.rhynoai.ir" },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.png"
+  },
   openGraph: {
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
@@ -62,11 +64,20 @@ export const metadata: Metadata = {
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
     images: [LOGO_URL]
+  },
+  // ✅ اصلاحیه: داده‌های ساختاریافته (JSON-LD) به اینجا منتقل شد
+  other: {
+    "application/ld+json": JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: APP_NAME,
+      url: "https://www.rhynoai.ir",
+      logo: LOGO_URL
+    })
   }
 }
 
 export const viewport: Viewport = {
-  // ... محتوای viewport شما بدون تغییر
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
@@ -111,23 +122,8 @@ export default async function RootLayout({
   const { resources } = translationResponse
 
   return (
-    // ✨ تغییر ۲: افزودن dir="rtl" برای راست‌چین کردن کل سایت
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
-      <head>
-        {/* Structured Data for Organization */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              url: "https://www.rhynoai.ir",
-              logo: LOGO_URL
-            })
-          }}
-        />
-      </head>
-      {/* ✨ تغییر ۳: اعمال متغیر فونت وزیرمتن به body */}
+      {/* ❌ اصلاحیه: تگ <head> دستی از اینجا حذف شد */}
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
