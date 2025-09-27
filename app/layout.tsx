@@ -1,4 +1,4 @@
-// FILE: app/layout.tsx
+// 🎯 مسیر فایل: app/layout.tsx
 
 import { GlobalState } from "@/components/utility/global-state"
 import { Providers } from "@/components/utility/providers"
@@ -64,16 +64,6 @@ export const metadata: Metadata = {
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
     images: [LOGO_URL]
-  },
-  // ✅ اصلاحیه: داده‌های ساختاریافته (JSON-LD) به اینجا منتقل شد
-  other: {
-    "application/ld+json": JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: APP_NAME,
-      url: "https://www.rhynoai.ir",
-      logo: LOGO_URL
-    })
   }
 }
 
@@ -121,12 +111,26 @@ export default async function RootLayout({
   } = sessionResponse
   const { resources } = translationResponse
 
+  // ✅ آبجکت داده‌های ساختاریافته برای لوگو
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: APP_NAME,
+    url: "https://www.rhynoai.ir",
+    logo: LOGO_URL
+  }
+
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
-      {/* ❌ اصلاحیه: تگ <head> دستی از اینجا حذف شد */}
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
+        {/* ✅ تگ اسکریپت JSON-LD به اینجا منتقل شد */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+
         <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
             namespaces={i18nNamespaces}
