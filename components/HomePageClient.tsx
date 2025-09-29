@@ -19,7 +19,10 @@ import React, {
 import Link from "next/link"
 import Image from "next/image"
 import Lottie from "lottie-react"
-import { cn } from "@/lib/utils" // فرض بر این است که این فایل را ساخته‌اید
+import { cn } from "@/lib/utils"
+
+// کامپوننت جدید چت را ایمپورت می‌کنیم
+import FreeChat from "@/components/FreeChat"
 
 // انیمیشن‌ها و آیکون‌ها
 import roboticsAnimation from "../public/animations/robotics.json"
@@ -142,7 +145,6 @@ const logos = [
   "Eleven Labs"
 ]
 
-// ✨ این کد جدید را جایگزین کد بالا کنید
 const features = [
   {
     icon: <FiZap />,
@@ -264,7 +266,6 @@ export default function HomePageClient() {
   const heroTitle = "مرکز فرماندهی هوش مصنوعی شما"
   const titleWords = heroTitle.split(" ")
 
-  // ✨ [بهبود انیمیشن] زمان‌بندی و منحنی حرکت برای نرمی بیشتر
   const titleContainerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
@@ -279,9 +280,9 @@ export default function HomePageClient() {
       opacity: 1,
       y: 0,
       transition: {
-        type: "tween", // تغییر از spring به tween برای کنترل بیشتر
+        type: "tween",
         duration: 0.8,
-        ease: [0.22, 1, 0.36, 1] // منحنی حرکت نرم و زیبا
+        ease: [0.22, 1, 0.36, 1]
       }
     }
   }
@@ -295,9 +296,8 @@ export default function HomePageClient() {
           initial={{ y: -100 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.5 }}
-          className="sticky top-0 z-50 border-b border-white/10 bg-black/30 py-4 backdrop-blur-lg"
+          className="sticky top-0 z-40 border-b border-white/10 bg-black/30 py-4 backdrop-blur-lg" // z-index to 40
         >
-          {/* محتوای Header بدون تغییر */}
           <nav className="container relative mx-auto flex items-center justify-between px-4">
             <HeaderBrand />
             <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center space-x-8 md:flex rtl:space-x-reverse">
@@ -383,7 +383,7 @@ export default function HomePageClient() {
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 1.2 }} // افزایش delay برای هماهنگی با انیمیشن تیتر
+              transition={{ duration: 0.7, delay: 1.2 }}
               className="mx-auto max-w-2xl text-base leading-relaxed text-gray-400 sm:text-lg"
               dir="rtl"
             >
@@ -414,8 +414,6 @@ export default function HomePageClient() {
               </motion.div>
             </motion.div>
           </section>
-
-          {/* بقیه کد بدون تغییر باقی می‌ماند */}
 
           {/* Hero Image / Lottie */}
           <motion.div
@@ -533,8 +531,8 @@ export default function HomePageClient() {
           </section>
         </main>
 
-        {/* Footer */}
-        <footer className="border-t border-white/10 py-8 text-center">
+        {/* ✨ تغییر اصلی: افزایش فاصله پایین فوتر برای موبایل */}
+        <footer className="border-t border-white/10 py-8 pb-28 text-center sm:pb-8">
           <div className="container mx-auto flex flex-col items-center justify-between gap-6 px-4 sm:flex-row">
             <p className="text-sm text-gray-500">
               &copy; {new Date().getFullYear()} Rhyno AI. تمامی حقوق محفوظ است.
@@ -547,6 +545,9 @@ export default function HomePageClient() {
           </div>
         </footer>
       </div>
+
+      {/* ✨ کامپوننت چت اینجا اضافه شد ✨ */}
+      <FreeChat />
     </div>
   )
 }
