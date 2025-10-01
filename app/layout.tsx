@@ -40,6 +40,7 @@ const APP_DESCRIPTION =
 const LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
 
 // googel seo
+// fix logo
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
