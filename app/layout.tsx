@@ -37,7 +37,7 @@ const APP_NAME = "Rhyno AI"
 const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
 const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
-const LOGO_URL = "https://www.rhynoai.ir/rhyno.png"
+const LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
 
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
@@ -122,15 +122,16 @@ export default async function RootLayout({
 
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
-      <body
-        className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
-      >
-        {/* ✅ تگ اسکریپت JSON-LD به اینجا منتقل شد */}
+      <head>
+        {/* ✅ تگ اسکریپت JSON-LD برای سازماندهی بهتر به اینجا منتقل شد */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-
+      </head>
+      <body
+        className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
+      >
         <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
             namespaces={i18nNamespaces}
