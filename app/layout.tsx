@@ -39,6 +39,7 @@ const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
 const LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
 
+// googel seo
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
