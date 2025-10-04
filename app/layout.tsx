@@ -32,7 +32,7 @@ const inter = Inter({
   variable: "--font-inter"
 })
 
-// 📌 SEO + App defaults
+// 📌 SEO + App defaults 1
 const APP_NAME = "Rhyno AI"
 const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
 const APP_DESCRIPTION =
