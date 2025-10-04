@@ -32,17 +32,15 @@ const inter = Inter({
   variable: "--font-inter"
 })
 
-// 📌 SEO + App defaults 1
+// 📌 SEO + App defaults
 const APP_NAME = "Rhyno AI"
 const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
 const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
-const LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
-const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-google.png" // این برای شبکه‌های اجتماعی است
-const SQUARE_LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-square.jpg" // <--- آدرس فایل جدید و مربعی شما
+const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
+const SQUARE_LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-square.jpg"
 
-// googel seo
-// fix logo
+// ✅✅✅ تغییر اصلی اینجاست ✅✅✅
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
@@ -59,7 +57,7 @@ export const metadata: Metadata = {
     description: APP_DESCRIPTION,
     url: "https://www.rhynoai.ir",
     siteName: APP_NAME,
-    images: [{ url: LOGO_URL, width: 1200, height: 630, alt: "Rhyno AI" }],
+    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: "Rhyno AI" }],
     locale: "fa_IR",
     type: "website"
   },
@@ -67,7 +65,20 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
-    images: [LOGO_URL]
+    images: [OG_IMAGE_URL]
+  },
+  // ✅ اسکریپت JSON-LD به اینجا منتقل شد تا توسط Next.js به درستی رندر شود
+  other: {
+    "script[type='application/ld+json']": JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: APP_NAME,
+      url: "https://www.rhynoai.ir",
+      logo: {
+        "@type": "ImageObject",
+        url: SQUARE_LOGO_URL
+      }
+    })
   }
 }
 
@@ -115,28 +126,13 @@ export default async function RootLayout({
   } = sessionResponse
   const { resources } = translationResponse
 
-  // ✅ آبجکت داده‌های ساختاریافته برای لوگو
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: APP_NAME,
-    url: "https://www.rhynoai.ir",
-    logo: SQUARE_LOGO_URL
-  }
-
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
-      <head>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      </head>
+      {/* ❌ تگ head دستی و اسکریپت از اینجا حذف شد */}
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
-        {/* کامپوننت‌های پیچیده را موقتاً کامنت کنید */}
-        {/* <Providers attribute="class" defaultTheme="dark">
+        <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
             namespaces={i18nNamespaces}
             locale={locale}
@@ -148,12 +144,8 @@ export default async function RootLayout({
             </div>
             <Analytics />
           </TranslationsProvider>
-        </Providers> */}
-
-        {/* و فقط children را به تنهایی رندر کنید */}
-        <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
-          {children}
-        </div>
+        </Providers>
+        {/* ❌ تگ div تکراری از اینجا حذف شد */}
       </body>
     </html>
   )
