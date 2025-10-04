@@ -38,6 +38,8 @@ const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنو�
 const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
 const LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
+const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-google.png" // این برای شبکه‌های اجتماعی است
+const SQUARE_LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-square.jpg" // <--- آدرس فایل جدید و مربعی شما
 
 // googel seo
 // fix logo
@@ -119,7 +121,7 @@ export default async function RootLayout({
     "@type": "Organization",
     name: APP_NAME,
     url: "https://www.rhynoai.ir",
-    logo: LOGO_URL
+    logo: SQUARE_LOGO_URL
   }
 
   return (
