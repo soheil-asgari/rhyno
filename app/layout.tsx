@@ -127,7 +127,6 @@ export default async function RootLayout({
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
       <head>
-        {/* ✅ تگ اسکریپت JSON-LD برای سازماندهی بهتر به اینجا منتقل شد */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -136,7 +135,8 @@ export default async function RootLayout({
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
-        <Providers attribute="class" defaultTheme="dark">
+        {/* کامپوننت‌های پیچیده را موقتاً کامنت کنید */}
+        {/* <Providers attribute="class" defaultTheme="dark">
           <TranslationsProvider
             namespaces={i18nNamespaces}
             locale={locale}
@@ -148,7 +148,12 @@ export default async function RootLayout({
             </div>
             <Analytics />
           </TranslationsProvider>
-        </Providers>
+        </Providers> */}
+
+        {/* و فقط children را به تنهایی رندر کنید */}
+        <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
+          {children}
+        </div>
       </body>
     </html>
   )
