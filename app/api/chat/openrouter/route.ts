@@ -1,51 +1,67 @@
+// app/api/chat/openrouter/route.ts
+
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
-import { OpenAIStream, StreamingTextResponse } from "ai"
 import { ServerRuntime } from "next"
 import OpenAI from "openai"
-import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions.mjs"
 
 export const runtime: ServerRuntime = "edge"
 
 export async function POST(request: Request) {
-  const json = await request.json()
-  const { chatSettings, messages } = json as {
-    chatSettings: ChatSettings
-    messages: any[]
-  }
-
   try {
+    const { chatSettings, messages } = (await request.json()) as {
+      chatSettings: ChatSettings
+      messages: any[]
+    }
     const profile = await getServerProfile()
-
     checkApiKey(profile.openrouter_api_key, "OpenRouter")
-
-    const openai = new OpenAI({
+    const openrouter = new OpenAI({
       apiKey: profile.openrouter_api_key || "",
       baseURL: "https://openrouter.ai/api/v1"
     })
 
-    const response = await openai.chat.completions.create({
-      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
-      messages: messages as ChatCompletionCreateParamsBase["messages"],
-      temperature: chatSettings.temperature,
-      max_tokens: undefined,
-      stream: true
+    const responseStream = await openrouter.chat.completions.create({
+      model: chatSettings.model as any,
+      messages: messages as any,
+      stream: true,
+      // @ts-ignore
+      modalities: ["image", "text"]
     })
 
-    // const stream = OpenAIStream(response)
+    const encoder = new TextEncoder()
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        let fullText = ""
+        let imageBase64 = ""
 
-    // return new StreamingTextResponse(stream)
+        for await (const chunk of responseStream) {
+          const textDelta = chunk.choices[0]?.delta?.content || ""
+          if (textDelta) {
+            fullText += textDelta
+          }
+
+          // ✨ [FIX] از 'as any' برای رفع خطای تایپ‌اسکریپت استفاده می‌کنیم
+          const imageDelta = (chunk.choices[0]?.delta as any)?.images
+
+          if (imageDelta && imageDelta.length > 0) {
+            const imageUrl = imageDelta[0]?.image_url?.url
+            if (imageUrl && imageUrl.startsWith("data:image")) {
+              imageBase64 += imageUrl.split(",")[1] || ""
+            }
+          }
+        }
+
+        const finalResponse = `${fullText}%%RHINO_IMAGE_SEPARATOR%%${imageBase64}`
+
+        controller.enqueue(encoder.encode(finalResponse))
+        controller.close()
+      }
+    })
+    return new Response(readableStream)
   } catch (error: any) {
-    let errorMessage = error.message || "An unexpected error occurred"
-    const errorCode = error.status || 500
-
-    if (errorMessage.toLowerCase().includes("api key not found")) {
-      errorMessage =
-        "OpenRouter API Key not found. Please set it in your profile settings."
-    }
-
-    return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode
+    console.error("OpenRouter API Error:", error)
+    return new Response(JSON.stringify({ message: error.message }), {
+      status: 500
     })
   }
 }

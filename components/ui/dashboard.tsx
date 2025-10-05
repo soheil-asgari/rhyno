@@ -43,7 +43,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   const searchParams = useSearchParams()
   const tabValue = searchParams.get("tab") || "chats"
 
-  const { handleSelectDeviceFile } = useSelectFileHandler()
+  const { handleSelectFile } = useSelectFileHandler()
 
   const [contentType, setContentType] = useState<ContentType>(
     tabValue as ContentType
@@ -70,7 +70,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   const onFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     const files = event.dataTransfer.files
-    handleSelectDeviceFile(files[0])
+    handleSelectFile(files[0])
     setIsDragging(false)
   }
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -94,9 +94,12 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
     <div className="flex size-full">
       <CommandK />
 
+      {/* بخش سایدبار */}
       <div
         className={cn(
-          "duration-200 dark:border-none " + (showSidebar ? "border-r-2" : "")
+          "duration-200 dark:border-none",
+          // ✅ اصلاح ۱: حاشیه سایدبار منطقی شد
+          showSidebar ? "ltr:border-r-2 rtl:border-l-2" : ""
         )}
         style={{
           minWidth: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
@@ -114,12 +117,12 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
             }}
           >
             <SidebarSwitcher onContentTypeChange={setContentType} />
-            {/* ✨ حالا کامپوننت Sidebar دینامیک رندر می‌شود */}
             <Sidebar contentType={contentType} showSidebar={showSidebar} />
           </Tabs>
         )}
       </div>
 
+      {/* بخش محتوای اصلی */}
       <div
         className="bg-muted/50 relative flex w-screen min-w-[90%] grow flex-col sm:min-w-fit"
         onDrop={onFileDrop}
@@ -135,13 +138,18 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
           children
         )}
 
+        {/* ✅ دکمه اصلاح شده */}
         <Button
           className={cn(
-            "absolute left-[4px] top-[50%] z-10 size-[32px] cursor-pointer"
+            "absolute top-[50%] z-10 size-[32px] cursor-pointer transition-transform duration-200",
+            // ✅ اصلاح ۲: موقعیت دکمه منطقی شد
+            "start-[4px]",
+            // ✅ اصلاح ۳: چرخش آیکون برای RTL و LTR منطقی شد
+            showSidebar
+              ? "ltr:rotate-180 rtl:rotate-0"
+              : "ltr:rotate-0 rtl:rotate-180"
           )}
-          style={{
-            transform: showSidebar ? "rotate(180deg)" : "rotate(0deg)"
-          }}
+          // style prop حذف شد چون منطق آن به className منتقل شد
           variant="ghost"
           size="icon"
           onClick={handleToggleSidebar}

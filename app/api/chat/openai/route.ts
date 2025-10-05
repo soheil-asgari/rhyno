@@ -19,6 +19,7 @@ import { handleSTT } from "@/app/api/chat/handlers/stt"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
+const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image-preview"
 function isImageRequest(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase()
 
@@ -194,8 +195,8 @@ function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
 export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
-    const { chatSettings, messages, enableWebSearch, input } =
-      await request.json()
+    const requestBody = await request.json()
+    const { chatSettings, messages, enableWebSearch, input } = requestBody
     console.log("--- RECEIVED MESSAGES ARRAY ---")
     console.log(JSON.stringify(messages, null, 2))
     console.log("-----------------------------")
@@ -245,6 +246,25 @@ export async function POST(request: Request) {
     })
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    if (selectedModel === OPENROUTER_GEMINI_MODEL_ID) {
+      console.log(
+        `🔄 هدایت درخواست برای مدل ${selectedModel} به /api/chat/openrouter...`
+      )
+      const openrouterUrl = new URL("/api/chat/openrouter", request.url)
+      const openrouterResponse = await fetch(openrouterUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: request.headers.get("Cookie") || ""
+        },
+        // ✨ [FIX] از متغیر requestBody که در بالا ساختیم استفاده می‌کنیم
+        body: JSON.stringify(requestBody)
+      })
+      return new Response(openrouterResponse.body, {
+        status: openrouterResponse.status,
+        headers: openrouterResponse.headers
+      })
+    }
     if (selectedModel === "gpt-4o-mini-tts") {
       console.log("🔊 درخواست TTS شناسایی شد.")
 
@@ -270,6 +290,7 @@ export async function POST(request: Request) {
 
       return await handleTTS({ body: ttsBody, user, supabase })
     }
+
     if (selectedModel.includes("realtime")) {
       const response = await fetch(
         "https://api.openai.com/v1/realtime/sessions",

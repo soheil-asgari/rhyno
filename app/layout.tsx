@@ -1,4 +1,4 @@
-// 🎯 مسیر فایل: app/layout.tsx
+// 🎯 مسیر فایل: app/layout.tsx (نسخه نهایی و پاک‌سازی شده)
 
 import { GlobalState } from "@/components/utility/global-state"
 import { Providers } from "@/components/utility/providers"
@@ -19,7 +19,6 @@ const ClientToaster = dynamic(
   { ssr: false }
 )
 
-// فونت‌ها
 const vazirmatn = Vazirmatn({
   subsets: ["arabic"],
   weight: ["400", "500", "700", "800", "900"],
@@ -32,15 +31,12 @@ const inter = Inter({
   variable: "--font-inter"
 })
 
-// 📌 SEO + App defaults
 const APP_NAME = "Rhyno AI"
 const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
 const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
 const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
-const SQUARE_LOGO_URL = "https://www.rhynoai.ir/rhyno-logo-square.jpg"
 
-// ✅✅✅ تغییر اصلی اینجاست ✅✅✅
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
   description: APP_DESCRIPTION,
@@ -66,19 +62,6 @@ export const metadata: Metadata = {
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
     images: [OG_IMAGE_URL]
-  },
-  // ✅ اسکریپت JSON-LD به اینجا منتقل شد تا توسط Next.js به درستی رندر شود
-  other: {
-    "script[type='application/ld+json']": JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: APP_NAME,
-      url: "https://www.rhynoai.ir",
-      logo: {
-        "@type": "ImageObject",
-        url: SQUARE_LOGO_URL
-      }
-    })
   }
 }
 
@@ -128,7 +111,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
-      {/* ❌ تگ head دستی و اسکریپت از اینجا حذف شد */}
+      <head />
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
@@ -145,7 +128,6 @@ export default async function RootLayout({
             <Analytics />
           </TranslationsProvider>
         </Providers>
-        {/* ❌ تگ div تکراری از اینجا حذف شد */}
       </body>
     </html>
   )

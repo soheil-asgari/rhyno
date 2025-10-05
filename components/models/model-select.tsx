@@ -81,7 +81,12 @@ const MODEL_CATEGORIES: Record<
     }
   ],
   "🎨 تصویری": [
-    { id: "dall-e-3", name: "🎨 Rhyno Image V1", desc: "تولید تصویر از متن" }
+    { id: "dall-e-3", name: "🎨 Rhyno Image V1", desc: "تولید تصویر از متن" },
+    {
+      id: "google/gemini-2.5-flash-image-preview",
+      name: "🎨 Rhyno Image V2",
+      desc: "ویرایش حرفه ای عکس"
+    }
   ],
   "💻 برنامه‌نویسی / کدنویسی": [
     {

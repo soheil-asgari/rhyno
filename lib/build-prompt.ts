@@ -35,7 +35,9 @@ export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-4o-mini-realtime-preview-2024-12-17":
     "You are Rhyno Live Mini, real-time Persian chat assistant",
   "gpt-4.1":
-    "You are Rhyno Code V1, expert in programming and code assistance and Use emojis when necessary."
+    "You are Rhyno Code V1, expert in programming and code assistance and Use emojis when necessary.",
+  "google/gemini-2.5-flash-image-preview":
+    "You are Rhyno, an AI that generates images from text descriptions. Use emojis when necessary."
 }
 
 const buildBasePrompt = (

@@ -62,6 +62,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
+  "google/gemini-2.5-flash-image-preview": "🎨 Rhyno Image V2",
   "gpt-4.1": "💻 Rhyno Code V1"
 }
 
@@ -112,6 +113,12 @@ const TTS_SPEEDS = [
   { id: 1.25, name: "Fast (1.25x)" },
   { id: 1.5, name: "Very Fast (1.5x)" }
 ]
+// =================================================================
+// ✨ 1. Helper Function (تابع کمکی جدید)
+// =================================================================
+
+// این تابع تشخیص می‌دهد که آیا رشته ورودی یک تصویر Base64 (خام یا با پیشوند) است یا خیر
+
 // =================================================================
 // 1. Helper Components (کامپوننت‌های کمکی)
 // =================================================================
@@ -225,17 +232,20 @@ const MessageBody: FC<{
     isCollapsed,
     audioUrl
   }) => {
-    console.log(
-      ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
-      audioUrl
-    ) // <--- این خط را اضافه کنید
     const content = message.content
+
+    // console.log(
+
+    //   ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
+    //   audioUrl
+    // ) // <--- این خط را اضافه کنید
+
     const isTTSMessage = message.model === "gpt-4o-mini-tts"
     const audioContent = isTTSMessage ? audioUrl : null
-    console.log(
-      ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
-      audioContent
-    ) // <--- این خط را اضافه کنید
+    // console.log(
+    //   ` M [MessageBody] Final audioContent for message ID ${message.id}:`,
+    //   audioContent
+    // ) // <--- این خط را اضافه کنید
     const audioRef = useRef<HTMLAudioElement>(null)
     // ✨ این شرط را برای نمایش پیام‌های صوتی کاربر اضافه یا اصلاح کنید
     if (message.model === "user-audio") {
@@ -291,18 +301,68 @@ const MessageBody: FC<{
       )
     }
 
-    const isBase64Image =
-      typeof content === "string" && content.startsWith("data:image")
+    const separator = "%%RHINO_IMAGE_SEPARATOR%%"
+    if (message.role === "assistant" && content.includes(separator)) {
+      const [textPart, imagePart] = content.split(separator)
+      console.log("FRONTEND - Image Part Length (received):", imagePart.length)
+      console.log(
+        "FRONTEND - Image Part Start (first 50 chars - received):",
+        imagePart.substring(0, 50)
+      )
+      console.log(
+        "FRONTEND - Image Part End (last 50 chars - received):",
+        imagePart.slice(-50)
+      )
+      console.log(
+        "FRONTEND - Image src being used:",
+        `data:image/png;base64,${imagePart}`
+      )
+      // ✨ [NEW] تابع برای دانلود عکس
+      const handleDownloadImage = () => {
+        if (!imagePart) return
 
-    if (isBase64Image) {
+        // یک لینک موقت ایجاد می‌کنیم
+        const link = document.createElement("a")
+        // src لینک را برابر با Data URL کامل تصویر قرار می‌دهیم
+        link.href = `data:image/png;base64,${imagePart}`
+        // نام فایل برای دانلود را مشخص می‌کنیم
+        link.download = `rhyno-image-${Date.now()}.png`
+        // لینک را به صفحه اضافه کرده، روی آن کلیک می‌کنیم و سپس حذفش می‌کنیم
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
       return (
-        <Image
-          src={content}
-          alt="Uploaded content"
-          width={512}
-          height={512}
-          className="rounded-lg object-contain"
-        />
+        <div className="space-y-4">
+          {textPart && (
+            <MessageMarkdown
+              content={textPart}
+              className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
+              dir="rtl"
+            />
+          )}
+          {imagePart && (
+            // ✨ [NEW] یک div برای دربرگرفتن عکس و دکمه دانلود
+            <div className="group relative w-fit">
+              <Image
+                src={`data:image/png;base64,${imagePart}`}
+                alt="Generated content"
+                width={512}
+                height={512}
+                className="rounded-lg object-contain"
+              />
+              {/* دکمه دانلود که با هاور کردن روی عکس ظاهر می‌شود */}
+              <Button
+                // ✨ [FIX] فقط این خط تغییر کرده است
+                className="absolute right-2 top-2 border border-white/50 bg-black/40 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/60 group-hover:opacity-100"
+                size="icon"
+                onClick={handleDownloadImage}
+              >
+                <IconDownload size={20} />
+              </Button>
+            </div>
+          )}
+        </div>
       )
     }
     if (isTTSMessage) {
@@ -770,7 +830,7 @@ export const Message: FC<MessageProps> = ({
           message.model === "gpt-4o-mini-tts" && "px-6 py-5" // استایل بهتر برای پیام صوتی
         )}
       >
-        <div className="absolute right-5 top-7 sm:right-0">
+        <div className="absolute end-5 top-7 sm:end-0">
           <MessageActions
             onCopy={handleCopy}
             onEdit={() => onStartEdit(message)}

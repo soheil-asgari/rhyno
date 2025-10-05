@@ -234,13 +234,13 @@ export const models: ModelPricing[] = [
 
   // --- Image ---
   {
-    id: "gpt-image-1",
+    id: "google/gemini-2.5-flash-image-preview",
     name: "🖼️ Rhyno Image V2",
     توضیحات: "مدل جدید برای تولید تصویر",
     inputPricePer1MTokenUSD: 5.0,
     outputPricePer1MTokenUSD: 15.0,
     ...(() => {
-      const { base, final } = calcCost(20.0, 40.0)
+      const { base, final } = calcCost(20.0, 50.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -400,7 +400,6 @@ export const models: ModelPricing[] = [
       }
     })()
   },
-
   // --- Computer use ---
   {
     id: "computer-use-preview",

@@ -73,6 +73,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
+  "google/gemini-2.5-flash-image-preview": "🎨 Rhyno Image V2",
   "gpt-4.1": "💻 Rhyno Code V1"
 }
 

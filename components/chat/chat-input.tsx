@@ -147,7 +147,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     useVoiceRecorder(handleVoiceSubmit)
 
   useHotkey("l", () => handleFocusChatInput())
-  const { filesToAccept, handleSelectDeviceFile } = useSelectFileHandler()
+  const { handleSelectFile, filesToAccept } = useSelectFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -194,11 +194,11 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             return
           }
           const file = item.getAsFile()
-          if (file) handleSelectDeviceFile(file)
+          if (file) handleSelectFile(file)
         }
       }
     },
-    [chatSettings?.model, handleSelectDeviceFile]
+    [chatSettings?.model, handleSelectFile]
   )
 
   const showCommandInput =
@@ -243,7 +243,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
                 handleVoiceSubmit(file)
               } else {
                 // در غیر این صورت، مانند قبل برای الصاق فایل پردازش می‌شود
-                handleSelectDeviceFile(file)
+                handleSelectFile(file)
               }
 
               // input را خالی می‌کنیم تا بتوان دوباره همان فایل را انتخاب کرد
