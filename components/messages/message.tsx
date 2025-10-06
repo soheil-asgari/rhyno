@@ -304,19 +304,19 @@ const MessageBody: FC<{
     const separator = "%%RHINO_IMAGE_SEPARATOR%%"
     if (message.role === "assistant" && content.includes(separator)) {
       const [textPart, imagePart] = content.split(separator)
-      console.log("FRONTEND - Image Part Length (received):", imagePart.length)
-      console.log(
-        "FRONTEND - Image Part Start (first 50 chars - received):",
-        imagePart.substring(0, 50)
-      )
-      console.log(
-        "FRONTEND - Image Part End (last 50 chars - received):",
-        imagePart.slice(-50)
-      )
-      console.log(
-        "FRONTEND - Image src being used:",
-        `data:image/png;base64,${imagePart}`
-      )
+      // console.log("FRONTEND - Image Part Length (received):", imagePart.length)
+      // console.log(
+      //   "FRONTEND - Image Part Start (first 50 chars - received):",
+      //   imagePart.substring(0, 50)
+      // )
+      // console.log(
+      //   "FRONTEND - Image Part End (last 50 chars - received):",
+      //   imagePart.slice(-50)
+      // )
+      // console.log(
+      //   "FRONTEND - Image src being used:",
+      //   `data:image/png;base64,${imagePart}`
+      // )
       // ✨ [NEW] تابع برای دانلود عکس
       const handleDownloadImage = () => {
         if (!imagePart) return
@@ -613,19 +613,19 @@ export const Message: FC<MessageProps> = ({
   const audioUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
-    console.log(
-      " M [Message Component] useEffect triggered for message ID:",
-      message.id
-    ) // <--- این خط را اضافه کنید
-    console.log(" M [Message Component] Model:", message.model) // <--- این خط را اضافه کنید
-    console.log(" M [Message Component] Content:", message.content)
+    // console.log(
+    //   " M [Message Component] useEffect triggered for message ID:",
+    //   message.id
+    // ) // <--- این خط را اضافه کنید
+    // console.log(" M [Message Component] Model:", message.model) // <--- این خط را اضافه کنید
+    // console.log(" M [Message Component] Content:", message.content)
 
     // اگر پیام از نوع TTS بود و محتوای آن یک Blob URL بود
     if (
       message.model === "gpt-4o-mini-tts" &&
       message.content.startsWith("blob:")
     ) {
-      console.log(" M [Message Component] Conditions met! Setting audio URL.") // <--- این خط را اضافه کنید
+      // console.log(" M [Message Component] Conditions met! Setting audio URL.") // <--- این خط را اضافه کنید
       setAudioUrl(message.content) // استیت محلی را آپدیت کن
       audioUrlRef.current = message.content // رف را هم برای دانلود آپدیت کن
     }
@@ -729,7 +729,7 @@ export const Message: FC<MessageProps> = ({
       m => m.message.role === "user"
     )
     if (!lastUserMessage) {
-      console.error("No user message found to regenerate speech.")
+      // console.error("No user message found to regenerate speech.")
       setIsGenerating(false)
       return
     }
@@ -758,7 +758,7 @@ export const Message: FC<MessageProps> = ({
       const newAudioUrl = URL.createObjectURL(audioBlob)
 
       // ⚡ آپدیت همزمان state و ref
-      console.log(newAudioUrl)
+      // console.log(newAudioUrl)
       setAudioUrl(newAudioUrl)
       audioUrlRef.current = newAudioUrl
 
@@ -773,7 +773,7 @@ export const Message: FC<MessageProps> = ({
         )
       )
     } catch (error) {
-      console.error("Error regenerating TTS:", error)
+      // console.error("Error regenerating TTS:", error)
     } finally {
       setIsGenerating(false)
     }

@@ -83,7 +83,7 @@ const GPT5Nano: LLM = {
   provider: "openai",
   hostedId: "gpt-5-nano",
   platformLink: OPENAI_PLATFORM_LINK,
-  imageInput: false, // چون GPT-5 Nano قابلیت تولید تصویر نداره
+  imageInput: true, // چون GPT-5 Nano قابلیت تولید تصویر نداره
   pricing: {
     currency: "USD",
     unit: "1M tokens",

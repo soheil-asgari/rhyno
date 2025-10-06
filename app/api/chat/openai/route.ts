@@ -358,7 +358,44 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-    const lastUserMessage = messages[messages.length - 1]?.content || ""
+    function extractTextFromContent(content: any): string {
+      if (!content && content !== 0) return ""
+      if (typeof content === "string") return content
+      // اگر content آرایه از پارت‌هاست (مثل [{type:"input_text", text: "..."}])
+      if (Array.isArray(content)) {
+        return content
+          .map(part => {
+            if (typeof part === "string") return part
+            if (part == null) return ""
+            if (typeof part === "object") {
+              // انواع معمولی که ممکنه داخل باشن
+              return (
+                part.text ??
+                part.content ??
+                part.name ??
+                JSON.stringify(part)
+              ).toString()
+            }
+            return String(part)
+          })
+          .filter(Boolean)
+          .join(" ")
+      }
+      // اگر آبجکت ساده‌ست
+      if (typeof content === "object") {
+        return (
+          content.text ??
+          content.content ??
+          JSON.stringify(content)
+        ).toString()
+      }
+      return String(content)
+    }
+
+    // سپس
+    const lastUserMessage = extractTextFromContent(
+      messages[messages.length - 1]?.content
+    )
 
     if (selectedModel === "gpt-4o-transcribe") {
       console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
@@ -614,9 +651,9 @@ export async function POST(request: Request) {
         }
       })
     }
-    const userPrompt = finalMessages[finalMessages.length - 1]
-      ?.content as string
-
+    const userPrompt = extractTextFromContent(
+      finalMessages[finalMessages.length - 1]?.content
+    )
     // ✨ منطق استریم مدل‌های معمولی
     if (useStream) {
       const payload: ChatCompletionCreateParamsStreaming = {

@@ -291,25 +291,41 @@ export const processResponse = async (
   setFirstTokenReceived: React.Dispatch<React.SetStateAction<boolean>>,
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
   setToolInUse: React.Dispatch<React.SetStateAction<string>>
-) => {
-  let fullText = ""
-  let contentToAdd = ""
+): Promise<{ type: "text"; data: string } | { type: "image"; data: Blob }> => {
+  const contentType = response.headers.get("content-type")
+
+  if (contentType && contentType.startsWith("image/")) {
+    const imageBlob = await response.blob()
+    setChatMessages(prev =>
+      prev.map(chatMessage => {
+        if (chatMessage.message.id === lastChatMessage.message.id) {
+          return {
+            ...chatMessage,
+            message: {
+              ...chatMessage.message,
+              content: "[Image generated...]"
+            }
+          }
+        }
+        return chatMessage
+      })
+    )
+    return { type: "image", data: imageBlob }
+  }
 
   if (response.body) {
+    let fullText = ""
+    let contentToAdd = ""
+
     await consumeReadableStream(
       response.body,
       chunk => {
         setFirstTokenReceived(true)
         setToolInUse("none")
-
         try {
           contentToAdd = isHosted
             ? chunk
-            : // Ollama's streaming endpoint returns new-line separated JSON
-              // objects. A chunk may have more than one of these objects, so we
-              // need to split the chunk by new-lines and handle each one
-              // separately.
-              chunk
+            : chunk
                 .trimEnd()
                 .split("\n")
                 .reduce(
@@ -320,21 +336,14 @@ export const processResponse = async (
         } catch (error) {
           console.error("Error parsing JSON:", error)
         }
-
         setChatMessages(prev =>
           prev.map(chatMessage => {
             if (chatMessage.message.id === lastChatMessage.message.id) {
-              const updatedChatMessage: ChatMessage = {
-                message: {
-                  ...chatMessage.message,
-                  content: fullText
-                },
-                fileItems: chatMessage.fileItems
+              return {
+                ...chatMessage,
+                message: { ...chatMessage.message, content: fullText }
               }
-
-              return updatedChatMessage
             }
-
             return chatMessage
           })
         )
@@ -342,9 +351,10 @@ export const processResponse = async (
       controller.signal
     )
 
-    return fullText
+    return { type: "text", data: fullText }
   } else {
-    throw new Error("Response body is null")
+    console.error("Response body is null")
+    return { type: "text", data: "" }
   }
 }
 
@@ -396,6 +406,7 @@ export const handleCreateMessages = async (
   modelData: LLM,
   messageContent: string,
   generatedText: string,
+  assistantFileUrl: string | null, // ✨ ترتیب صحیح پارامترها
   newMessageImages: MessageImage[],
   isRegeneration: boolean,
   retrievedFileItems: Tables<"file_items">[],
@@ -406,11 +417,16 @@ export const handleCreateMessages = async (
   setChatImages: React.Dispatch<React.SetStateAction<MessageImage[]>>,
   selectedAssistant: Tables<"assistants"> | null
 ) => {
+  const sanitizedMessageContent = messageContent.replace(
+    /[\u200B-\u200D\uFEFF]/g,
+    ""
+  )
+
   const finalUserMessage: TablesInsert<"messages"> = {
     chat_id: currentChat.id,
     assistant_id: null,
     user_id: profile.user_id,
-    content: messageContent,
+    content: sanitizedMessageContent,
     model: modelData.modelId,
     role: "user",
     sequence_number: chatMessages.length,
@@ -422,29 +438,29 @@ export const handleCreateMessages = async (
     chat_id: currentChat.id,
     assistant_id: selectedAssistant?.id || null,
     user_id: profile.user_id,
-    content: generatedText,
+    content: generatedText.trim() === "" ? " " : generatedText,
     model: modelData.modelId,
     role: "assistant",
     sequence_number: chatMessages.length + 1,
-    image_paths: []
+    image_paths: [],
+    file_url: assistantFileUrl
   }
 
   let finalChatMessages: ChatMessage[] = []
 
   if (isRegeneration) {
-    const lastStartingMessage = chatMessages[chatMessages.length - 1].message
-
-    const updatedMessage = await updateMessage(lastStartingMessage.id, {
-      ...lastStartingMessage,
-      content: generatedText
-    })
-
-    chatMessages[chatMessages.length - 1].message = updatedMessage
-
-    finalChatMessages = [...chatMessages]
-
-    setChatMessages(finalChatMessages)
+    const lastMessage = chatMessages[chatMessages.length - 1]
+    if (lastMessage.message.role === "assistant") {
+      // ✨ اصلاح: در زمان بازسازی، file_url را هم آپدیت می‌کنیم
+      const updatedMessage = await updateMessage(lastMessage.message.id, {
+        content: generatedText,
+        file_url: assistantFileUrl
+      })
+      chatMessages[chatMessages.length - 1].message = updatedMessage
+      setChatMessages([...chatMessages])
+    }
   } else {
+    // ✨ اصلاح: منطق کامل بلوک else را برمی‌گردانیم
     const createdMessages = await createMessages([
       finalUserMessage,
       finalAssistantMessage
