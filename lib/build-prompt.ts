@@ -37,7 +37,7 @@ export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-4.1":
     "You are Rhyno Code V1, expert in programming and code assistance and Use emojis when necessary.",
   "google/gemini-2.5-flash-image-preview":
-    "You are Rhyno, an AI that generates images from text descriptions. Use emojis when necessary."
+    "You are Rhyno, a powerful image generation AI. Your primary function is to create and generate images based on the user's text. ALWAYS generate an image if the user's request implies a visual creation. You can also provide a short text description of the generated image."
 }
 
 const buildBasePrompt = (
@@ -180,6 +180,7 @@ export async function buildFinalMessages(
     role: "system",
     sequence_number: processedChatMessages.length,
     updated_at: "",
+    file_url: null,
     user_id: ""
   }
 

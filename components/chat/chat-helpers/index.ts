@@ -94,6 +94,7 @@ export const createTempMessages = (
       assistant_id: null,
       content: messageContent,
       created_at: "",
+      file_url: null,
       id: uuidv4(),
       image_paths: b64Images,
       model: chatSettings.model,
@@ -111,6 +112,7 @@ export const createTempMessages = (
       assistant_id: selectedAssistant?.id || null,
       content: "",
       created_at: "",
+      file_url: null,
       id: uuidv4(),
       image_paths: [],
       model: chatSettings.model,
@@ -412,7 +414,8 @@ export const handleCreateMessages = async (
     model: modelData.modelId,
     role: "user",
     sequence_number: chatMessages.length,
-    image_paths: []
+    image_paths: [],
+    file_url: null
   }
 
   const finalAssistantMessage: TablesInsert<"messages"> = {

@@ -82,6 +82,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
         user_id: chatMessages[0]?.message.user_id || "",
         assistant_id: null,
         content: audioUrl,
+        file_url: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         image_paths: [],
@@ -106,6 +107,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
         const assistantTextMessage: Tables<"messages"> = {
           id: crypto.randomUUID(),
           chat_id: chatMessages[0]?.message.chat_id || "",
+          file_url: null,
           user_id: chatMessages[0]?.message.user_id || "",
           assistant_id: null,
           content: result.text,
