@@ -337,10 +337,10 @@ export async function verifyAndUpdatePhoneAction(formData: FormData) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-
     const { error: updateError } =
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
-        phone: phoneE164
+        phone: phoneE164,
+        phone_confirm: true // <-- این پارامتر حیاتی اضافه شد
       })
 
     if (updateError) {

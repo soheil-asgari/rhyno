@@ -51,3 +51,36 @@ export async function signInWithGoogle() {
 
   return redirect(`/signup?message=Could not get Google auth URL`)
 }
+export async function sendCustomOtpAction(formData: FormData) {
+  const phone = formData.get("phone") as string
+  const referer = (formData.get("referer") as string) || "/verify-phone"
+
+  // اعتبارسنجی شماره
+  if (!/^09\d{9}$/.test(phone)) {
+    return redirect(
+      `${referer}?message=${encodeURIComponent("شماره موبایل نامعتبر است")}`
+    )
+  }
+
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+
+  // ۱. ساخت کد و ذخیره در جدول سفارشی otp_codes
+  const otp = Math.floor(100000 + Math.random() * 900000).toString()
+  await supabase.from("otp_codes").insert({
+    phone,
+    code: otp,
+    expires_at: new Date(Date.now() + 5 * 60 * 1000) // ۵ دقیقه انقضا
+  })
+
+  // ۲. اینجا باید کد ارسال پیامک با پنل خودتان را قرار دهید
+  // مثال:
+  // await sendSmsWithYourPanel(phone, `کد تایید شما: ${otp}`);
+  console.log(`(شبیه‌سازی ارسال پیامک) کد برای ${phone}: ${otp}`)
+
+  // ۳. هدایت به مرحله وارد کردن کد
+  const message = "کد برای شما ارسال شد"
+  return redirect(
+    `${referer}?step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(message)}`
+  )
+}
