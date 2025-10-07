@@ -1,106 +1,103 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+// مسیر فایل: middleware.ts
 
-export async function middleware(request: NextRequest) {
-  // console.log("Middleware: Processing URL:", request.nextUrl.pathname, request.nextUrl.search);
-  // console.log("Middleware: Cookies:", request.cookies.getAll());
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers
-    }
-  })
-
-  const supabase = createServerClient(
+// یک تابع کمکی برای مدیریت کوکی‌ها که کد را تمیزتر می‌کند
+const createSupabaseClient = (request: NextRequest, response: NextResponse) => {
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          const value = request.cookies.get(name)?.value;
-          // console.log("Middleware: Getting cookie:", { name, value });
-          return value;
+          return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          console.log("Middleware: Setting cookie:", { name, value: value.slice(0, 50) + (value.length > 50 ? "..." : ""), options });
-          try {
-            // اعتبارسنجی مقدار کوکی
-            if (!value || typeof value !== "string") {
-              // console.error("Middleware: Invalid cookie value:", { name, value });
-              return;
-            }
-            request.cookies.set({ name, value, ...options });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers
-              }
-            });
-            response.cookies.set({ name, value, ...options });
-          } catch (e) {
-            // console.error("Middleware: Error setting cookie:", { name, error: e });
-          }
+          request.cookies.set({ name, value, ...options })
+          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          // console.log("Middleware: Removing cookie:", { name, options });
-          try {
-            request.cookies.set({ name, value: '', ...options });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers
-              }
-            });
-            response.cookies.set({ name, value: '', ...options });
-          } catch (e) {
-            // console.error("Middleware: Error removing cookie:", { name, error: e });
-          }
+          request.cookies.set({ name, value: "", ...options })
+          response.cookies.set({ name, value: "", ...options })
         }
       }
     }
-  );
+  )
+}
+
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next({
+    request: { headers: request.headers }
+  })
+
+  const supabase = createSupabaseClient(request, response)
 
   const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-  // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
+    data: { user }
+  } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl;
-  const publicRoutes = ['/login', '/signup', '/payment/success', '/landing', '/blog', '/app', '/about', '/contact'];
+  const { pathname } = request.nextUrl
+  console.log(`[Middleware] Path: ${pathname}, User: ${user ? user.id : "Not logged in"}`);
 
-  const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
-  if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
-    // console.log("Middleware: Redirecting from", pathname, "to", `${pathname}/chat`);
-    return NextResponse.redirect(new URL(`${pathname}/chat`, request.url));
+
+  // مسیرهای عمومی که کاربر لاگین نکرده هم میتواند ببیند
+  const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact', '/payment/success']
+
+  // اگر کاربر لاگین نیست
+  if (!user) {
+    // و سعی دارد به صفحه‌ای غیرعمومی دسترسی پیدا کند، او را به لاگین بفرست
+    if (!publicRoutes.includes(pathname) && !pathname.startsWith('/auth')) {
+      console.log("[Middleware] No user, redirecting to /login");
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    // در غیر این صورت اجازه بده به مسیرهای عمومی برود
+    return response
   }
 
-  if (user) {
-    if (!user.phone && pathname !== '/verify-phone') {
-      // console.log("Middleware: Redirecting to /verify-phone for user:", user.id);
-      return NextResponse.redirect(new URL('/verify-phone', request.url));
-    }
+  // اگر کاربر لاگین است
+  const hasPhone = !!user.phone
 
-    if (user.phone && (publicRoutes.includes(pathname) || pathname === '/verify-phone')) {
-      const { data: homeWorkspace, error: workspaceError } = await supabase
+  // سناریو ۱: کاربر شماره تلفن ندارد
+  if (!hasPhone) {
+    // اگر در صفحه‌ای غیر از تایید شماره است، او را به آنجا بفرست
+    if (pathname !== '/verify-phone') {
+      console.log("[Middleware] User has no phone, redirecting to /verify-phone");
+      return NextResponse.redirect(new URL('/verify-phone', request.url))
+    }
+    // اگر از قبل در صفحه تایید شماره است، اجازه بده بماند
+    return response
+  }
+
+  // سناریو ۲: کاربر شماره تلفن دارد
+  if (hasPhone) {
+    // اگر سعی دارد به صفحات عمومی یا صفحه تایید شماره برود، او را به داشبورد اصلی بفرست
+    if (publicRoutes.includes(pathname) || pathname === '/verify-phone') {
+      console.log("[Middleware] User has phone, redirecting from public page to home workspace");
+
+      // منطق پیدا کردن workspace اصلی کاربر
+      const { data: homeWorkspace } = await supabase
         .from("workspaces")
-        .select("id, name")
+        .select("id")
         .eq("user_id", user.id)
         .eq("is_home", true)
-        .single();
-      if (workspaceError || !homeWorkspace) {
-        // console.log("Middleware: No home workspace, redirecting to /setup for user:", user.id);
-        return NextResponse.redirect(new URL('/setup', request.url));
+        .single()
+
+      if (homeWorkspace) {
+        return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url))
+      } else {
+        // اگر workspace نداشت، به صفحه setup برود
+        return NextResponse.redirect(new URL('/setup', request.url))
       }
-      // console.log("Middleware: Redirecting to workspace /:id/chat for user:", user.id, "Workspace:", { id: homeWorkspace.id, name: homeWorkspace.name });
-      return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url));
     }
   }
 
-  // console.log("Middleware: Continuing to next response for path:", pathname);
-  return response;
+  // در تمام حالت‌های دیگر، اجازه بده درخواست عبور کند
+  return response
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|auth|sitemap.xml|robots.txt).*)'
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'
   ]
 }
