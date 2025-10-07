@@ -18,6 +18,10 @@ const nextConfig = {
       { protocol: "http", hostname: "127.0.0.1" },
       { protocol: "https", hostname: "**" },
       { protocol: "https", hostname: "trustseal.enamad.ir" },
+      {
+        protocol: 'https',
+        hostname: 'auisyflifvylebhgwcfe.supabase.co',
+      },
     ],
   },
   experimental: {

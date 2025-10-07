@@ -136,46 +136,64 @@ export const ChatFilesDisplay: FC<ChatFilesDisplayProps> = ({}) => {
 
         <div className="overflow-auto">
           <div className="flex gap-2 overflow-auto pt-2">
-            {messageImages.map((image, index) => (
-              <div
-                key={index}
-                className="relative flex h-[64px] cursor-pointer items-center space-x-4 rounded-xl hover:opacity-50"
-              >
-                <Image
-                  className="rounded"
-                  style={{
-                    minWidth: "56px",
-                    minHeight: "56px",
-                    maxHeight: "56px",
-                    maxWidth: "56px",
-                    objectFit: "cover"
-                  }}
-                  src={image.base64}
-                  alt="File image"
-                  width={56}
-                  height={56}
+            {messageImages.map((image, index) => {
+              const imageUrl = image.url
+              if (!imageUrl) return null
+
+              const isLocalPreview = imageUrl.startsWith("blob:")
+
+              return (
+                <div
+                  key={image.path || index}
+                  className="relative flex size-[56px] cursor-pointer items-center justify-center rounded-xl hover:opacity-50"
                   onClick={() => {
                     setSelectedImage(image)
                     setShowPreview(true)
                   }}
-                />
-                <IconX
-                  className="bg-muted-foreground border-primary absolute right-[-6px] top-[-2px] flex size-5 cursor-pointer items-center justify-center rounded-full border-DEFAULT text-[10px] hover:border-red-500 hover:bg-white hover:text-red-500"
-                  onClick={e => {
-                    e.stopPropagation()
-                    setNewMessageImages(
-                      newMessageImages.filter(
-                        f => f.messageId !== image.messageId
-                      )
-                    )
-                    setChatImages(
-                      chatImages.filter(f => f.messageId !== image.messageId)
-                    )
-                  }}
-                />
-              </div>
-            ))}
+                >
+                  {isLocalPreview ? (
+                    <img
+                      src={imageUrl}
+                      alt="File preview"
+                      className="rounded"
+                      style={{
+                        width: "56px",
+                        height: "56px",
+                        objectFit: "cover"
+                      }}
+                    />
+                  ) : (
+                    <Image
+                      src={imageUrl}
+                      alt="File preview"
+                      width={56}
+                      height={56}
+                      className="rounded"
+                      style={{ objectFit: "cover" }}
+                    />
+                  )}
 
+                  <IconX
+                    className="bg-muted-foreground border-primary absolute right-[-6px] top-[-2px] flex size-5 cursor-pointer items-center justify-center rounded-full border-DEFAULT text-[10px] hover:border-red-500 hover:bg-white hover:text-red-500"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setNewMessageImages(
+                        newMessageImages.filter(
+                          f => f.messageId !== image.messageId
+                        )
+                      )
+                    }}
+                  />
+
+                  {image.path === "uploading..." && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black bg-opacity-50">
+                      <IconLoader2 className="size-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {/* تا اینجا */}
             {combinedChatFiles.map((file, index) =>
               file.id === "loading" ? (
                 <div

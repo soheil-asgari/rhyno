@@ -4,6 +4,11 @@ import { LLM_LIST } from "@/lib/models/llm/llm-list"
 import mammoth from "mammoth"
 import { useContext, useEffect, useState } from "react"
 import { toast } from "sonner"
+// این import ها را به بالای فایل useSelectFileHandler.tsx اضافه کنید
+
+import { supabase } from "@/lib/supabase/browser-client"
+import { uploadMessageImage } from "@/db/storage/message-images"
+import { v4 as uuidv4 } from "uuid"
 
 // این بخش بدون تغییر باقی می‌ماند
 export const ACCEPTED_FILE_TYPES = [
@@ -50,7 +55,6 @@ export const useSelectFileHandler = () => {
   const handleSelectDeviceFile = async (file: File) => {
     if (!profile || !selectedWorkspace || !chatSettings) return
 
-    // --- مرحله ۱: اعتبارسنجی فایل ---
     const isImage = file.type.startsWith("image/")
     const isAudio = file.type.startsWith("audio/")
     const isAcceptedDoc = ACCEPTED_FILE_TYPES.split(",").includes(file.type)
@@ -60,41 +64,67 @@ export const useSelectFileHandler = () => {
       return
     }
 
+    // منطق جدید و بهینه برای آپلود عکس
     if (isImage) {
       const model = LLM_LIST.find(llm => llm.modelId === chatSettings.model)
       if (!model?.imageInput) {
         toast.error(
-          `مدل فعلی (${model?.modelName || chatSettings.model}) از ورودی تصویر پشتیبانی نمی‌کند.`
+          `مدل فعلی (${
+            model?.modelName || chatSettings.model
+          }) از ورودی تصویر پشتیبانی نمی‌کند.`
         )
         return
       }
+
+      const localImageUrl = URL.createObjectURL(file)
+      const tempImageId = `uploading-${Date.now()}`
+
+      setNewMessageImages(prev => [
+        ...prev,
+        {
+          messageId: tempImageId,
+          path: "uploading...",
+          base64: null,
+          url: localImageUrl,
+          file: null
+        }
+      ])
+      setShowFilesDisplay(true)
+
+      try {
+        const fileExt = file.name.split(".").pop()
+        const filePath = `${profile.user_id}/user-uploads/${uuidv4()}.${fileExt}`
+
+        const uploadedPath = await uploadMessageImage(filePath, file)
+
+        if (!uploadedPath) {
+          throw new Error("Upload failed to return a path.")
+        }
+
+        const {
+          data: { publicUrl }
+        } = supabase.storage.from("message_images").getPublicUrl(uploadedPath)
+
+        setNewMessageImages(prev =>
+          prev.map(img =>
+            img.messageId === tempImageId
+              ? { ...img, url: publicUrl, path: uploadedPath }
+              : img
+          )
+        )
+      } catch (error: any) {
+        toast.error(`آپلود ناموفق بود: ${error.message}`)
+        setNewMessageImages(prev =>
+          prev.filter(img => img.messageId !== tempImageId)
+        )
+      }
+      return
     }
 
-    // --- مرحله ۲: پردازش فایل پس از اعتبارسنجی موفق ---
+    // منطق اصلی شما برای سایر انواع فایل
     setShowFilesDisplay(true)
     setUseRetrieval(true)
 
-    const reader = new FileReader()
-
-    if (isImage) {
-      reader.readAsDataURL(file)
-      reader.onloadend = () => {
-        const imageUrl = URL.createObjectURL(file)
-        setNewMessageImages(prev => [
-          ...prev,
-          {
-            messageId: "temp",
-            path: "",
-            base64: reader.result,
-            url: imageUrl,
-            file
-          }
-        ])
-      }
-      return // پردازش تصویر اینجا تمام می‌شود
-    }
-
-    // پردازش برای سایر فایل‌ها (صوتی، اسناد و ...)
     let simplifiedFileType = file.type.split("/")[1]
     if (simplifiedFileType.includes("vnd.adobe.pdf")) {
       simplifiedFileType = "pdf"
@@ -110,6 +140,8 @@ export const useSelectFileHandler = () => {
       ...prev,
       { id: "loading", name: file.name, type: simplifiedFileType, file }
     ])
+
+    const reader = new FileReader()
 
     reader.onloadend = async function () {
       try {
@@ -139,7 +171,6 @@ export const useSelectFileHandler = () => {
       }
     }
 
-    // مدیریت خاص برای فایل‌های DOCX با mammoth
     if (simplifiedFileType === "docx") {
       try {
         const arrayBuffer = await file.arrayBuffer()
@@ -170,13 +201,11 @@ export const useSelectFileHandler = () => {
         setNewMessageFiles(prev => prev.filter(f => f.id !== "loading"))
       }
     } else {
-      // خواندن فایل برای سایر انواع (PDF, CSV, ...)
       file.type.includes("pdf")
         ? reader.readAsArrayBuffer(file)
         : reader.readAsText(file)
     }
   }
-
   return {
     handleSelectFile: handleSelectDeviceFile, // نام را برای وضوح بیشتر تغییر دادم
     filesToAccept

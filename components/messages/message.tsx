@@ -132,6 +132,7 @@ const MessageHeader: FC<{
 }> = memo(({ message, profile, assistantImage, modelData, assistantName }) => {
   const renderAvatar = () => {
     if (message.role === "assistant") {
+      console.log("DEBUG: MessageHeader assistantImage src:", assistantImage) // ✨ لاگ ۱
       return assistantImage ? (
         <Image
           src={assistantImage}
@@ -161,6 +162,10 @@ const MessageHeader: FC<{
         />
       )
     }
+    console.log(
+      "DEBUG: MessageHeader profile.image_url src:",
+      profile?.image_url
+    ) // ✨ لاگ ۲
     return profile?.image_url ? (
       <Image
         className="size-[32px] rounded"
@@ -304,30 +309,15 @@ const MessageBody: FC<{
     const separator = "%%RHINO_IMAGE_SEPARATOR%%"
     if (message.role === "assistant" && content.includes(separator)) {
       const [textPart, imagePart] = content.split(separator)
-      // console.log("FRONTEND - Image Part Length (received):", imagePart.length)
-      // console.log(
-      //   "FRONTEND - Image Part Start (first 50 chars - received):",
-      //   imagePart.substring(0, 50)
-      // )
-      // console.log(
-      //   "FRONTEND - Image Part End (last 50 chars - received):",
-      //   imagePart.slice(-50)
-      // )
-      // console.log(
-      //   "FRONTEND - Image src being used:",
-      //   `data:image/png;base64,${imagePart}`
-      // )
-      // ✨ [NEW] تابع برای دانلود عکس
       const handleDownloadImage = () => {
         if (!imagePart) return
 
-        // یک لینک موقت ایجاد می‌کنیم
         const link = document.createElement("a")
-        // src لینک را برابر با Data URL کامل تصویر قرار می‌دهیم
+
         link.href = `data:image/png;base64,${imagePart}`
-        // نام فایل برای دانلود را مشخص می‌کنیم
+
         link.download = `rhyno-image-${Date.now()}.png`
-        // لینک را به صفحه اضافه کرده، روی آن کلیک می‌کنیم و سپس حذفش می‌کنیم
+
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -513,42 +503,74 @@ const MessageSources: FC<{
 })
 MessageSources.displayName = "MessageSources"
 
+// کد زیر را به جای کل کامپوننت MessageImages فعلی خود قرار دهید
+
+// کد زیر را به جای کل کامپوننت MessageImages فعلی خود در فایل message.tsx قرار دهید
+
 const MessageImages: FC<{
   message: Tables<"messages">
   chatImages: MessageImage[]
   onImageClick: (image: MessageImage) => void
 }> = memo(({ message, chatImages, onImageClick }) => {
-  if (!message.image_paths || message.image_paths.length === 0) return null
+  // پیدا کردن تمام عکس‌های مرتبط با این پیام از state اصلی
+  const imagesForThisMessage = chatImages.filter(
+    image => image.messageId === message.id
+  )
+
+  if (imagesForThisMessage.length === 0) return null
 
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      {message.image_paths.map((path, index) => {
-        const item = chatImages.find(image => image.path === path)
-        const src = path.startsWith("data") ? path : item?.base64 || ""
+      {imagesForThisMessage.map((image, index) => {
+        const imageUrl = image.url
+        console.log(
+          `DEBUG: MessageImages src for messageId ${message.id}:`,
+          imageUrl
+        ) // ✨ لاگ ۴
+        // ۱. گارد امنیتی: اگر URL وجود نداشت، چیزی رندر نکن
+        if (!imageUrl) return null
+
+        // ۲. تشخیص می‌دهیم که عکس در حال آپلود است یا آپلود شده
+        const isUploading = imageUrl.startsWith("blob:")
+
         return (
-          <Image
-            key={index}
-            className="cursor-pointer rounded hover:opacity-50"
-            src={src}
-            alt="message image"
-            width={300}
-            height={300}
-            loading="lazy"
-            onClick={() =>
-              onImageClick({
-                messageId: message.id,
-                path,
-                base64: src,
-                url: path.startsWith("data") ? "" : item?.url || "",
-                file: null
-              })
-            }
-          />
+          <div key={image.path || index} className="relative">
+            {isUploading ? (
+              // ۳. برای پیش‌نمایش‌های محلی (درحال آپلود)، از تگ استاندارد <img> استفاده می‌کنیم
+              <img
+                className="cursor-pointer rounded hover:opacity-50"
+                src={imageUrl}
+                alt="Uploading preview..."
+                style={{ width: "300px", height: "300px", objectFit: "cover" }}
+                onClick={() => onImageClick(image)}
+              />
+            ) : (
+              // ۴. برای URLهای نهایی، از کامپوننت بهینه <Image> استفاده می‌کنیم
+              <Image
+                className="cursor-pointer rounded hover:opacity-50"
+                src={imageUrl}
+                alt="message image"
+                width={300}
+                height={300}
+                style={{ objectFit: "cover" }}
+                loading="lazy"
+                onClick={() => onImageClick(image)}
+              />
+            )}
+
+            {/* نمایش یک آیکون لودینگ تا زمانی که عکس در حال آپلود است */}
+            {image.path === "uploading..." && (
+              <div className="absolute inset-0 flex items-center justify-center rounded bg-black bg-opacity-50">
+                <div className="size-8 animate-spin rounded-full border-4 border-white border-t-transparent"></div>
+              </div>
+            )}
+          </div>
         )
       })}
     </div>
   )
 })
+
 MessageImages.displayName = "MessageImages"
 
 // =================================================================
