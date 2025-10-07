@@ -275,7 +275,8 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
+    // تغییر در این خط: اضافه کردن کلاس p-4
+    <div className="flex h-full items-center justify-center p-4">
       {renderStep(currentStep)}
     </div>
   )

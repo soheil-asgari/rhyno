@@ -62,13 +62,13 @@ export default async function SignupPage({
     }
 
     // بعد از ثبت نام موفق، 1$ خوش آمدگویی اضافه کن
-    await supabase.from("wallets").insert({
-      user_id: signUpData.user.id,
-      amount_usd: 1,
-      description: "خوش‌آمدگویی 1$"
-    })
+    // await supabase.from("wallets").insert({
+    //   user_id: signUpData.user.id,
+    //   amount_usd: 1,
+    //   description: "خوش‌آمدگویی 1$"
+    // })
 
-    return redirect(`/setup?welcome=1`) // هدایت به صفحه راه‌اندازی
+    // return redirect(`/setup?welcome=1`) // هدایت به صفحه راه‌اندازی
   }
 
   const signUpWithGoogle = async () => {

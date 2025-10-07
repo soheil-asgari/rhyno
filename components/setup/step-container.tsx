@@ -1,89 +1,91 @@
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card"
-import { FC, useRef } from "react"
+"use client"
 
-export const SETUP_STEP_COUNT = 2
+import { motion } from "framer-motion"
+import { Button } from "@/components/ui/button" // فرض می‌کنیم از shadcn/ui استفاده می‌کنید
 
-interface StepContainerProps {
-  stepDescription: string
-  stepNum: number
-  stepTitle: string
-  onShouldProceed: (shouldProceed: boolean) => void
-  children?: React.ReactNode
-  showBackButton?: boolean
-  showNextButton?: boolean
-}
-
-export const StepContainer: FC<StepContainerProps> = ({
-  stepDescription,
-  stepNum,
-  stepTitle,
-  onShouldProceed,
-  children,
-  showBackButton = false,
-  showNextButton = true
-}) => {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      if (buttonRef.current) {
-        buttonRef.current.click()
-      }
+const containerVariants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      staggerChildren: 0.1
     }
   }
+}
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 }
+}
+
+interface StepContainerProps {
+  stepNum: number
+  stepTitle: string
+  stepDescription: string
+  children: React.ReactNode
+  onShouldProceed: (proceed: boolean) => void
+  showNextButton: boolean
+  showBackButton: boolean
+}
+
+export const StepContainer = ({
+  stepNum,
+  stepTitle,
+  stepDescription,
+  children,
+  onShouldProceed,
+  showNextButton,
+  showBackButton
+}: StepContainerProps) => {
   return (
-    <Card
-      className="max-h-[calc(100vh-60px)] w-[600px] overflow-auto"
-      onKeyDown={handleKeyDown}
+    <motion.div
+      // واکنش‌گرایی در عرض: در موبایل تمام عرض و در صفحات بزرگتر حداکثر عرض مشخص
+      className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900/50 p-6 shadow-lg md:p-8"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
     >
-      <CardHeader>
-        <CardTitle className="flex justify-between">
-          <div>{stepTitle}</div>
+      <div className="flex flex-col space-y-6">
+        {/* Header */}
+        <motion.div variants={itemVariants} className="text-center">
+          <h2 className="text-2xl font-bold text-white">{stepTitle}</h2>
+          <p className="text-md mt-2 text-gray-300">{stepDescription}</p>
+        </motion.div>
 
-          <div className="text-sm">
-            {stepNum} / {SETUP_STEP_COUNT}
+        {/* Content */}
+        <motion.div variants={itemVariants}>{children}</motion.div>
+
+        {/* Footer with Buttons */}
+        <motion.div
+          variants={itemVariants}
+          // واکنش‌گرایی دکمه‌ها: در موبایل زیر هم و در صفحات بزرگتر کنار هم
+          className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between"
+        >
+          <div>
+            {showBackButton && (
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => onShouldProceed(false)}
+              >
+                Back
+              </Button>
+            )}
           </div>
-        </CardTitle>
 
-        <CardDescription>{stepDescription}</CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-4">{children}</CardContent>
-
-      <CardFooter className="flex justify-between">
-        <div>
-          {showBackButton && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onShouldProceed(false)}
-            >
-              Back
-            </Button>
-          )}
-        </div>
-
-        <div>
-          {showNextButton && (
-            <Button
-              ref={buttonRef}
-              size="sm"
-              onClick={() => onShouldProceed(true)}
-            >
-              Next
-            </Button>
-          )}
-        </div>
-      </CardFooter>
-    </Card>
+          <div>
+            {showNextButton && (
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => onShouldProceed(true)}
+              >
+                {stepNum === 2 ? "Finish Setup" : "Next"}
+              </Button>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
   )
 }
