@@ -5,7 +5,7 @@ import mammoth from "mammoth"
 import { useContext, useEffect, useState } from "react"
 import { toast } from "sonner"
 // این import ها را به بالای فایل useSelectFileHandler.tsx اضافه کنید
-
+import imageCompression from "browser-image-compression"
 import { supabase } from "@/lib/supabase/browser-client"
 import { uploadMessageImage } from "@/db/storage/message-images"
 import { v4 as uuidv4 } from "uuid"
@@ -64,60 +64,53 @@ export const useSelectFileHandler = () => {
       return
     }
 
-    // منطق جدید و بهینه برای آپلود عکس
+    // --- منطق جدید برای عکس‌ها (فشرده‌سازی + Base64) ---
     if (isImage) {
       const model = LLM_LIST.find(llm => llm.modelId === chatSettings.model)
       if (!model?.imageInput) {
-        toast.error(
-          `مدل فعلی (${
-            model?.modelName || chatSettings.model
-          }) از ورودی تصویر پشتیبانی نمی‌کند.`
-        )
+        toast.error(`مدل فعلی از ورودی تصویر پشتیبانی نمی‌کند.`)
         return
       }
 
-      const localImageUrl = URL.createObjectURL(file)
-      const tempImageId = `uploading-${Date.now()}`
+      // گزینه‌های فشرده‌سازی
+      const options = {
+        maxSizeMB: 1, // حداکثر حجم فایل بعد از فشرده‌سازی (مثلاً ۱ مگابایت)
+        maxWidthOrHeight: 1024, // حداکثر عرض یا ارتفاع
+        useWebWorker: true // برای جلوگیری از هنگ کردن در حین فشرده‌سازی
+      }
 
-      setNewMessageImages(prev => [
-        ...prev,
-        {
-          messageId: tempImageId,
-          path: "uploading...",
-          base64: null,
-          url: localImageUrl,
-          file: null
-        }
-      ])
-      setShowFilesDisplay(true)
+      const compressingPromise = imageCompression(file, options)
+
+      // toast.promise(compressingPromise, {
+      //   loading: "در حال فشرده‌سازی عکس...",
+      //   success: "عکس با موفقیت فشرده شد!",
+      //   error: "فشرده‌سازی ناموفق بود."
+      // });
 
       try {
-        const fileExt = file.name.split(".").pop()
-        const filePath = `${profile.user_id}/user-uploads/${uuidv4()}.${fileExt}`
+        const compressedFile = await compressingPromise
 
-        const uploadedPath = await uploadMessageImage(filePath, file)
-
-        if (!uploadedPath) {
-          throw new Error("Upload failed to return a path.")
+        // حالا فایل فشرده شده را به Base64 تبدیل می‌کنیم
+        const reader = new FileReader()
+        reader.readAsDataURL(compressedFile)
+        reader.onloadend = () => {
+          setNewMessageImages(prev => [
+            ...prev,
+            {
+              messageId: "temp",
+              path: "",
+              base64: reader.result as string, // نتیجه Base64
+              url: URL.createObjectURL(compressedFile), // URL محلی برای پیش‌نمایش
+              file: compressedFile
+            }
+          ])
         }
-
-        const {
-          data: { publicUrl }
-        } = supabase.storage.from("message_images").getPublicUrl(uploadedPath)
-
-        setNewMessageImages(prev =>
-          prev.map(img =>
-            img.messageId === tempImageId
-              ? { ...img, url: publicUrl, path: uploadedPath }
-              : img
-          )
-        )
-      } catch (error: any) {
-        toast.error(`آپلود ناموفق بود: ${error.message}`)
-        setNewMessageImages(prev =>
-          prev.filter(img => img.messageId !== tempImageId)
-        )
+        setShowFilesDisplay(true)
+      } catch (error) {
+        console.error("Image compression error:", error)
+        toast.error("خطا در هنگام فشرده‌سازی عکس.")
       }
+
       return
     }
 
