@@ -41,7 +41,7 @@ const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
     const fetchTransactions = async () => {
       setLoading(true)
       const { data, error } = await supabase
-        .from("transactions" as any)
+        .from("transactions")
         .select("*")
         .eq("user_id", userId)
         .eq("status", "completed")
@@ -88,7 +88,7 @@ const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
               </p>
             </div>
             <p className="font-vazir font-semibold text-green-500">
-              + {(tx.amount / 10).toLocaleString("fa-IR")} تومان
+              + {(tx.amount_irr / 10).toLocaleString("fa-IR")} تومان
             </p>
           </div>
         ))
