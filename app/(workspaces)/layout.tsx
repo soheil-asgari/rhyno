@@ -147,7 +147,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   useEffect(() => {
     // این useEffect مسئول هدایت کاربر در صورت نامعتبر بودن workspace است
     if (!loading && !isValidWorkspace) {
-      router.push("/landing")
+      router.push("/")
     }
   }, [loading, isValidWorkspace, router])
 

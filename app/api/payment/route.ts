@@ -1,45 +1,99 @@
-// app/api/payment/route.ts
-
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase/browser-client"
+import { NextRequest, NextResponse } from "next/server"
 
-import { ServerRuntime } from "next"
+const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
 
-export const runtime: ServerRuntime = "edge"
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const authority = searchParams.get("Authority")
+  const status = searchParams.get("Status")
 
-// ✨ نرخ ثابت دلار به ریال را اینجا تعریف کنید
-const MANUAL_EXCHANGE_RATE = 1030000 // مثال: هر دلار ۱,۰۳۰,۰۰۰ ریال (۱۰۳ هزار تومان)
+  const cookieStore = cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+  )
 
-export async function POST(request: Request) {
+  const { data: transaction, error: txError } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("payment_gateway_ref", authority)
+    .single()
+
+  if (txError || !transaction) {
+    const url = new URL("/payment/status", request.url)
+    url.searchParams.set("status", "failed")
+    url.searchParams.set("message", "تراکنش یافت نشد.")
+    return NextResponse.redirect(url)
+  }
+
+  if (status !== "OK") {
+    await supabase
+      .from("transactions")
+      .update({ status: "cancelled" })
+      .eq("id", transaction.id)
+
+    const url = new URL("/payment/status", request.url)
+    url.searchParams.set("status", "failed")
+    url.searchParams.set("message", "تراکنش توسط شما لغو شد.")
+    return NextResponse.redirect(url)
+  }
+
   try {
-    const { amountToman } = await request.json() // مبلغ را به تومان دریافت می‌کنیم
-    const amountIRR = amountToman * 10 // تبدیل به ریال
+    const verifyResponse = await fetch(
+      "https://api.zarinpal.com/pg/v4/payment/verify.json",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          merchant_id: ZARINPAL_MERCHANT_ID,
+          authority: authority,
+          amount: transaction.amount_irr
+        })
+      }
+    )
 
-    if (!amountIRR || amountIRR < 1000000) {
-      // حداقل ۱۰۰ هزار تومان
-      return NextResponse.json({ message: "مبلغ نامعتبر است" }, { status: 400 })
+    const verifyData = await verifyResponse.json()
+
+    if (verifyData.data && verifyData.data.code === 100) {
+      await supabase
+        .from("transactions")
+        .update({
+          status: "completed",
+          payment_gateway_ref: verifyData.data.ref_id
+        })
+        .eq("id", transaction.id)
+
+      await supabase.rpc("increment_wallet_balance", {
+        user_id_param: transaction.user_id,
+        amount_param: transaction.amount
+      })
+
+      const url = new URL("/payment/status", request.url)
+      url.searchParams.set("status", "success")
+      url.searchParams.set("track_id", verifyData.data.ref_id)
+      url.searchParams.set("amount", String(transaction.amount_irr / 10))
+      return NextResponse.redirect(url)
+    } else {
+      await supabase
+        .from("transactions")
+        .update({ status: "failed", description: verifyData.errors.message })
+        .eq("id", transaction.id)
+
+      const url = new URL("/payment/status", request.url)
+      url.searchParams.set("status", "failed")
+      url.searchParams.set("message", verifyData.errors.message)
+      return NextResponse.redirect(url)
     }
-
-    const {
-      data: { user }
-    } = await supabase.auth.getUser() // (این بخش نیاز به اصلاح دارد)
-    if (!user) {
-      return NextResponse.json({ message: "کاربر یافت نشد" }, { status: 401 })
-    }
-
-    // ✨ تبدیل مبلغ ریالی به دلار برای افزودن به کیف پول پس از پرداخت موفق
-    const amountUSD = amountIRR / MANUAL_EXCHANGE_RATE
-
-    // TODO: در اینجا باید به درگاه پرداخت متصل شوید
-    // ۱. با مبلغ `amountIRR` یک لینک پرداخت بسازید.
-    // ۲. پس از بازگشت موفق کاربر از درگاه، باید یک تابع دیگر داشته باشید که
-    //    مبلغ `amountUSD` را به موجودی کاربر در جدول `wallets` اضافه کند.
-
-    const paymentLink = `https://your-payment-gateway.com/pay/${amountIRR}` // لینک نمونه
-    return NextResponse.json({ paymentLink })
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 })
+  } catch (error) {
+    const url = new URL("/payment/status", request.url)
+    url.searchParams.set("status", "failed")
+    url.searchParams.set("message", "خطای داخلی سرور هنگام تایید تراکنش.")
+    return NextResponse.redirect(url)
   }
 }

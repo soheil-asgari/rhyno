@@ -1,19 +1,23 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import type { Tables } from "@/supabase/types"
 
 export const runtime = "edge"
 
 const MANUAL_EXCHANGE_RATE = 1030000
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
-const VAT_RATE = 0.09
+
+type DiscountCode = Tables<"discount_codes">
 
 export async function POST(request: Request) {
   try {
-    const { amountToman } = await request.json()
-    const amountIRR = amountToman * 10
+    const { amountToman, discountCode } = await request.json()
+    let originalAmountIRR = amountToman * 10
+    let finalAmountIRR = originalAmountIRR
+    let appliedDiscount: DiscountCode | null = null
 
-    if (!amountIRR || amountIRR < 1000000) {
+    if (!originalAmountIRR || originalAmountIRR < 1000000) {
       return NextResponse.json({ message: "مبلغ نامعتبر است" }, { status: 400 })
     }
 
@@ -31,21 +35,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "کاربر یافت نشد" }, { status: 401 })
     }
 
-    const amountUSD = amountIRR / MANUAL_EXCHANGE_RATE
+    if (discountCode) {
+      const { data: codeData, error: codeError } = await supabase
+        .from("discount_codes")
+        .select("*")
+        .eq("code", discountCode)
+        .single()
+
+      if (codeError || !codeData) {
+        return NextResponse.json(
+          { message: "کد تخفیف نامعتبر است" },
+          { status: 404 }
+        )
+      }
+
+      if (!codeData.is_active) {
+        return NextResponse.json(
+          { message: "این کد تخفیف فعال نیست" },
+          { status: 403 }
+        )
+      }
+
+      const discountPercentage = codeData.percentage
+      const discountAmount = (originalAmountIRR * discountPercentage) / 100
+      finalAmountIRR = Math.round(originalAmountIRR - discountAmount)
+      appliedDiscount = codeData
+    }
+
+    const finalAmountUSD = finalAmountIRR / MANUAL_EXCHANGE_RATE
 
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .insert({
         user_id: user.id,
-        amount: amountUSD,
-        amount_irr: amountIRR,
+        amount: finalAmountUSD,
+        amount_irr: finalAmountIRR,
         status: "pending"
       })
       .select()
       .single()
 
     if (txError) throw txError
-    const description = `شارژ حساب به مبلغ ${amountToman.toLocaleString("fa-IR")} تومان (با احتساب ۹٪ مالیات بر ارزش افزوده)`
+
+    const description = `شارژ حساب کاربری - تراکنش ${transaction.id}`
 
     const zarinpalResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/request.json",
@@ -57,17 +89,17 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           merchant_id: ZARINPAL_MERCHANT_ID,
-          amount: amountIRR,
+          amount: finalAmountIRR,
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payment/verify`,
-          description: `شارژ حساب به مبلغ ${amountToman.toLocaleString("fa-IR")} تومان`,
-          metadata: { transaction_id: transaction.id }
+          description: description,
+          metadata: { transaction_id: transaction.id, user_email: user.email }
         })
       }
     )
 
     const zarinpalData = await zarinpalResponse.json()
     if (zarinpalData.errors.length > 0 || !zarinpalData.data.authority) {
-      throw new Error("خطا در ارتباط با درگاه پرداخت")
+      throw new Error(JSON.stringify(zarinpalData.errors))
     }
 
     await supabase

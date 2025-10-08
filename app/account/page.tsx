@@ -1,18 +1,20 @@
 "use client"
 
-import { supabase } from "@/lib/supabase/browser-client"
+import { supabase } from "@/lib/supabase/browser-client" // ✨ خطا: مسیر ایمپورت اصلاح شد
 import { Tables } from "@/supabase/types"
 import {
   IconArrowLeft,
   IconCheck,
+  IconCircleCheck,
   IconCreditCard,
   IconMail,
   IconPhone,
   IconReceipt,
+  IconTicket,
   IconUser
 } from "@tabler/icons-react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
 import { toast } from "sonner"
 import type { User } from "@supabase/supabase-js"
 
@@ -28,11 +30,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { IconTicket } from "@tabler/icons-react"
-
 type Wallet = Tables<"wallets">
 type Transaction = Tables<"transactions">
 
+// --- کامپوننت تاریخچه واریز (بدون تغییر) ---
 const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,11 +52,9 @@ const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
       if (error) {
         console.error("Error fetching transactions:", error)
       } else {
-        // ✨ راه حل نهایی: نادیده گرفتن اجباری خطای تایپ‌اسکریپت
         // @ts-ignore
         setTransactions(data || [])
       }
-
       setLoading(false)
     }
     fetchTransactions()
@@ -103,12 +102,35 @@ const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
 
 const MANUAL_EXCHANGE_RATE = 1030000
 
-export default function AccountPage() {
+function AccountPageComponent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [user, setUser] = useState<User | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [loading, setLoading] = useState(true)
   const [chargeAmount, setChargeAmount] = useState("")
+  const [discountCode, setDiscountCode] = useState("")
+  const [isApplyingCode, setIsApplyingCode] = useState(false)
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string
+    percentage: number
+  } | null>(null)
+
+  useEffect(() => {
+    const status = searchParams.get("status")
+    const trackId = searchParams.get("track_id")
+
+    if (status === "success") {
+      toast.success(`پرداخت با موفقیت انجام شد. کد رهگیری: ${trackId}`)
+      router.replace("/account", undefined)
+    } else if (status === "failed") {
+      toast.error(
+        `پرداخت ناموفق بود. در صورت کسر وجه، مبلغ تا ۷۲ ساعت آینده به حساب شما بازگردانده می‌شود.`
+      )
+      router.replace("/account", undefined)
+    }
+  }, [searchParams, router])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -127,7 +149,6 @@ export default function AccountPage() {
         if (error && error.code !== "PGRST116") {
           console.error("Error fetching wallet:", error)
         } else {
-          // ✨ راه حل نهایی: نادیده گرفتن اجباری خطای تایپ‌اسکریپت
           // @ts-ignore
           setWallet(walletData)
         }
@@ -136,6 +157,37 @@ export default function AccountPage() {
     }
     fetchData()
   }, [])
+
+  const handleApplyCode = async () => {
+    if (!discountCode) {
+      toast.error("لطفا کد تخفیف را وارد کنید.")
+      return
+    }
+    setIsApplyingCode(true)
+    try {
+      const response = await fetch("/api/discount/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: discountCode })
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "کد تخفیف نامعتبر است.")
+      }
+
+      setAppliedDiscount({
+        code: discountCode,
+        percentage: data.percentage
+      })
+      toast.success(`کد تخفیف ${data.percentage}% با موفقیت اعمال شد!`)
+    } catch (error: any) {
+      setAppliedDiscount(null)
+      toast.error(error.message)
+    } finally {
+      setIsApplyingCode(false)
+    }
+  }
 
   const handleCharge = async () => {
     const amountToman = parseInt(chargeAmount, 10)
@@ -148,7 +200,10 @@ export default function AccountPage() {
       const response = await fetch("/api/payment/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountToman })
+        body: JSON.stringify({
+          amountToman,
+          discountCode: appliedDiscount ? appliedDiscount.code : null
+        })
       })
 
       const data = await response.json()
@@ -166,9 +221,6 @@ export default function AccountPage() {
   }
 
   const formatBalance = (balanceUSD: number) => {
-    console.log("✅ [Debug] Step 3: Formatting balance.")
-    console.log("  - Input balance (USD):", balanceUSD, typeof balanceUSD)
-    console.log("  - Exchange Rate:", MANUAL_EXCHANGE_RATE)
     const balanceIRR = balanceUSD * MANUAL_EXCHANGE_RATE
     const balanceToman = balanceIRR / 10
     const rounded = Math.floor(balanceToman)
@@ -211,8 +263,7 @@ export default function AccountPage() {
               <CardHeader>
                 <CardTitle>افزایش اعتبار</CardTitle>
                 <CardDescription>
-                  مبلغ مورد نظر را برای شارژ حساب انتخاب یا وارد کنید (به
-                  تومان).
+                  مبلغ مورد نظر را برای شارژ حساب انتخاب یا وارد کنید.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -249,6 +300,34 @@ export default function AccountPage() {
                     }}
                   />
                 </div>
+                <div className="space-y-2 border-t pt-4">
+                  <Label htmlFor="discount-code">کد تخفیف دارید؟</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="discount-code"
+                      placeholder="کد تخفیف را وارد کنید"
+                      value={discountCode}
+                      onChange={e => setDiscountCode(e.target.value)}
+                      disabled={!!appliedDiscount}
+                      className="h-11"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleApplyCode}
+                      disabled={isApplyingCode || !!appliedDiscount} // ✨ اصلاح: غیرفعال کردن هنگام لودینگ
+                      className="shrink-0"
+                    >
+                      {isApplyingCode ? "..." : "اعمال کد"}{" "}
+                      {/* ✨ اصلاح: نمایش لودینگ */}
+                    </Button>
+                  </div>
+                  {appliedDiscount && (
+                    <p className="flex items-center text-sm text-green-600">
+                      <IconCircleCheck size={16} className="ml-1" />
+                      تخفیف {appliedDiscount.percentage}% اعمال شد.
+                    </p>
+                  )}
+                </div>
 
                 <Button
                   onClick={handleCharge}
@@ -284,11 +363,6 @@ export default function AccountPage() {
                   {wallet ? formatBalance(wallet.balance) : "۰"}
                 </div>
                 <div className="text-xl font-light sm:text-2xl">تومان</div>
-                {wallet && (
-                  <div className="mt-2 text-xs text-blue-200">
-                    {/* (<span className="font-mono">${wallet.balance.toFixed(2)}</span>) */}
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -333,5 +407,13 @@ export default function AccountPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AccountPageComponent />
+    </Suspense>
   )
 }
