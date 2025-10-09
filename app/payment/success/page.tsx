@@ -1,13 +1,15 @@
-import { Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+// app/payment/success/page.tsx  <-- در مسیر صحیح
+
+"use client" // <-- این دستور حیاتی است و باید در خط اول باشد
+
 import { useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { IconCircleCheckFilled } from "@tabler/icons-react"
+import { Suspense } from "react"
 
-// ===================================================================
-// بخش اصلی منطق شما به یک کامپوننت کلاینت جدا منتقل می‌شود
-// ===================================================================
-function PaymentSuccessClient() {
+// چون کل فایل "use client" است، می‌توانیم همه چیز را در یک کامپوننت داشته باشیم
+function PaymentSuccessComponent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const refId = searchParams.get("ref_id")
@@ -63,15 +65,11 @@ function PaymentSuccessClient() {
   )
 }
 
-// ===================================================================
-// کامپوننت اصلی صفحه که به عنوان یک کامپوننت سرور عمل می‌کند
-// ===================================================================
+// ما هنوز از Suspense استفاده می‌کنیم تا مطمئن شویم useSearchParams به درستی کار می‌کند
 export default function PaymentSuccessPage() {
   return (
-    // کامپوننت کلاینت را داخل Suspense قرار می‌دهیم
-    // "use client" باید در کامپوننتی باشد که از هوک‌ها استفاده می‌کند
     <Suspense fallback={<div>در حال بارگذاری...</div>}>
-      <PaymentSuccessClient />
+      <PaymentSuccessComponent />
     </Suspense>
   )
 }
