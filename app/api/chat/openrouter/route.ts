@@ -14,7 +14,7 @@ import { modelsWithRial } from "@/app/checkout/pricing"
 export const runtime: ServerRuntime = "edge"
 
 // ✨ ثابت‌ها و تابع محاسبه هزینه (مشابه کدهای دیگر)
-const PROFIT_MARGIN = 1.4
+const PROFIT_MARGIN = 1.0
 
 type ChatCompletionUsage = {
   prompt_tokens: number

@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
-export const runtime = "edge"
+// export const runtime = "edge"
 
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
 
