@@ -1,27 +1,25 @@
-"use client"
-
-import { useEffect } from "react"
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect } from "react"
 import Link from "next/link"
 import { IconCircleCheckFilled } from "@tabler/icons-react"
 
-// آدرس صفحه چت یا داشبورد اصلی شما
-const REDIRECT_TO = "/chat"
-// مدت زمان انتظار قبل از انتقال خودکار (به میلی‌ثانیه)
-const REDIRECT_DELAY = 4000 // 4 ثانیه
-
-export default function PaymentSuccessPage() {
+// ===================================================================
+// بخش اصلی منطق شما به یک کامپوننت کلاینت جدا منتقل می‌شود
+// ===================================================================
+function PaymentSuccessClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const refId = searchParams.get("ref_id")
 
-  // این افکت بعد از گذشت زمان مشخص شده، کاربر را به صفحه اصلی منتقل می‌کند
+  const REDIRECT_TO = "/chat"
+  const REDIRECT_DELAY = 4000 // 4 ثانیه
+
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push(REDIRECT_TO)
     }, REDIRECT_DELAY)
 
-    // در صورت خروج از صفحه، تایمر را پاک می‌کنیم
     return () => clearTimeout(timer)
   }, [router])
 
@@ -62,5 +60,18 @@ export default function PaymentSuccessPage() {
         </Link>
       </div>
     </div>
+  )
+}
+
+// ===================================================================
+// کامپوننت اصلی صفحه که به عنوان یک کامپوننت سرور عمل می‌کند
+// ===================================================================
+export default function PaymentSuccessPage() {
+  return (
+    // کامپوننت کلاینت را داخل Suspense قرار می‌دهیم
+    // "use client" باید در کامپوننتی باشد که از هوک‌ها استفاده می‌کند
+    <Suspense fallback={<div>در حال بارگذاری...</div>}>
+      <PaymentSuccessClient />
+    </Suspense>
   )
 }
