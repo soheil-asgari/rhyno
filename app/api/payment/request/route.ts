@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { Tables } from "@/supabase/types"
 
-export const runtime = "edge"
+
 
 const MANUAL_EXCHANGE_RATE = 1030000
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
