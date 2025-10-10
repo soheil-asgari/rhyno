@@ -7,6 +7,10 @@ const withPWA = require("next-pwa")({
   disable: process.env.NODE_ENV === "development",
   register: true,
   skipWaiting: true,
+  exclude: [
+    /^\/api\/payment\//, // تمام مسیرهای API پرداخت
+    /^\/payment\//,      // تمام صفحات پرداخت
+  ],
 });
 
 /** @type {import('next').NextConfig} */

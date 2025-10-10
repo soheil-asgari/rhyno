@@ -15,7 +15,7 @@ function PaymentSuccessComponent() {
   const refId = searchParams.get("ref_id")
 
   const REDIRECT_TO = "/chat"
-  const REDIRECT_DELAY = 4000 // 4 ثانیه
+  const REDIRECT_DELAY = 14000 // 4 ثانیه
 
   useEffect(() => {
     const timer = setTimeout(() => {
