@@ -48,7 +48,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   const [contentType, setContentType] = useState<ContentType>(
     tabValue as ContentType
   )
-  const [showSidebar, setShowSidebar] = useState(true) // ✨ مقدار اولیه ثابت
+  const [showSidebar, setShowSidebar] = useState(false) // ✨ مقدار اولیه ثابت
   const [isInitialized, setIsInitialized] = useState(false) // ✨ برای جلوگیری از FOUC
   const [isDragging, setIsDragging] = useState(false)
 
@@ -56,7 +56,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   // برای جلوگیری از خطای Hydration، مقدار localStorage را فقط در سمت کلاینت می‌خوانیم
   useEffect(() => {
     const storedShowSidebar = localStorage.getItem("showSidebar")
-    setShowSidebar(storedShowSidebar === "true")
+    setShowSidebar(storedShowSidebar === "false")
     setIsInitialized(true)
   }, [])
 
@@ -91,40 +91,59 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   }
 
   return (
-    <div className="flex size-full">
+    // ✨ ۱. به کانتینر اصلی relative اضافه می‌کنیم تا سایدبار absolute درون آن بماند
+    <div className="relative flex size-full">
       <CommandK />
 
-      {/* بخش سایدبار */}
+      {/* ✨ ۲. (اختیاری ولی پیشنهادی) یک پس‌زمینه تیره برای بستن سایدبار در موبایل */}
+      {showSidebar && (
+        <div
+          onClick={handleToggleSidebar}
+          className="fixed inset-0 z-20 bg-black/50 md:hidden"
+        />
+      )}
+
+      {/* ✨ ۳. بخش سایدبار با کلاس‌های واکنش‌گرا */}
       <div
         className={cn(
-          "duration-200 dark:border-none",
-          // ✅ اصلاح ۱: حاشیه سایدبار منطقی شد
-          showSidebar ? "ltr:border-r-2 rtl:border-l-2" : ""
+          // استایل‌های پایه
+          "bg-background h-full transition-all duration-300 ease-in-out dark:border-none",
+
+          // رفتار در موبایل (Overlay)
+          "absolute z-30", // کاملا روی صفحه قرار می‌گیرد
+          showSidebar
+            ? "translate-x-0"
+            : "ltr:-translate-x-full rtl:translate-x-full", // با transform مخفی/نمایان می‌شود
+
+          // رفتار در دسکتاپ (Push) - با md: بازنویسی می‌شود
+          "md:relative md:translate-x-0", // به حالت عادی برمی‌گردد
+          showSidebar
+            ? "min-w-[350px] ltr:md:border-r-2 rtl:md:border-l-2"
+            : "min-w-0 md:pointer-events-none md:w-0" // عرض آن تغییر می‌کند
         )}
-        style={{
-          minWidth: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
-          maxWidth: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px",
-          width: showSidebar ? `${SIDEBAR_WIDTH}px` : "0px"
-        }}
+        // style prop حذف شد و منطق آن به کلاس‌ها منتقل شد
       >
-        {showSidebar && (
-          <Tabs
-            className="flex h-full"
-            value={contentType}
-            onValueChange={tabValue => {
-              setContentType(tabValue as ContentType)
-              router.replace(`${pathname}?tab=${tabValue}`)
-            }}
-          >
-            <SidebarSwitcher onContentTypeChange={setContentType} />
-            <Sidebar contentType={contentType} showSidebar={showSidebar} />
-          </Tabs>
-        )}
+        {/* این div داخلی باعث می‌شود محتوای سایدبار هنگام بسته شدن فشرده نشود */}
+        <div className="h-full w-[350px] overflow-hidden">
+          {showSidebar && (
+            <Tabs
+              className="flex h-full"
+              value={contentType}
+              onValueChange={tabValue => {
+                setContentType(tabValue as ContentType)
+                router.replace(`${pathname}?tab=${tabValue}`)
+              }}
+            >
+              <SidebarSwitcher onContentTypeChange={setContentType} />
+              <Sidebar contentType={contentType} showSidebar={showSidebar} />
+            </Tabs>
+          )}
+        </div>
       </div>
 
-      {/* بخش محتوای اصلی */}
+      {/* ✨ ۴. بخش محتوای اصلی */}
       <div
-        className="bg-muted/50 relative flex w-screen min-w-[90%] grow flex-col sm:min-w-fit"
+        className="relative flex-1 flex-col" // کلاس‌ها ساده‌سازی شد
         onDrop={onFileDrop}
         onDragOver={onDragOver}
         onDragEnter={handleDragEnter}
@@ -138,18 +157,14 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
           children
         )}
 
-        {/* ✅ دکمه اصلاح شده */}
         <Button
           className={cn(
-            "absolute top-[50%] z-10 size-[32px] cursor-pointer transition-transform duration-200",
-            // ✅ اصلاح ۲: موقعیت دکمه منطقی شد
+            "absolute top-[50%] z-40 size-[32px] cursor-pointer transition-transform duration-200 md:z-10", // z-index برای نمایش روی سایدبار در موبایل
             "start-[4px]",
-            // ✅ اصلاح ۳: چرخش آیکون برای RTL و LTR منطقی شد
             showSidebar
               ? "ltr:rotate-180 rtl:rotate-0"
               : "ltr:rotate-0 rtl:rotate-180"
           )}
-          // style prop حذف شد چون منطق آن به className منتقل شد
           variant="ghost"
           size="icon"
           onClick={handleToggleSidebar}

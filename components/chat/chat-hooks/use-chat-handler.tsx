@@ -179,6 +179,21 @@ export const useChatHandler = () => {
   ) => {
     const startingInput = messageContent
 
+    const b64Images = newMessageImages.map(image => image.base64)
+    let {
+      tempUserChatMessage,
+      tempAssistantChatMessage
+    } = // از let استفاده کنید
+      createTempMessages(
+        messageContent,
+        chatMessages,
+        chatSettings!,
+        b64Images,
+        isRegeneration,
+        setChatMessages,
+        selectedAssistant
+      )
+    let tempImageUrl: string | null = null
     try {
       if (isRegeneration) {
         setChatMessages(chatMessages)
@@ -214,7 +229,6 @@ export const useChatHandler = () => {
         selectedWorkspace,
         messageContent
       )
-
       let currentChat = selectedChat ? { ...selectedChat } : null
       if (!currentChat) {
         currentChat = await handleCreateChat(
@@ -230,7 +244,6 @@ export const useChatHandler = () => {
         )
       }
 
-      const b64Images = newMessageImages.map(image => image.base64)
       let retrievedFileItems: Tables<"file_items">[] = []
 
       if (
@@ -247,23 +260,12 @@ export const useChatHandler = () => {
         )
       }
 
-      const { tempUserChatMessage, tempAssistantChatMessage } =
-        createTempMessages(
-          messageContent,
-          chatMessages,
-          chatSettings!,
-          b64Images,
-          isRegeneration,
-          setChatMessages,
-          selectedAssistant
-        )
-
       const payload: ChatPayload = {
         chatSettings: chatSettings!,
         workspaceInstructions: selectedWorkspace!.instructions || "",
         chatMessages: isRegeneration
           ? [...chatMessages]
-          : [...chatMessages, tempUserChatMessage],
+          : [...chatMessages, tempUserChatMessage], // از پیام موقت ساخته شده در ابتدا استفاده می‌کنیم
         assistant:
           selectedChat?.assistant_id && selectedAssistant
             ? selectedAssistant
@@ -310,8 +312,23 @@ export const useChatHandler = () => {
             ))
 
         // حالا خروجی هر دو تابع handleLocalChat و handleHostedChat یکسان است
+
         if (aiResponse.type === "image") {
           const imageBlob = aiResponse.data as Blob
+          tempImageUrl = URL.createObjectURL(imageBlob) // ✨ NEW: ایجاد object URL
+          generatedText = `![Generated Image](${tempImageUrl})` // ✨ NEW: نمایش فوری با object URL
+
+          // ✨ NEW: به روز رسانی پیام دستیار در UI با تصویر موقت
+          setChatMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.message.id === tempAssistantChatMessage.message.id
+                ? {
+                    ...msg,
+                    message: { ...msg.message, content: generatedText }
+                  }
+                : msg
+            )
+          )
           const fileExt = imageBlob.type.split("/")[1] || "png"
           const imageName = `ai-generated-${Date.now()}.${fileExt}`
           const imageFile = new File([imageBlob], imageName, {
@@ -319,22 +336,21 @@ export const useChatHandler = () => {
           })
 
           const filePath = `${profile!.user_id}/${currentChat.id}/${imageName}`
-
-          // ✨✨✨ اصلاح نهایی اینجاست ✨✨✨
-          // تابع شما در صورت موفقیت، فقط رشته مسیر را برمی‌گرداند.
-          // خطاها توسط بلوک try/catch اصلی گرفته می‌شوند.
           const uploadedPath = await uploadMessageImage(filePath, imageFile)
 
           if (!uploadedPath) {
             throw new Error("Image upload was successful but returned no path.")
           }
 
-          // حالا با استفاده از مسیر برگشتی، URL عمومی را می‌گیریم
           const {
             data: { publicUrl }
           } = supabase.storage.from("message_images").getPublicUrl(uploadedPath)
 
-          assistantFileUrl = publicUrl
+          assistantFileUrl = publicUrl // این URL نهایی برای ذخیره در دیتابیس است
+
+          // ✨ NEW: آزاد کردن object URL پس از دریافت public URL
+          URL.revokeObjectURL(tempImageUrl)
+
           generatedText = `![Generated Image](${publicUrl})`
         } else {
           generatedText = aiResponse.data
@@ -358,8 +374,10 @@ export const useChatHandler = () => {
         profile!,
         modelData!,
         messageContent,
-        generatedText,
-        assistantFileUrl, // حالا پارامتر چهاردهم درست است
+        assistantFileUrl
+          ? `![Generated Image](${assistantFileUrl})`
+          : generatedText, // مطمئن شوید که پیام نهایی با publicUrl است
+        assistantFileUrl,
         newMessageImages,
         isRegeneration,
         retrievedFileItems,
@@ -375,6 +393,17 @@ export const useChatHandler = () => {
       setIsGenerating(false)
       setFirstTokenReceived(false)
       setUserInput(startingInput)
+      setChatMessages(prevMessages =>
+        prevMessages.filter(
+          message =>
+            message.message.id !== tempUserChatMessage.message.id &&
+            message.message.id !== tempAssistantChatMessage.message.id // ✨ NEW: حذف پیام دستیار موقت در صورت خطا
+        )
+      )
+      if (tempImageUrl) {
+        // ✨ NEW: آزاد کردن object URL در صورت خطا
+        URL.revokeObjectURL(tempImageUrl)
+      }
       toast.error(error.message || "An unexpected error occurred.")
     }
   }
