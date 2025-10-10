@@ -17,13 +17,13 @@ function PaymentSuccessComponent() {
   const REDIRECT_TO = "/chat"
   const REDIRECT_DELAY = 14000 // 4 ثانیه
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push(REDIRECT_TO)
-    }, REDIRECT_DELAY)
+  // useEffect(() => {
+  //   const timer = setTimeout(() => {
+  //     router.push(REDIRECT_TO)
+  //   }, REDIRECT_DELAY)
 
-    return () => clearTimeout(timer)
-  }, [router])
+  //   return () => clearTimeout(timer)
+  // }, [router])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 text-center dark:bg-gray-900">
