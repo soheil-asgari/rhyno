@@ -249,7 +249,7 @@ function AccountPageComponent() {
           </h1>
           <Button
             variant="ghost"
-            onClick={() => router.back()}
+            onClick={() => router.push("/login")}
             className="font-vazir mt-2 self-start sm:mt-0 sm:self-center"
           >
             <IconArrowLeft size={20} className="ml-2 rtl:ml-0 rtl:mr-2" />{" "}
