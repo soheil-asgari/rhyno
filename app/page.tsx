@@ -1,7 +1,10 @@
-// 🎯 مسیر فایل: app/page.tsx
-
 import HomePageClient from "@/components/HomePageClient"
 import { Metadata } from "next"
+
+// ✅✅✅ بهینه‌سازی اصلی اینجاست ✅✅✅
+// این خط به Vercel می‌گوید که HTML نهایی این صفحه را به مدت ۱ ساعت (۳۶۰۰ ثانیه) کش کند.
+// این کار جایگزین کامل getServerSideProps برای تنظیم کش است.
+export const revalidate = 3600
 
 // متادیتا برای صفحه اصلی (بدون تغییر)
 export const metadata: Metadata = {
@@ -22,7 +25,6 @@ export const metadata: Metadata = {
   ]
 }
 
-// ✅✅✅ تغییر اصلی اینجاست ✅✅✅
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
