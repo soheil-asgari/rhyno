@@ -1,8 +1,6 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-
-// export const runtime = "edge"
 
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID
 
@@ -24,9 +22,10 @@ export async function GET(request: NextRequest) {
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
 
+    // ✅ حالا ستون جدید را هم select می‌کنیم
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
-      .select("*")
+      .select("*, paid_amount_irr") // اطمینان از خواندن ستون جدید
       .eq("payment_gateway_ref", authority)
       .single()
 
@@ -36,7 +35,8 @@ export async function GET(request: NextRequest) {
         `${siteUrl}/account?payment=already_verified`
       )
 
-    const amountIRR = transaction.amount_irr
+    // ✅✅✅ **نکته کلیدی:** از مبلغ پرداختی برای تایید استفاده می‌کنیم
+    const amountToVerify = transaction.paid_amount_irr || transaction.amount_irr
 
     const verificationResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/verify.json",
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({
           merchant_id: ZARINPAL_MERCHANT_ID,
-          amount: amountIRR,
+          amount: amountToVerify, // <-- تغییر اصلی اینجاست
           authority: authority
         })
       }
@@ -60,12 +60,19 @@ export async function GET(request: NextRequest) {
       verificationData.errors.length > 0 ||
       verificationData.data.code !== 100
     ) {
+      // اینجا می‌توانیم یک لاگ برای عدم تطابق مبلغ اضافه کنیم
+      if (verificationData.errors.code === -51) {
+        console.error("Verification failed: Amount mismatch.", {
+          db_amount: amountToVerify,
+          authority: authority
+        })
+      }
       throw new Error("تأیید پرداخت با شکست مواجه شد")
     }
 
     const refID = String(verificationData.data.ref_id)
 
-    // ✨ فراخوانی تابع امن برای نهایی کردن پرداخت
+    // ✨ تابع امن شما بدون تغییر کار خواهد کرد
     const { error: finalizeError } = await supabase.rpc("finalize_payment", {
       p_authority_code: authority,
       p_ref_id: refID

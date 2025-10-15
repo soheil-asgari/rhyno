@@ -18,7 +18,7 @@ function PaymentSuccessComponent() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push(REDIRECT_TO)
-    }, 5000) // 5 ثانیه زمان برای خواندن پیام
+    }, 10000) // 5 ثانیه زمان برای خواندن پیام
 
     return () => clearTimeout(timer)
   }, [router])

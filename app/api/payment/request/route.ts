@@ -68,8 +68,9 @@ export async function POST(request: Request) {
       .from("transactions")
       .insert({
         user_id: user.id,
-        amount: originalAmountUSD, // <-- معادل دلاری مبلغ اصلی
-        amount_irr: originalAmountIRR, // <-- مبلغ اصلی به ریال
+        amount: originalAmountUSD, // مبلغ اصلی به دلار (برای منطق داخلی شما)
+        amount_irr: originalAmountIRR, // ✅ مبلغ اصلی به ریال (برای شارژ حساب)
+        paid_amount_irr: finalAmountIRR, // ✅ مبلغ پرداختی کاربر (برای تایید زرین‌پال)
         status: "pending"
       })
       .select()
