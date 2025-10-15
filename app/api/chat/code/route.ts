@@ -32,7 +32,7 @@ function calculateUserCostUSD(
 }
 
 export async function POST(request: Request) {
-  console.log("✅ درخواست به API کدنویسی (معماری نهایی) رسید!")
+  // console.log("✅ درخواست به API کدنویسی (معماری نهایی) رسید!")
 
   try {
     const { messages } = await request.json()
@@ -89,14 +89,14 @@ export async function POST(request: Request) {
 
     const modelId = "gpt-4o-mini"
 
-    console.log("🚀 درخواست پردازش داده به JSON از OpenAI...")
+    // console.log("🚀 درخواست پردازش داده به JSON از OpenAI...")
     const response = await openai.chat.completions.create({
       model: modelId,
       messages: [{ role: "system", content: instructions }, ...messages],
       response_format: { type: "json_object" }
     })
 
-    console.log("✅ پاسخ JSON از OpenAI دریافت شد.")
+    // console.log("✅ پاسخ JSON از OpenAI دریافت شد.")
     const usage = response.usage
     if (usage) {
       // ... (Cost deduction logic)
@@ -146,9 +146,9 @@ export async function POST(request: Request) {
         const tempFilePath = path.join(os.tmpdir(), originalFilename)
 
         await fs.writeFile(tempFilePath, buffer)
-        console.log(
-          `✅ فایل اکسل با موفقیت در ${tempFilePath} ساخته و ذخیره شد.`
-        )
+        // console.log(
+        //   `✅ فایل اکسل با موفقیت در ${tempFilePath} ساخته و ذخیره شد.`
+        // )
 
         fileOutput = { filename: originalFilename }
       } catch (e) {

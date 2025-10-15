@@ -197,9 +197,9 @@ export async function POST(request: Request) {
   try {
     const requestBody = await request.json()
     const { chatSettings, messages, enableWebSearch, input } = requestBody
-    console.log("--- RECEIVED MESSAGES ARRAY ---")
-    console.log(JSON.stringify(messages, null, 2))
-    console.log("-----------------------------")
+    // console.log("--- RECEIVED MESSAGES ARRAY ---")
+    // console.log(JSON.stringify(messages, null, 2))
+    // console.log("-----------------------------")
 
     // ✨ شروع بخش پرداخت و احراز هویت
     const cookieStore = cookies()
@@ -247,9 +247,9 @@ export async function POST(request: Request) {
 
     const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
     if (selectedModel === OPENROUTER_GEMINI_MODEL_ID) {
-      console.log(
-        `🔄 هدایت درخواست برای مدل ${selectedModel} به /api/chat/openrouter...`
-      )
+      // console.log(
+      //   `🔄 هدایت درخواست برای مدل ${selectedModel} به /api/chat/openrouter...`
+      // )
       const openrouterUrl = new URL("/api/chat/openrouter", request.url)
       const openrouterResponse = await fetch(openrouterUrl, {
         method: "POST",
@@ -266,7 +266,7 @@ export async function POST(request: Request) {
       })
     }
     if (selectedModel === "gpt-4o-mini-tts") {
-      console.log("🔊 درخواست TTS شناسایی شد.")
+      // console.log("🔊 درخواست TTS شناسایی شد.")
 
       const ttsInput =
         input ||
@@ -334,10 +334,10 @@ export async function POST(request: Request) {
         )
       }
       const session = await response.json()
-      console.log("🌐 Realtime session raw response:", session)
-      console.log("🔊 Session modalities:", session.modalities)
-      console.log("🔊 Session voice:", session.voice)
-      console.log("🔊 Session instructions:", session.instructions)
+      // console.log("🌐 Realtime session raw response:", session)
+      // console.log("🔊 Session modalities:", session.modalities)
+      // console.log("🔊 Session voice:", session.voice)
+      // console.log("🔊 Session instructions:", session.instructions)
 
       const { error: insertError } = await supabase
         .from("realtime_sessions")
@@ -398,7 +398,7 @@ export async function POST(request: Request) {
     )
 
     if (selectedModel === "gpt-4o-transcribe") {
-      console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
+      // console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
       // این شرط برای جلوگیری از سردرگمی است.
       // درخواست‌های STT باید به همراه فایل صوتی به /api/transcribe ارسال شوند.
       return NextResponse.json(
@@ -411,7 +411,7 @@ export async function POST(request: Request) {
     }
 
     if (isDocgenRequest(lastUserMessage)) {
-      console.log("📄 درخواست ساخت فایل شناسایی شد. هدایت به مسیر DocGen...")
+      // console.log("📄 درخواست ساخت فایل شناسایی شد. هدایت به مسیر DocGen...")
 
       // توجه: فرض می‌کنیم شما یک مسیر API جدید در /api/chat/docgen ساخته‌اید
       const docgenUrl = new URL("/api/chat/mcp", request.url)
@@ -432,30 +432,30 @@ export async function POST(request: Request) {
       })
     }
 
-    if (selectedModel === "gpt-5-nano") {
-      console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")
+    // if (selectedModel === "gpt-5-nano") {
+    //   console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")
 
-      // ساخت URL کامل برای مسیر جدید
-      const mcpUrl = new URL("/api/chat/mcp", request.url)
+    //   // ساخت URL کامل برای مسیر جدید
+    //   const mcpUrl = new URL("/api/chat/mcp", request.url)
 
-      // ارسال درخواست به مسیر جدید با همان بدنه و هدرها
-      const mcpResponse = await fetch(mcpUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // ارسال کوکی‌ها برای احراز هویت در مسیر جدید
-          Cookie: request.headers.get("Cookie") || ""
-        },
-        // ارسال دوباره اطلاعاتی که از بدنه درخواست خوانده بودیم
-        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
-      })
+    //   // ارسال درخواست به مسیر جدید با همان بدنه و هدرها
+    //   const mcpResponse = await fetch(mcpUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       // ارسال کوکی‌ها برای احراز هویت در مسیر جدید
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     // ارسال دوباره اطلاعاتی که از بدنه درخواست خوانده بودیم
+    //     body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+    //   })
 
-      // بازگرداندن مستقیم پاسخ (استریم یا غیر استریم) از مسیر MCP به کاربر
-      return new Response(mcpResponse.body, {
-        status: mcpResponse.status,
-        headers: mcpResponse.headers
-      })
-    }
+    //   // بازگرداندن مستقیم پاسخ (استریم یا غیر استریم) از مسیر MCP به کاربر
+    //   return new Response(mcpResponse.body, {
+    //     status: mcpResponse.status,
+    //     headers: mcpResponse.headers
+    //   })
+    // }
     // اگر مدل انتخاب شده برای تبدیل متن به گفتار است، آن را به کنترل‌کننده مربوطه بفرست
 
     // ✨ مدیریت پیام سیستم
@@ -500,10 +500,10 @@ export async function POST(request: Request) {
     if (useOpenAIWebSearch) {
       // بخش ۱: مدیریت مدل‌های غیر استریم وب‌سرچ (کد اصلی شما)
       if (["gpt-5", "gpt-5-mini"].includes(selectedModel)) {
-        console.log(
-          "🚀 [WEB-SEARCH] Entering NON-streaming web search block for model:",
-          selectedModel
-        )
+        // console.log(
+        //   "🚀 [WEB-SEARCH] Entering NON-streaming web search block for model:",
+        //   selectedModel
+        // )
         const response = await openai.responses.create({
           model: selectedModel,
           input: finalMessages.map(m =>
@@ -526,11 +526,11 @@ export async function POST(request: Request) {
             prompt_tokens: usage.input_tokens, // <-- تغییر از prompt_tokens
             completion_tokens: usage.output_tokens // <-- تغییر از completion_tokens
           })
-          console.log(`📊 [WEB-SEARCH] Usage data received:`, usage)
+          // console.log(`📊 [WEB-SEARCH] Usage data received:`, usage)
           if (userCostUSD > 0 && wallet) {
-            console.log(
-              `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
-            )
+            // console.log(
+            //   `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
+            // )
             await supabase.rpc("deduct_credits_and_log_usage", {
               p_user_id: userId,
               p_model_name: selectedModel,
@@ -543,9 +543,9 @@ export async function POST(request: Request) {
               .select("balance")
               .eq("user_id", userId)
               .single()
-            console.log(
-              `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
-            )
+            // console.log(
+            //   `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
+            // )
           }
         }
 
@@ -559,10 +559,10 @@ export async function POST(request: Request) {
       const encoder = new TextEncoder()
       const stream = new ReadableStream({
         async start(controller) {
-          console.log(
-            "🚀 [WEB-SEARCH] Entering STREAMING web search block for model:",
-            selectedModel
-          )
+          // console.log(
+          //   "🚀 [WEB-SEARCH] Entering STREAMING web search block for model:",
+          //   selectedModel
+          // )
           let usage: ChatCompletionUsage | undefined
 
           try {
@@ -603,16 +603,16 @@ export async function POST(request: Request) {
                   total_tokens: receivedUsage.total_tokens
                 }
                 // این لاگ حالا باید نمایش داده شود
-                console.log("📊 [WEB-SEARCH] Usage data received:", usage)
+                // console.log("📊 [WEB-SEARCH] Usage data received:", usage)
               }
             }
 
             if (usage) {
               const userCostUSD = calculateUserCostUSD(selectedModel, usage)
               if (userCostUSD > 0 && wallet) {
-                console.log(
-                  `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
-                )
+                // console.log(
+                //   `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
+                // )
                 await supabase.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,
                   p_model_name: selectedModel,
@@ -625,9 +625,9 @@ export async function POST(request: Request) {
                   .select("balance")
                   .eq("user_id", userId)
                   .single()
-                console.log(
-                  `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
-                )
+                // console.log(
+                //   `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
+                // )
               }
             }
           } catch (err: any) {
@@ -638,7 +638,7 @@ export async function POST(request: Request) {
               )
             )
           } finally {
-            console.log("🚪 [WEB-SEARCH] Closing stream controller.")
+            // console.log("🚪 [WEB-SEARCH] Closing stream controller.")
             controller.close()
           }
         }
@@ -673,28 +673,28 @@ export async function POST(request: Request) {
       const encoder = new TextEncoder()
       const readableStream = new ReadableStream({
         async start(controller) {
-          console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
+          // console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
 
           let usage: ChatCompletionUsage | undefined
           try {
             for await (const chunk of stream) {
               if (chunk.usage) usage = chunk.usage
-              console.log("📊 [STREAM-DEBUG] Usage data received:", usage)
+              // console.log("📊 [STREAM-DEBUG] Usage data received:", usage)
               const delta = chunk.choices[0]?.delta?.content || ""
               if (delta) controller.enqueue(encoder.encode(delta))
             }
-            console.log(
-              "🏁 [STREAM-DEBUG] Stream loop finished. Checking for usage data..."
-            )
+            // console.log(
+            //   "🏁 [STREAM-DEBUG] Stream loop finished. Checking for usage data..."
+            // )
             if (usage) {
-              console.log(
-                "✅ [STREAM-DEBUG] Usage data found. Proceeding with deduction logic."
-              )
+              // console.log(
+              //   "✅ [STREAM-DEBUG] Usage data found. Proceeding with deduction logic."
+              // )
 
               const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-              console.log(
-                `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
-              )
+              // console.log(
+              //   `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
+              // )
               if (userCostUSD > 0 && wallet) {
                 await supabase.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,

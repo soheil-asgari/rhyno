@@ -12,17 +12,17 @@ export default function WorkspacePage({
   const { selectedWorkspace } = useContext(ChatbotUIContext)
   const router = useRouter()
 
-  console.log("WorkspacePage: params:", params)
-  console.log(
-    "WorkspacePage: selectedWorkspace:",
-    JSON.stringify(selectedWorkspace, null, 2)
-  )
+  // console.log("WorkspacePage: params:", params)
+  // console.log(
+  //   "WorkspacePage: selectedWorkspace:",
+  //   JSON.stringify(selectedWorkspace, null, 2)
+  // )
 
   // ریدایرکت به /chat اگر selectedWorkspace وجود ندارد
   if (!selectedWorkspace) {
-    console.log(
-      "WorkspacePage: No selectedWorkspace, redirecting to /:workspaceid/chat"
-    )
+    // console.log(
+    //   "WorkspacePage: No selectedWorkspace, redirecting to /:workspaceid/chat"
+    // )
     router.push(`/${params.workspaceid}/chat`)
     return null
   }

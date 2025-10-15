@@ -70,7 +70,7 @@ export default function ChatPage({
 
   // ✨ ۲. نام کاربر را استخراج کنید
   const userName = profile?.display_name || profile?.username || "کاربر"
-
+  const firstName = userName.split(" ")[0]
   const isRealtimeMode = chatSettings?.model?.includes("realtime") ?? false
 
   return (
@@ -82,7 +82,7 @@ export default function ChatPage({
             {/* ✨ ۳. کامپوننت Brand با پیام خوش‌آمدگویی جایگزین شد */}
             <div className="text-center" dir="rtl">
               <div className="font-vazir text-3xl font-bold text-gray-200">
-                سلام {userName} 👋
+                سلام {firstName} 👋
               </div>
               <div className="font-vazir mt-2 text-lg text-gray-400">
                 چطور می‌توانم کمکتان کنم؟

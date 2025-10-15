@@ -66,7 +66,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
-
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
   if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
     // console.log("Middleware: Redirecting from", pathname, "to", `${pathname}/chat`);
@@ -74,28 +74,38 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    if (!user.phone && pathname !== '/verify-phone') {
-      // console.log("Middleware: Redirecting to /verify-phone for user:", user.id);
+    const isOnVerifyPage = pathname === '/verify-phone';
+    const isOnSetupPage = pathname === '/setup';
+
+    // اولویت ۱: بررسی تایید شماره تلفن
+    if (!user.phone && !isOnVerifyPage) {
       return NextResponse.redirect(new URL('/verify-phone', request.url));
     }
 
-    if (user.phone && (publicRoutes.includes(pathname) || pathname === '/verify-phone')) {
-      const { data: homeWorkspace, error: workspaceError } = await supabase
+    // اگر شماره تلفن تایید شده، وضعیت workspace را بررسی کن
+    if (user.phone) {
+      const { data: homeWorkspace } = await supabase
         .from("workspaces")
-        .select("id, name")
+        .select("id")
         .eq("user_id", user.id)
         .eq("is_home", true)
         .single();
-      if (workspaceError || !homeWorkspace) {
-        // console.log("Middleware: No home workspace, redirecting to /setup for user:", user.id);
+
+      const hasHomeWorkspace = !!homeWorkspace;
+
+      // اولویت ۲: بررسی ساخت workspace
+      // اگر workspace ندارد و در صفحه setup هم نیست، او را به setup بفرست
+      if (!hasHomeWorkspace && !isOnSetupPage) {
         return NextResponse.redirect(new URL('/setup', request.url));
       }
-      // console.log("Middleware: Redirecting to workspace /:id/chat for user:", user.id, "Workspace:", { id: homeWorkspace.id, name: homeWorkspace.name });
-      return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url));
+
+      // اگر کاربر کاملاً آماده است و به صفحات عمومی یا مراحل اولیه رفته، او را به صفحه اصلی ببر
+      if (hasHomeWorkspace && (isPublicRoute || isOnSetupPage || isOnVerifyPage)) {
+        return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url));
+      }
     }
   }
 
-  // console.log("Middleware: Continuing to next response for path:", pathname);
   return response;
 }
 

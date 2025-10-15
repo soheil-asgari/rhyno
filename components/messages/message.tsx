@@ -132,7 +132,7 @@ const MessageHeader: FC<{
 }> = memo(({ message, profile, assistantImage, modelData, assistantName }) => {
   const renderAvatar = () => {
     if (message.role === "assistant") {
-      console.log("DEBUG: MessageHeader assistantImage src:", assistantImage) // ✨ لاگ ۱
+      // console.log("DEBUG: MessageHeader assistantImage src:", assistantImage) // ✨ لاگ ۱
       return assistantImage ? (
         <Image
           src={assistantImage}
@@ -162,10 +162,10 @@ const MessageHeader: FC<{
         />
       )
     }
-    console.log(
-      "DEBUG: MessageHeader profile.image_url src:",
-      profile?.image_url
-    ) // ✨ لاگ ۲
+    // console.log(
+    //   "DEBUG: MessageHeader profile.image_url src:",
+    //   profile?.image_url
+    // ) // ✨ لاگ ۲
     return profile?.image_url ? (
       <Image
         className="size-[32px] rounded"

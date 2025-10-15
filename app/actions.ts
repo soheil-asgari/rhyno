@@ -76,7 +76,7 @@ export async function sendCustomOtpAction(formData: FormData) {
   // ۲. اینجا باید کد ارسال پیامک با پنل خودتان را قرار دهید
   // مثال:
   // await sendSmsWithYourPanel(phone, `کد تایید شما: ${otp}`);
-  console.log(`(شبیه‌سازی ارسال پیامک) کد برای ${phone}: ${otp}`)
+  // console.log(`(شبیه‌سازی ارسال پیامک) کد برای ${phone}: ${otp}`)
 
   // ۳. هدایت به مرحله وارد کردن کد
   const message = "کد برای شما ارسال شد"

@@ -82,10 +82,10 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
     if (!chatSettings) return
 
     const selectedModel = chatSettings.model
-    console.log(
-      `Setting new prompt for model ${selectedModel}:`,
-      MODEL_PROMPTS[selectedModel]
-    )
+    // console.log(
+    //   `Setting new prompt for model ${selectedModel}:`,
+    //   MODEL_PROMPTS[selectedModel]
+    // )
     if (selectedModel.includes("realtime")) {
       console.log(`Realtime model selected ${selectedModel}, skipping prompt.`)
       setChatSettings(prevSettings => ({
@@ -94,10 +94,10 @@ export const ChatSettings: FC<ChatSettingsProps> = () => {
       }))
       return
     }
-    console.log(
-      `Setting new prompt for model ${selectedModel}:`,
-      MODEL_PROMPTS[selectedModel]
-    )
+    // console.log(
+    //   `Setting new prompt for model ${selectedModel}:`,
+    //   MODEL_PROMPTS[selectedModel]
+    // )
     // اگر پرامپت فعلی خالی است، پرامپت پیش‌فرض را اعمال می‌کند
     if (
       !chatSettings.prompt ||

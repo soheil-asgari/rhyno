@@ -45,12 +45,12 @@ function calculateUserCostUSD(
 }
 
 export async function POST(request: Request) {
-  console.log("🎨 درخواست ساخت تصویر به API DALL-E دریافت شد! 🎨")
+  // console.log("🎨 درخواست ساخت تصویر به API DALL-E دریافت شد! 🎨")
   try {
     const { prompt } = await request.json()
 
     if (!prompt || typeof prompt !== "string") {
-      console.log("--- X. ERROR: Prompt is invalid. Returning 400. ---")
+      // console.log("--- X. ERROR: Prompt is invalid. Returning 400. ---")
       return NextResponse.json(
         { message: "A valid text prompt is required for DALL-E 3." },
         { status: 400 }
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     }
 
     // ۴. کسر هزینه از کیف پول کاربر (منطق RPC بدون تغییر باقی می‌ماند)
-    console.log("💰 موجودی قبل از کسر:", wallet.balance, "USD")
+    // console.log("💰 موجودی قبل از کسر:", wallet.balance, "USD")
     const { error: rpcError } = await supabase.rpc(
       "deduct_credits_and_log_usage",
       {
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
       .select("balance")
       .eq("user_id", userId)
       .single()
-    console.log("💵 موجودی بعد از کسر:", updatedWallet?.balance, "USD")
+    // console.log("💵 موجودی بعد از کسر:", updatedWallet?.balance, "USD")
 
     // ۵. ساخت تصویر و مدیریت خطا با قابلیت بازگشت وجه (بدون تغییر)
     try {

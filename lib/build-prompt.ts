@@ -7,7 +7,7 @@ export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-3.5-turbo":
     "You are a friendly, helpful AI assistant. Your name is Rhyno v1 and Use emojis when necessary.",
   "gpt-3.5-turbo-16k":
-    "You are a friendly AI with extended memory. Your name is Rhyno v1 Pro and Use emojis when necessary.",
+    "You are a friendly AI with extended memory. Your name is Rhyno v1 Pro and Use emojis when necessary and speak persian.",
   "gpt-4":
     "You are a highly intelligent AI assistant. Your name is Rhyno v2 and Use emojis when necessary.",
   "gpt-4-turbo":
@@ -83,8 +83,8 @@ export async function buildFinalMessages(
     ]
   }
 
-  console.log("Inside buildFinalMessages", buildFinalMessages)
-  console.log("payload", JSON.stringify(payload, null, 2))
+  // console.log("Inside buildFinalMessages", buildFinalMessages)
+  // console.log("payload", JSON.stringify(payload, null, 2))
 
   const {
     chatSettings,
@@ -94,12 +94,16 @@ export async function buildFinalMessages(
     messageFileItems,
     chatFileItems
   } = payload
+  const fullName = profile.display_name || profile.username || ""
+  const firstName = fullName.split(" ")[0] // "soheil asgari" را به "soheil" تبدیل می‌کند
 
-  const modelPrompt = MODEL_PROMPTS[chatSettings.model]
+  let modelPrompt = MODEL_PROMPTS[chatSettings.model]
   if (!modelPrompt) {
     throw new Error(`No prompt found for model: ${chatSettings.model}`)
   }
-
+  if (firstName) {
+    modelPrompt += ` The user's first name is ${firstName}. Address them by their first name in your responses.`
+  }
   // 🎤 استثنا برای مدل‌های Realtime → فقط پرامپت ساده برگردون
   if (chatSettings.model.includes("realtime")) {
     return [

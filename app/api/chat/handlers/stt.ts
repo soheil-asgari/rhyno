@@ -65,9 +65,9 @@ export async function handleSTT({ request, user, supabase }: HandlerParams) {
       p_cost: STT_REQUEST_COST_USD
     })
 
-    console.log(
-      `✅ هزینه STT به مبلغ ${STT_REQUEST_COST_USD} دلار برای کاربر ${user.id} با موفقیت کسر شد.`
-    )
+    // console.log(
+    //   `✅ هزینه STT به مبلغ ${STT_REQUEST_COST_USD} دلار برای کاربر ${user.id} با موفقیت کسر شد.`
+    // )
 
     return NextResponse.json(response)
   } catch (err: any) {

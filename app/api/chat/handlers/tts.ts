@@ -45,7 +45,7 @@ export async function handleTTS({
   supabase
 }: HandlerParams): Promise<Response> {
   try {
-    console.log(`🎤 پردازش درخواست TTS برای کاربر: ${user.id}`)
+    // console.log(`🎤 پردازش درخواست TTS برای کاربر: ${user.id}`)
 
     const { messages, input, voice, speed } = body
 
@@ -69,9 +69,9 @@ export async function handleTTS({
     // محاسبه هزینه
     const characterCount = text.length
     const totalCost = calculateTtsCost(characterCount)
-    console.log(
-      `📝 تعداد کاراکتر: ${characterCount}, هزینه محاسبه شده: ${totalCost.toFixed(6)} USD`
-    )
+    // console.log(
+    //   `📝 تعداد کاراکتر: ${characterCount}, هزینه محاسبه شده: ${totalCost.toFixed(6)} USD`
+    // )
 
     // بررسی موجودی کاربر
     const { data: wallet } = await supabase
@@ -134,9 +134,9 @@ export async function handleTTS({
       if (rpcError) {
         console.error("⚠️ خطا در کسر هزینه از کاربر:", rpcError)
       } else {
-        console.log(
-          `✅ هزینه TTS (${totalCost.toFixed(6)} USD) از کاربر ${user.id} کسر شد.`
-        )
+        // console.log(
+        //   `✅ هزینه TTS (${totalCost.toFixed(6)} USD) از کاربر ${user.id} کسر شد.`
+        // )
       }
     }
 
