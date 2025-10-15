@@ -126,6 +126,7 @@ export default async function RootLayout({
               {session ? <GlobalState>{children}</GlobalState> : children}
             </div>
             <Analytics />
+            <SpeedInsights />
           </TranslationsProvider>
         </Providers>
       </body>
