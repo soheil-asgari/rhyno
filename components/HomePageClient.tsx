@@ -260,7 +260,9 @@ export default function HomePageClient() {
     { href: "#features", label: "ویژگی‌ها" },
     { href: "#process", label: "فرآیند کار" },
     { href: "#pricing", label: "تعرفه‌ها" },
-    { href: "/about", label: "درباره ما" }
+    { href: "/about", label: "درباره ما" },
+    { href: "/blog", label: "بلاگ" },
+    { href: "/contact", label: "تماس با ما" }
   ]
 
   const heroTitle = "مرکز فرماندهی هوش مصنوعی شما"

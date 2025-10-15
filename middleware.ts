@@ -65,9 +65,12 @@ export async function middleware(request: NextRequest) {
   // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
 
   const { pathname } = request.nextUrl;
-  const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  // const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
+  // const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
+  const authRedirectRoutes = ['/login', '/signup', '/landing'];
+  const shouldRedirectFromAuthRoute = authRedirectRoutes.some(route => pathname.startsWith(route));
+
   if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
     // console.log("Middleware: Redirecting from", pathname, "to", `${pathname}/chat`);
     return NextResponse.redirect(new URL(`${pathname}/chat`, request.url));
@@ -100,7 +103,7 @@ export async function middleware(request: NextRequest) {
       }
 
       // اگر کاربر کاملاً آماده است و به صفحات عمومی یا مراحل اولیه رفته، او را به صفحه اصلی ببر
-      if (hasHomeWorkspace && (isPublicRoute || isOnSetupPage || isOnVerifyPage)) {
+      if (hasHomeWorkspace && (shouldRedirectFromAuthRoute || isOnSetupPage || isOnVerifyPage)) {
         return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url));
       }
     }
