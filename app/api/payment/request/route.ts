@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     const { amountToman, discountCode } = await request.json()
     let originalAmountIRR = amountToman * 10
-    let finalAmountIRR = originalAmountIRR // مبلغ نهایی در ابتدا برابر با مبلغ اصلی است
+    let finalAmountIRR = originalAmountIRR
     let appliedDiscount: DiscountCode | null = null
 
     if (!originalAmountIRR || originalAmountIRR < 1000000) {
@@ -54,24 +54,43 @@ export async function POST(request: Request) {
         )
       }
 
+      // ✅✅✅ **بخش جدید: بررسی سابقه استفاده کاربر از کد تخفیف** ✅✅✅
+      const { data: usageData, error: usageError } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("discount_code_id", codeData.id)
+        .eq("status", "completed") // فقط تراکنش‌های موفق را بررسی می‌کنیم
+        .limit(1)
+        .single()
+
+      if (usageData) {
+        // اگر رکوردی پیدا شد، یعنی کاربر قبلاً از این کد استفاده کرده است
+        return NextResponse.json(
+          { message: "شما قبلاً از این کد تخفیف استفاده کرده‌اید" },
+          { status: 403 } // 403 Forbidden
+        )
+      }
+      // ✅✅✅ **پایان بخش جدید** ✅✅✅
+
       const discountPercentage = codeData.percentage
       const discountAmount = (originalAmountIRR * discountPercentage) / 100
       finalAmountIRR = Math.round(originalAmountIRR - discountAmount)
       appliedDiscount = codeData
     }
 
-    // ✅ محاسبه هر دو مبلغ به دلار
     const originalAmountUSD = originalAmountIRR / MANUAL_EXCHANGE_RATE
 
-    // ✅ **نکته کلیدی:** از مبلغ اصلی برای ثبت در دیتابیس استفاده کنید
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .insert({
         user_id: user.id,
-        amount: originalAmountUSD, // مبلغ اصلی به دلار (برای منطق داخلی شما)
-        amount_irr: originalAmountIRR, // ✅ مبلغ اصلی به ریال (برای شارژ حساب)
-        paid_amount_irr: finalAmountIRR, // ✅ مبلغ پرداختی کاربر (برای تایید زرین‌پال)
-        status: "pending"
+        amount: originalAmountUSD,
+        amount_irr: originalAmountIRR,
+        // paid_amount_irr: finalAmountIRR, // اگر این ستون را دارید، آن را هم اضافه کنید
+        status: "pending",
+        // ✅ **ذخیره کردن شناسه‌ی کد تخفیف استفاده شده**
+        discount_code_id: appliedDiscount ? appliedDiscount.id : null
       })
       .select()
       .single()
@@ -80,7 +99,7 @@ export async function POST(request: Request) {
 
     const description = `شارژ حساب کاربری - تراکنش ${transaction.id}`
 
-    // ✅ **بدون تغییر:** از مبلغ نهایی برای ارسال به درگاه پرداخت استفاده کنید
+    // ... (بقیه کد برای ارسال درخواست به زرین‌پال بدون تغییر باقی می‌ماند)
     const zarinpalResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/request.json",
       {
@@ -91,7 +110,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           merchant_id: ZARINPAL_MERCHANT_ID,
-          amount: finalAmountIRR, // <-- مبلغ نهایی (پرداختی کاربر) به درگاه ارسال می‌شود
+          amount: finalAmountIRR, // مبلغ نهایی برای پرداخت ارسال می‌شود
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payment/verify`,
           description: description,
           metadata: { transaction_id: transaction.id, user_email: user.email }
