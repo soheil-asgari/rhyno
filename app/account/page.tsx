@@ -227,7 +227,7 @@ function AccountPageComponent() {
     return rounded.toLocaleString("fa-IR")
   }
 
-  const chargePresets = [1000000, 2000000, 5000000]
+  const chargePresets = [100000, 200000, 500000]
 
   if (loading) {
     return (

@@ -13,15 +13,15 @@ function PaymentSuccessComponent() {
   const searchParams = useSearchParams()
   const refId = searchParams.get("ref_id")
 
-  const REDIRECT_TO = "/" // <-- به صفحه اصلی هدایت می‌کنیم
+  const REDIRECT_TO = "/account" // <-- به صفحه اصلی هدایت می‌کنیم
   // شما می‌توانید این بخش را برای حذف ریدایرکت خودکار کامنت کنید
-  // useEffect(() => {
-  //   const timer = setTimeout(() => {
-  //     router.push(REDIRECT_TO);
-  //   }, 5000); // 5 ثانیه زمان برای خواندن پیام
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.push(REDIRECT_TO)
+    }, 5000) // 5 ثانیه زمان برای خواندن پیام
 
-  //   return () => clearTimeout(timer);
-  // }, [router]);
+    return () => clearTimeout(timer)
+  }, [router])
 
   return (
     // تغییر ۱: اضافه کردن w-full و p-4 برای فاصله گرفتن از لبه‌های صفحه

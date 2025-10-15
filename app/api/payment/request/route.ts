@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     const { amountToman, discountCode } = await request.json()
     let originalAmountIRR = amountToman * 10
-    let finalAmountIRR = originalAmountIRR
+    let finalAmountIRR = originalAmountIRR // مبلغ نهایی در ابتدا برابر با مبلغ اصلی است
     let appliedDiscount: DiscountCode | null = null
 
     if (!originalAmountIRR || originalAmountIRR < 1000000) {
@@ -60,14 +60,16 @@ export async function POST(request: Request) {
       appliedDiscount = codeData
     }
 
-    const finalAmountUSD = finalAmountIRR / MANUAL_EXCHANGE_RATE
+    // ✅ محاسبه هر دو مبلغ به دلار
+    const originalAmountUSD = originalAmountIRR / MANUAL_EXCHANGE_RATE
 
+    // ✅ **نکته کلیدی:** از مبلغ اصلی برای ثبت در دیتابیس استفاده کنید
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .insert({
         user_id: user.id,
-        amount: finalAmountUSD,
-        amount_irr: finalAmountIRR,
+        amount: originalAmountUSD, // <-- معادل دلاری مبلغ اصلی
+        amount_irr: originalAmountIRR, // <-- مبلغ اصلی به ریال
         status: "pending"
       })
       .select()
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
 
     const description = `شارژ حساب کاربری - تراکنش ${transaction.id}`
 
+    // ✅ **بدون تغییر:** از مبلغ نهایی برای ارسال به درگاه پرداخت استفاده کنید
     const zarinpalResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/request.json",
       {
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           merchant_id: ZARINPAL_MERCHANT_ID,
-          amount: finalAmountIRR,
+          amount: finalAmountIRR, // <-- مبلغ نهایی (پرداختی کاربر) به درگاه ارسال می‌شود
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payment/verify`,
           description: description,
           metadata: { transaction_id: transaction.id, user_email: user.email }
