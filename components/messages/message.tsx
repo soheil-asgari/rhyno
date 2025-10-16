@@ -301,7 +301,7 @@ const MessageBody: FC<{
           text={content}
           isCollapsed={isCollapsed}
           maxLength={100} // می‌توانید این عدد را به دلخواه تغییر دهید
-          className="font-vazir text-right text-[15px] leading-relaxed text-white"
+          className="font-vazir text-right text-[15px] leading-relaxed"
         />
       )
     }
@@ -327,7 +327,7 @@ const MessageBody: FC<{
           {textPart && (
             <MessageMarkdown
               content={textPart}
-              className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
+              className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
               dir="rtl"
             />
           )}
@@ -430,7 +430,7 @@ const MessageBody: FC<{
       return (
         <MessageMarkdown
           content={content}
-          className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
+          className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
           dir="rtl"
         />
       )
@@ -439,7 +439,7 @@ const MessageBody: FC<{
     return (
       <MessageMarkdown
         content={content}
-        className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal text-white"
+        className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
         dir="rtl"
       />
     )

@@ -81,10 +81,10 @@ export default function ChatPage({
           <div className="mb-20 flex size-full flex-col items-center justify-center">
             {/* ✨ ۳. کامپوننت Brand با پیام خوش‌آمدگویی جایگزین شد */}
             <div className="text-center" dir="rtl">
-              <div className="font-vazir text-3xl font-bold text-gray-200">
+              <div className="font-vazir text-3xl font-bold">
                 سلام {firstName} 👋
               </div>
-              <div className="font-vazir mt-2 text-lg text-gray-400">
+              <div className="font-vazir mt-2 text-lg">
                 چطور می‌توانم کمکتان کنم؟
               </div>
             </div>
