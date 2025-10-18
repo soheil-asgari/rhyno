@@ -41,7 +41,14 @@ interface ChatInputProps {}
 export const ChatInput: FC<ChatInputProps> = ({}) => {
   const [isTyping, setIsTyping] = useState<boolean>(false)
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false)
-
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    // این کد در زمان بارگذاری کامپوننت، نوع دستگاه را تشخیص می‌دهد
+    const userAgent =
+      typeof window.navigator === "undefined" ? "" : navigator.userAgent
+    const mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent)
+    setIsMobile(mobile)
+  }, [])
   const {
     userInput,
     chatMessages,
@@ -162,6 +169,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (
+        !isMobile && // <--- این شرط جدید اضافه شده است
         !isTyping &&
         event.key === "Enter" &&
         !event.shiftKey &&
@@ -173,6 +181,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       }
     },
     [
+      isMobile, // <--- isMobile را به اینجا هم اضافه کنید
       isTyping,
       userInput,
       chatMessages,

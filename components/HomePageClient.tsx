@@ -290,6 +290,99 @@ export default function HomePageClient() {
       transition: { type: "tween", duration: 0.8, ease: [0.22, 1, 0.36, 1] }
     }
   }
+  const TerminalHeader = () => (
+    <div className="flex items-center gap-2 rounded-t-lg bg-gray-800 px-4 py-3">
+      <div className="size-3 rounded-full bg-red-500 transition-transform hover:scale-110"></div>
+      <div className="size-3 rounded-full bg-yellow-500 transition-transform hover:scale-110"></div>
+      <div className="size-3 rounded-full bg-green-500 transition-transform hover:scale-110"></div>
+    </div>
+  )
+
+  // کامپوننت اصلی و بهبودیافته
+  const TerminalHero = () => {
+    // نسخه فانتزی و هیجان‌انگیز
+    const command = '> Rhyno  "یه ایده خوب برای ساخت محتوا بهم بده"'
+    const processingText = "[■■■■■■■■■...] در حال ساخت محتوای شما..."
+    const successText = "✨ تمام شد! محتوای جادیی شما اماده شد 🌟"
+
+    // انیمیشن برای تایپ شدن کاراکتر به کاراکتر
+    const commandVariants: Variants = {
+      hidden: { opacity: 0 },
+      visible: {
+        opacity: 1,
+        transition: {
+          delay: 0.5,
+          staggerChildren: 0.04 // سرعت تایپ هر کاراکتر
+        }
+      }
+    }
+
+    const characterVariants: Variants = {
+      hidden: { opacity: 0, y: 10 },
+      visible: { opacity: 1, y: 0 }
+    }
+
+    // انیمیشن برای خطوط پردازش و موفقیت
+    const lineVariants = (delay: number): Variants => ({
+      hidden: { opacity: 0, x: -20 },
+      visible: {
+        opacity: 1,
+        x: 0,
+        transition: { type: "spring", stiffness: 100, damping: 15, delay }
+      }
+    })
+
+    return (
+      <div className="font-vazir mx-auto w-full max-w-3xl overflow-hidden rounded-xl border border-blue-500/20 bg-gray-950/70 text-sm shadow-2xl shadow-blue-500/20 backdrop-blur-md">
+        <TerminalHeader />
+        <div className="font-vazir p-4">
+          {/* خط اول: دستور با انیمیشن تایپ */}
+          <motion.div
+            className="font-vazir  flex items-center"
+            initial="hidden"
+            animate="visible"
+          >
+            <motion.p
+              variants={commandVariants}
+              className="font-vazir text-lime-400"
+            >
+              {command.split("").map((char, index) => (
+                <motion.span key={index} variants={characterVariants}>
+                  {char}
+                </motion.span>
+              ))}
+            </motion.p>
+            {/* مکان‌نمای چشمک‌زن */}
+            <motion.span
+              className="font-vazir ml-1 inline-block h-4 w-2 bg-lime-400"
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: 0.5 }}
+            />
+          </motion.div>
+
+          {/* خط دوم: پردازش */}
+          <motion.p
+            variants={lineVariants(2.5)} // با تاخیر بعد از تایپ نمایش داده می‌شود
+            initial="hidden"
+            animate="visible"
+            className="mt-4 text-yellow-400"
+          >
+            {processingText}
+          </motion.p>
+
+          {/* خط سوم: موفقیت */}
+          <motion.p
+            variants={lineVariants(3.5)} // با تاخیر بعد از پردازش
+            initial="hidden"
+            animate="visible"
+            className="mt-2 text-emerald-400"
+          >
+            {successText}
+          </motion.p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-black text-gray-300">
@@ -423,36 +516,16 @@ export default function HomePageClient() {
           </section>
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative"
+            className="relative mb-20" // کمی فاصله از پایین اضافه کردیم
           >
+            {/* افکت نور پس‌زمینه را می‌توانیم نگه داریم */}
             <div className="absolute inset-x-0 -top-10 z-0 h-1/2 bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15)_0%,_transparent_60%)]" />
-            {animationData ? (
-              <Lottie
-                animationData={animationData}
-                loop
-                autoplay
-                style={{
-                  width: "100%",
-                  maxWidth: 800,
-                  height: "auto",
-                  margin: "0 auto"
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: 800,
-                  height: 400,
-                  margin: "0 auto",
-                  backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  borderRadius: "16px"
-                }}
-              />
-            )}
+
+            {/* اینجا کامپوننت جدید را فراخوانی می‌کنیم */}
+            <TerminalHero />
           </motion.div>
 
           <section className="py-16">
