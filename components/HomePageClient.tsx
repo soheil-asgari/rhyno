@@ -46,6 +46,7 @@ import { FaCheckCircle } from "react-icons/fa"
 import { LuMousePointerClick, LuBrainCircuit } from "react-icons/lu"
 import { GoGoal } from "react-icons/go"
 import AnimatedButton from "@/components/AnimatedButton"
+import FaqSection from "@/components/FaqSection"
 
 // --- Helper components can stay here as they are small ---
 const AnimatedGridPattern = memo(() => (
@@ -271,7 +272,8 @@ export default function HomePageClient() {
     { href: "#pricing", label: "تعرفه‌ها" },
     { href: "/about", label: "درباره ما" },
     { href: "/blog", label: "بلاگ" },
-    { href: "/contact", label: "تماس با ما" }
+    { href: "/contact", label: "تماس با ما" },
+    { href: "#faq", label: "سوالات متداول" }
   ]
   const heroTitle = "مرکز فرماندهی هوش مصنوعی شما"
   const titleWords = heroTitle.split(" ")
@@ -628,6 +630,7 @@ export default function HomePageClient() {
               </div>
             </motion.div>
           </section>
+          <FaqSection />
         </main>
 
         <footer className="border-t border-white/10 py-8 pb-28 text-center sm:pb-8">
