@@ -35,7 +35,7 @@ const APP_NAME = "Rhyno AI"
 const APP_DEFAULT_TITLE = "Rhyno AI | مرکز فرماندهی هوش مصنوعی شما"
 const APP_DESCRIPTION =
   "مرکز فرماندهی هوش مصنوعی شما – دسترسی سریع و ساده به مدل‌های قدرتمند AI با Rhyno AI."
-const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-google.png"
+const OG_IMAGE_URL = "https://www.rhynoai.ir/rhyno-logo-square.jpg"
 
 export const metadata: Metadata = {
   title: { default: APP_DEFAULT_TITLE, template: "%s | Rhyno AI" },
@@ -112,6 +112,37 @@ export default async function RootLayout({
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
       <head />
+      <link
+        rel="preload"
+        href="/_next/static/media/vazirmatn-arabic-400-normal.f37c0063.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
+      <link
+        rel="preload"
+        href="/_next/static/media/vazirmatn-latin-400-normal.344759ea.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
+
+      {/* ✅ Preload برای CSS chunks مهم */}
+      <link
+        rel="preload"
+        href="/_next/static/css/6fc3bac732a18601.css"
+        as="style"
+      />
+      <link
+        rel="preload"
+        href="/_next/static/css/9a9630344bf412aa.css"
+        as="style"
+      />
+      <link
+        rel="preload"
+        href="/_next/static/css/5a2157a4165fe8a6.css"
+        as="style"
+      />
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >

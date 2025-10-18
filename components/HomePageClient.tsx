@@ -5,7 +5,8 @@ import {
   Variants,
   useMotionValue,
   useSpring,
-  useTransform
+  useTransform,
+  AnimatePresence
 } from "framer-motion"
 import React, {
   memo,
@@ -16,7 +17,6 @@ import React, {
 } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import Lottie from "lottie-react"
 import dynamic from "next/dynamic"
 import { cn } from "@/lib/utils"
 
@@ -292,100 +292,148 @@ export default function HomePageClient() {
       transition: { type: "tween", duration: 0.8, ease: [0.22, 1, 0.36, 1] }
     }
   }
-  const TerminalHeader = () => (
-    <div className="flex items-center gap-2 rounded-t-lg bg-gray-800 px-4 py-3">
-      <div className="size-3 rounded-full bg-red-500 transition-transform hover:scale-110"></div>
-      <div className="size-3 rounded-full bg-yellow-500 transition-transform hover:scale-110"></div>
-      <div className="size-3 rounded-full bg-green-500 transition-transform hover:scale-110"></div>
-    </div>
-  )
+  // --- کامپوننت جدید MultiModalHero ---
+  const MultiModalHero = () => {
+    const [showPrompt, setShowPrompt] = useState(false)
+    const [isProcessing, setIsProcessing] = useState(false)
+    const [showOutputs, setShowOutputs] = useState(false)
 
-  // کامپوننت اصلی و بهبودیافته
-  const TerminalHero = () => {
-    // نسخه فانتزی و هیجان‌انگیز
-    const command = '> Rhyno  "یه ایده خوب برای ساخت محتوا بهم بده"'
-    const processingText = "[■■■■■■■■■...] در حال ساخت محتوای شما..."
-    const successText = "✨ تمام شد! محتوای جادیی شما اماده شد 🌟"
+    const promptText = '"یه ایده خوب برای ساخت محتوا بده"'
 
-    // انیمیشن برای تایپ شدن کاراکتر به کاراکتر
-    const commandVariants: Variants = {
+    // داده‌های نمونه برای کارت‌های خروجی
+    const outputCards = [
+      {
+        icon: <FiFileText />,
+        title: "ایده مقاله",
+        desc: "ساختار یک مقاله بلاگ جذاب در مورد آینده AI."
+      },
+      {
+        icon: <FiImage />,
+        title: "تصویر پیشنهادی",
+        desc: "یک تصویر هنری مینیمال از یک مغز دیجیتال."
+      },
+      {
+        icon: <BsCodeSlash />,
+        title: "اسکریپت کوتاه",
+        desc: "اسکریپت پایتون برای پیدا کردن ترندهای روز."
+      },
+      {
+        icon: <BiSolidUserVoice />,
+        title: "اسکریپت پادکست",
+        desc: "متن یک پادکست کوتاه ۵ دقیقه‌ای با لحن صمیمی."
+      }
+    ]
+
+    useEffect(() => {
+      // تایم‌لاین انیمیشن
+      const timer1 = setTimeout(() => setShowPrompt(true), 500) // ۱. نمایش پرامپت
+      const timer2 = setTimeout(() => setIsProcessing(true), 1700) // ۲. نمایش پردازش
+      const timer3 = setTimeout(() => {
+        setIsProcessing(false) // ۳. پنهان کردن پردازش
+        setShowOutputs(true) //    و نمایش خروجی‌ها
+      }, 3500)
+
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+        clearTimeout(timer3)
+      }
+    }, [])
+
+    // Variants برای انیمیشن گرید
+    const gridVariants: Variants = {
       hidden: { opacity: 0 },
       visible: {
         opacity: 1,
         transition: {
-          delay: 0.5,
-          staggerChildren: 0.04 // سرعت تایپ هر کاراکتر
+          staggerChildren: 0.2, // انیمیشن آبشاری فرزندان
+          delayChildren: 0.1
         }
       }
     }
 
-    const characterVariants: Variants = {
-      hidden: { opacity: 0, y: 10 },
-      visible: { opacity: 1, y: 0 }
-    }
-
-    // انیمیشن برای خطوط پردازش و موفقیت
-    const lineVariants = (delay: number): Variants => ({
-      hidden: { opacity: 0, x: -20 },
+    // Variants برای هر کارت در گرید
+    const cardVariants: Variants = {
+      hidden: { opacity: 0, y: 20 },
       visible: {
         opacity: 1,
-        x: 0,
-        transition: { type: "spring", stiffness: 100, damping: 15, delay }
+        y: 0,
+        transition: { type: "spring", stiffness: 100 }
       }
-    })
+    }
 
     return (
-      <div className="font-vazir mx-auto w-full max-w-3xl overflow-hidden rounded-xl border border-blue-500/20 bg-gray-950/70 text-sm shadow-2xl shadow-blue-500/20 backdrop-blur-md">
-        <TerminalHeader />
-        <div className="font-vazir p-4">
-          {/* خط اول: دستور با انیمیشن تایپ */}
-          <motion.div
-            className="font-vazir  flex items-center"
-            initial="hidden"
-            animate="visible"
-          >
-            <motion.p
-              variants={commandVariants}
-              className="font-vazir text-lime-400"
+      <div className="relative mx-auto flex w-full max-w-4xl flex-col items-center gap-6 py-8">
+        {/* ۱. کارت پرامپت */}
+        <AnimatePresence>
+          {showPrompt && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="w-full max-w-lg rounded-2xl border border-blue-500/30 bg-gray-950/80 p-5 text-center shadow-xl shadow-blue-500/10 backdrop-blur-md"
             >
-              {command.split("").map((char, index) => (
-                <motion.span key={index} variants={characterVariants}>
-                  {char}
-                </motion.span>
-              ))}
-            </motion.p>
-            {/* مکان‌نمای چشمک‌زن */}
-            <motion.span
-              className="font-vazir ml-1 inline-block h-4 w-2 bg-lime-400"
-              animate={{ opacity: [0, 1, 0] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: 0.5 }}
-            />
-          </motion.div>
+              <p className="text-lg text-gray-300">{promptText}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* خط دوم: پردازش */}
-          <motion.p
-            variants={lineVariants(2.5)} // با تاخیر بعد از تایپ نمایش داده می‌شود
-            initial="hidden"
-            animate="visible"
-            className="mt-4 text-yellow-400"
-          >
-            {processingText}
-          </motion.p>
-
-          {/* خط سوم: موفقیت */}
-          <motion.p
-            variants={lineVariants(3.5)} // با تاخیر بعد از پردازش
-            initial="hidden"
-            animate="visible"
-            className="mt-2 text-emerald-400"
-          >
-            {successText}
-          </motion.p>
+        {/* ۲. نشانگر پردازش */}
+        <div className="my-4 h-12">
+          {" "}
+          {/* یک نگه‌دارنده فضا برای جلوگیری از پرش صفحه */}
+          <AnimatePresence>
+            {isProcessing && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{
+                  opacity: 1,
+                  scale: 1,
+                  transition: { type: "spring" }
+                }}
+                exit={{ opacity: 0, scale: 0.5 }}
+                className="flex flex-col items-center gap-2"
+              >
+                <motion.div
+                  animate={{ rotate: [0, 360] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                >
+                  <LuBrainCircuit size={32} className="text-blue-400" />
+                </motion.div>
+                <p className="text-sm text-blue-400">در حال پردازش...</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* ۳. گرید خروجی‌ها */}
+        <AnimatePresence>
+          {showOutputs && (
+            <motion.div
+              variants={gridVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4"
+            >
+              {outputCards.map((card, i) => (
+                <motion.div key={i} variants={cardVariants}>
+                  {/* استفاده مجدد از کامپوننت BentoCard شما */}
+                  <BentoCard className="h-full">
+                    <BentoCardContent
+                      icon={card.icon}
+                      title={card.title}
+                      desc={card.desc}
+                    />
+                  </BentoCard>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
-
   return (
     <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-black text-gray-300">
       <AnimatedGridPattern />
@@ -527,7 +575,7 @@ export default function HomePageClient() {
             <div className="absolute inset-x-0 -top-10 z-0 h-1/2 bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15)_0%,_transparent_60%)]" />
 
             {/* اینجا کامپوننت جدید را فراخوانی می‌کنیم */}
-            <TerminalHero />
+            <MultiModalHero />
           </motion.div>
 
           <section className="py-16">
