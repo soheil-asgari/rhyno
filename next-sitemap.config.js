@@ -35,6 +35,11 @@ module.exports = {
             'ai-dollar-rhyno',
             'ai-trends-2025',
             "rhyno-dollar-1",
+            "content-creation-ai",
+            "keyword-research-with-ai",
+            "link-building-guide",
+            "on-page-seo-guide"
+
         ];
 
         const blogPaths = await Promise.all(
