@@ -21,6 +21,8 @@ import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
 import useDynamicVh from "@/lib/hooks/use-dynamic-vh"
+import { RhynoAutoUI } from "@/components/RhynoAutoUI"
+
 const ChatHelp = dynamic(() => import("./chat-help").then(mod => mod.ChatHelp))
 const ChatSecondaryButtons = dynamic(() =>
   import("./chat-secondary-buttons").then(mod => mod.ChatSecondaryButtons)

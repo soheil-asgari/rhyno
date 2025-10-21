@@ -31,8 +31,8 @@ export const models: ModelPricing[] = [
     id: "gpt-5",
     name: "🌌 Rhyno V5 Ultra",
     توضیحات: "جدیدترین مدل پرچمدار برای کارهای سنگین و دقیق",
-    inputPricePer1MTokenUSD: 1.25,
-    outputPricePer1MTokenUSD: 20.0,
+    inputPricePer1MTokenUSD: 3.25,
+    outputPricePer1MTokenUSD: 40.0,
     ...(() => {
       const { base, final } = calcCost(1.25, 20.0)
       return {
@@ -42,7 +42,36 @@ export const models: ModelPricing[] = [
       }
     })()
   },
-
+  {
+    id: "gpt-3.5-turbo-16k",
+    name: "💨 Rhyno V1 Pro", // (یا هر نامی که دوست دارید)
+    توضیحات: "مدل قوی و کارآمد برای کارهای متوسط و سریع",
+    inputPricePer1MTokenUSD: 0.5, // قیمت واقعی (مثلاً 0.5 دلار)
+    outputPricePer1MTokenUSD: 10.5, // قیمت واقعی (مثلاً 1.5 دلار)
+    ...(() => {
+      const { base, final } = calcCost(0.5, 10.5) // 👈 از همان قیمت‌ها استفاده کنید
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+  {
+    id: "gpt-3.5-turbo",
+    name: "💨 Rhyno V1", // (یا هر نامی که دوست دارید)
+    توضیحات: "مدل کارآمد برای کارهای متوسط ",
+    inputPricePer1MTokenUSD: 0.5, // قیمت واقعی (مثلاً 0.5 دلار)
+    outputPricePer1MTokenUSD: 8.5, // قیمت واقعی (مثلاً 1.5 دلار)
+    ...(() => {
+      const { base, final } = calcCost(0.5, 10.5) // 👈 از همان قیمت‌ها استفاده کنید
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
   {
     id: "gpt-4o-transcribe",
     name: "🎙️ Rhyno Transcribe",
@@ -59,11 +88,56 @@ export const models: ModelPricing[] = [
     })()
   },
   {
+    id: "gpt-4-turbo-preview",
+    name: "⚡ Rhyno V4 Preview",
+    توضیحات: "قدرت و سرعت بی‌نظیر برای کارهای پیچیده",
+    inputPricePer1MTokenUSD: 36.25,
+    outputPricePer1MTokenUSD: 70.0,
+    ...(() => {
+      const { base, final } = calcCost(36.25, 70.0)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+  {
+    id: "gpt-4-turbo",
+    name: "⚡ Rhyno V4 Turbo",
+    توضیحات: "مدل سریع و کارآمد برای کارهای سریع",
+    inputPricePer1MTokenUSD: 20.25,
+    outputPricePer1MTokenUSD: 60.0,
+    ...(() => {
+      const { base, final } = calcCost(30.25, 60.0)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+  {
+    id: "gpt-4",
+    name: "🧠 Rhyno V4",
+    توضیحات: "قدرت بالای پردازش و کارایی عالی",
+    inputPricePer1MTokenUSD: 90,
+    outputPricePer1MTokenUSD: 200.0,
+    ...(() => {
+      const { base, final } = calcCost(90, 200.0)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+  {
     id: "gpt-5-mini",
     name: "✨ Rhyno V5 Mini",
     توضیحات: "نسخه سبک‌تر V5 برای کارهای روزمره",
-    inputPricePer1MTokenUSD: 2.5,
-    outputPricePer1MTokenUSD: 15.5,
+    inputPricePer1MTokenUSD: 4.5,
+    outputPricePer1MTokenUSD: 30.5,
     ...(() => {
       const { base, final } = calcCost(2.5, 15.5)
       return {
@@ -77,8 +151,8 @@ export const models: ModelPricing[] = [
     id: "gpt-5-nano",
     name: "⚡ Rhyno V5 Nano",
     توضیحات: "کوچک‌ترین و سریع‌ترین نسخه V5",
-    inputPricePer1MTokenUSD: 0.85,
-    outputPricePer1MTokenUSD: 11.7,
+    inputPricePer1MTokenUSD: 2.85,
+    outputPricePer1MTokenUSD: 22.7,
     ...(() => {
       const { base, final } = calcCost(0.85, 11.7)
       return {
@@ -104,15 +178,15 @@ export const models: ModelPricing[] = [
     })()
   },
 
-  // --- GPT-4.1 family ---
+  // --- gpt-5-codex family ---
   {
-    id: "gpt-4.1",
-    name: "🧠 Rhyno V4.1",
-    توضیحات: "مدل هوشمند برای متن‌های پیچیده و طولانی",
-    inputPricePer1MTokenUSD: 2.0,
-    outputPricePer1MTokenUSD: 18.0,
+    id: "gpt-5-codex",
+    name: "💻 Rhyno Code V1",
+    توضیحات: "کمک به کدنویسی و برنامه‌نویسی",
+    inputPricePer1MTokenUSD: 10.0,
+    outputPricePer1MTokenUSD: 28.0,
     ...(() => {
-      const { base, final } = calcCost(2.0, 18.0)
+      const { base, final } = calcCost(10.0, 28.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -121,7 +195,7 @@ export const models: ModelPricing[] = [
     })()
   },
   {
-    id: "gpt-4.1-mini",
+    id: "gpt-5-codex-mini",
     name: "⚡ Rhyno V4.1 Mini",
     توضیحات: "نسخه سریع‌تر و ارزان‌تر V4.1",
     inputPricePer1MTokenUSD: 1.0,
@@ -136,7 +210,7 @@ export const models: ModelPricing[] = [
     })()
   },
   {
-    id: "gpt-4.1-nano",
+    id: "gpt-5-codex-nano",
     name: "💨 Rhyno V4.1 Nano",
     توضیحات: "کم‌هزینه‌ترین نسخه V4.1",
     inputPricePer1MTokenUSD: 0.1,
@@ -169,7 +243,7 @@ export const models: ModelPricing[] = [
   },
   {
     id: "gpt-4o-mini",
-    name: "✨ Rhyno V4 Mini",
+    name: "⚡ Rhyno V4 Mini",
     توضیحات: "نسخه کوچک و سریع Omni",
     inputPricePer1MTokenUSD: 1.15,
     outputPricePer1MTokenUSD: 9.6,
@@ -182,16 +256,14 @@ export const models: ModelPricing[] = [
       }
     })()
   },
-
-  // --- Realtime ---
   {
-    id: "gpt-4o-realtime-preview",
-    name: "🎙️ Rhyno Live",
-    توضیحات: "پاسخ زنده و فوری",
-    inputPricePer1MTokenUSD: 50.0,
-    outputPricePer1MTokenUSD: 90.0,
+    id: "gpt-4o",
+    name: "🚀 Rhyno V4 Ultra",
+    توضیحات: "مدل همه‌فن‌حریف با سرعت و دقت بالا",
+    inputPricePer1MTokenUSD: 5.15,
+    outputPricePer1MTokenUSD: 19.6,
     ...(() => {
-      const { base, final } = calcCost(50.0, 90.0)
+      const { base, final } = calcCost(5.15, 20.6)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -200,7 +272,39 @@ export const models: ModelPricing[] = [
     })()
   },
   {
-    id: "gpt-4o-mini-realtime-preview",
+    id: "gpt-4o-mini-tts",
+    name: "🎤 Rhyno TTS",
+    توضیحات: "نسخه صوتی Rhyno",
+    inputPricePer1MTokenUSD: 2.15,
+    outputPricePer1MTokenUSD: 25.6,
+    ...(() => {
+      const { base, final } = calcCost(2.15, 25.6)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+
+  // --- Realtime ---
+  {
+    id: "gpt-4o-realtime-preview-2025-06-03",
+    name: "🎙️ Rhyno Live V1",
+    توضیحات: "پاسخ زنده و فوری",
+    inputPricePer1MTokenUSD: 70.0,
+    outputPricePer1MTokenUSD: 120.0,
+    ...(() => {
+      const { base, final } = calcCost(70.0, 120.0)
+      return {
+        costExampleUSD: base,
+        finalCostUSD: final,
+        finalCostRial: Math.round(final * RIAL_RATE)
+      }
+    })()
+  },
+  {
+    id: "gpt-4o-mini-realtime-preview-2024-12-17",
     name: "🎧 Rhyno Live Mini",
     توضیحات: "نسخه سبک برای پاسخ زنده",
     inputPricePer1MTokenUSD: 25.0,
@@ -234,13 +338,13 @@ export const models: ModelPricing[] = [
 
   // --- Image ---
   {
-    id: "google/gemini-2.5-flash-image-preview",
+    id: "google/gemini-2.5-flash-image",
     name: "🖼️ Rhyno Image V2",
     توضیحات: "مدل جدید برای تولید تصویر",
     inputPricePer1MTokenUSD: 20.0,
     outputPricePer1MTokenUSD: 65.0,
     ...(() => {
-      const { base, final } = calcCost(20.0, 65.0)
+      const { base, final } = calcCost(30.0, 70.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,
@@ -284,10 +388,10 @@ export const models: ModelPricing[] = [
     id: "o1-pro",
     name: "🔥 Rhyno O1 Pro",
     توضیحات: "نسخه حرفه‌ای O1",
-    inputPricePer1MTokenUSD: 300.0,
-    outputPricePer1MTokenUSD: 800.0,
+    inputPricePer1MTokenUSD: 500.0,
+    outputPricePer1MTokenUSD: 1000.0,
     ...(() => {
-      const { base, final } = calcCost(300.0, 800.0)
+      const { base, final } = calcCost(500.0, 1000.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,

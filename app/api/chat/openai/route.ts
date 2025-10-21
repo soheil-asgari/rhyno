@@ -19,7 +19,7 @@ import { handleSTT } from "@/app/api/chat/handlers/stt"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
-const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image-preview"
+const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image"
 function isImageRequest(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase()
 
@@ -185,6 +185,8 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "gpt-3.5-turbo-16k": 16384
   // سایر مدل‌ها را اضافه کن
 }
+const MODELS_WITH_PRIORITY_TIER = new Set(["gpt-5", "gpt-5-mini", "gpt-5-nano"])
+
 function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
   const requestedTokens = cs.maxTokens ?? cs.max_tokens ?? 4096
   const modelLimit = MODEL_MAX_TOKENS[modelId] ?? 4096
@@ -499,12 +501,12 @@ export async function POST(request: Request) {
     // ✨ منطق Web Search
     if (useOpenAIWebSearch) {
       // بخش ۱: مدیریت مدل‌های غیر استریم وب‌سرچ (کد اصلی شما)
-      if (["gpt-5", "gpt-5-mini"].includes(selectedModel)) {
+      if (["gpt-5", "gpt-5-mini", "gpt-5-mini"].includes(selectedModel)) {
         // console.log(
         //   "🚀 [WEB-SEARCH] Entering NON-streaming web search block for model:",
         //   selectedModel
         // )
-        const response = await openai.responses.create({
+        const webSearchPayload: any = {
           model: selectedModel,
           input: finalMessages.map(m =>
             m.role === "user"
@@ -517,7 +519,16 @@ export async function POST(request: Request) {
           tools: [{ type: "web_search" as any }],
           temperature: temp,
           max_output_tokens: maxTokens
-        })
+        }
+
+        if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+          webSearchPayload.service_tier = "priority"
+        }
+        console.log(
+          "🚀 [PRIORITY-CHECK] Web Search Payload:",
+          JSON.stringify(webSearchPayload, null, 2)
+        )
+        const response = await openai.responses.create(webSearchPayload)
 
         // ✨ اضافه کردن منطق کسر هزینه برای حالت غیر استریم وب‌سرچ
         const usage = response.usage
@@ -668,7 +679,9 @@ export async function POST(request: Request) {
       } else {
         payload.max_tokens = maxTokens
       }
-
+      if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+        ;(payload as any).service_tier = "priority"
+      }
       const stream = await openai.chat.completions.create(payload)
       const encoder = new TextEncoder()
       const readableStream = new ReadableStream({
@@ -745,7 +758,9 @@ export async function POST(request: Request) {
               } else {
                 usageResponsePayload.max_tokens = maxTokens
               }
-
+              if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+                ;(usageResponsePayload as any).service_tier = "priority"
+              }
               const usageResponse =
                 await openai.chat.completions.create(usageResponsePayload)
 
@@ -771,26 +786,42 @@ export async function POST(request: Request) {
                 )
 
                 if (userCostUSD > 0 && wallet) {
-                  await supabase.rpc("deduct_credits_and_log_usage", {
-                    p_user_id: userId,
-                    p_model_name: selectedModel,
-                    p_prompt_tokens: usageResponse.usage.prompt_tokens,
-                    p_completion_tokens: usageResponse.usage.completion_tokens,
-                    p_cost: userCostUSD
-                  })
-                  console.log(
-                    `✅ Credits deducted with fallback | User: ${userId}`
+                  // vvvv کد خود را با این جایگزین کنید vvvv
+
+                  // 1. خطا را از نتیجه RPC بگیرید
+                  const { error: rpcError } = await supabase.rpc(
+                    "deduct_credits_and_log_usage",
+                    {
+                      p_user_id: userId,
+                      p_model_name: selectedModel,
+                      p_prompt_tokens: usageResponse.usage.prompt_tokens,
+                      p_completion_tokens:
+                        usageResponse.usage.completion_tokens,
+                      p_cost: userCostUSD
+                    }
                   )
 
-                  const { data: updatedWallet } = await supabase
-                    .from("wallets")
-                    .select("balance")
-                    .eq("user_id", userId)
-                    .single()
+                  // 2. بررسی کنید که آیا خطایی رخ داده است
+                  if (rpcError) {
+                    // 3. اگر خطا وجود داشت، آن را لاگ کنید!
+                    console.error("❌❌❌ CRITICAL: RPC call FAILED ❌❌❌")
+                    console.error(rpcError)
+                  } else {
+                    // 4. فقط در صورت عدم وجود خطا، لاگ موفقیت را نمایش دهید
+                    console.log(
+                      `✅ Credits deducted with fallback | User: ${userId}`
+                    )
 
-                  console.log(
-                    `✅ [FALLBACK] عملیات موفق! | کاربر: ${userId} | هزینه: ${userCostUSD} | موجودی جدید: ${updatedWallet?.balance}`
-                  )
+                    const { data: updatedWallet } = await supabase
+                      .from("wallets")
+                      .select("balance")
+                      .eq("user_id", userId)
+                      .single()
+
+                    console.log(
+                      `✅ [FALLBACK] عملیات موفق! | کاربر: ${userId} | هزینه: ${userCostUSD} | موجودی جدید: ${updatedWallet?.balance}`
+                    )
+                  }
                 }
               }
             }
@@ -821,6 +852,13 @@ export async function POST(request: Request) {
       } else {
         payload.max_tokens = maxTokens
       }
+      if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+        ;(payload as any).service_tier = "priority"
+      }
+      console.log(
+        "🚀 [PRIORITY-CHECK] Non-Stream Payload:",
+        JSON.stringify(payload, null, 2)
+      )
       const response = await openai.chat.completions.create(payload)
       const content = response.choices[0].message.content ?? ""
       const usage = response.usage

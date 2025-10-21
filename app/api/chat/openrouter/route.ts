@@ -85,13 +85,30 @@ export async function POST(request: Request) {
       baseURL: "https://openrouter.ai/api/v1"
     })
 
-    const responseStream = await openrouter.chat.completions.create({
-      model: chatSettings.model as any,
-      messages: messages as any,
-      stream: true,
-      // @ts-ignore
-      modalities: ["image", "text"]
-    })
+    const modelsWithImageOutput = [
+      "google/gemini-2.5-flash-image"
+      // ... هر مدل دیگری که خروجی تصویر می‌دهد
+    ]
+
+    const model = chatSettings.model
+
+    // ۲. بدنه درخواست را به صورت داینامیک بسازید
+    const requestPayload: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming =
+      {
+        model: model as any,
+        messages: messages as any,
+        stream: true
+      }
+
+    // ۳. پارامتر 'modalities' را فقط در صورت نیاز اضافه کنید
+    if (modelsWithImageOutput.includes(model)) {
+      // @ts-ignore - چون modalities در تایپ استاندارد OpenAI نیست
+      requestPayload.modalities = ["image", "text"]
+    }
+
+    // ۴. درخواست را با بدنه داینامیک ارسال کنید
+    const responseStream =
+      await openrouter.chat.completions.create(requestPayload)
 
     const encoder = new TextEncoder()
     const readableStream = new ReadableStream({

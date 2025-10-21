@@ -20,9 +20,9 @@ interface ChatItemProps {
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-3.5-turbo": "💨 Rhyno V1",
   "gpt-3.5-turbo-16k": "💨 Rhyno V1 Pro",
-  "gpt-4": "🧠 Rhyno V2",
-  "gpt-4-turbo": "⚡ Rhyno V3 Turbo",
-  "gpt-4-turbo-preview": "⚡ Rhyno V3 Preview",
+  "gpt-4": "🧠 Rhyno V4",
+  "gpt-4-turbo": "⚡ Rhyno V4 Turbo",
+  "gpt-4-turbo-preview": "⚡ Rhyno V4 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
   "gpt-4o-mini-tts": "🎤 Rhyno TTS", // ✅ اضافه شد
@@ -34,8 +34,9 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
   "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
-  "google/gemini-2.5-flash-image-preview": "🎨 Rhyno Image V2",
-  "gpt-4.1": "💻 Rhyno Code V1"
+  "google/gemini-2.5-flash-image": "🎨 Rhyno Image V2",
+  "gpt-5-codex": "💻 Rhyno Code V1",
+  "google/gemini-2.5-pro": "🖥️ Rhyno Pro"
 }
 
 // پرامپت‌های پیش‌فرض
@@ -46,9 +47,9 @@ const MODEL_PROMPTS: Record<string, string> = {
     "You are a friendly AI with extended memory. Your name is Rhyno v1 Pro",
   "gpt-4": "You are a highly intelligent AI assistant. Your name is Rhyno v2",
   "gpt-4-turbo":
-    "You are a faster, cost-efficient AI assistant. Your name is Rhyno v3 Turbo",
+    "You are a faster, cost-efficient AI assistant. Your name is Rhyno V4 Turbo",
   "gpt-4-turbo-preview":
-    "You are an experimental fast AI assistant. Your name is Rhyno v3 Preview",
+    "You are an experimental fast AI assistant. Your name is Rhyno V4 Preview",
   "gpt-4o":
     "You are a powerful AI assistant with extended reasoning. Your name is Rhyno v4.1",
   "gpt-4o-mini":
@@ -66,7 +67,8 @@ const MODEL_PROMPTS: Record<string, string> = {
     "You are Rhyno Live, respond in real-time Persian voice and text",
   "gpt-4o-mini-realtime-preview-2024-12-17":
     "You are Rhyno Live Mini, real-time Persian chat assistant",
-  "gpt-4.1": "You are Rhyno Code V1, expert in programming and code assistance"
+  "gpt-5-codex":
+    "You are Rhyno Code V1, expert in programming and code assistance"
 }
 
 export const ChatItem: FC<ChatItemProps> = ({ chat }) => {

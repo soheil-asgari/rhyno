@@ -88,6 +88,7 @@
     "framer-motion": "^12.23.12",
     "gpt-tokenizer": "^2.9.0",
     "gray-matter": "^4.0.3",
+    "html2canvas": "^1.4.1",
     "i18next": "^23.7.16",
     "i18next-resources-to-backend": "^1.2.0",
     "jsonwebtoken": "^9.0.2",

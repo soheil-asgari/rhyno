@@ -143,6 +143,18 @@ export default function CheckoutPage() {
                 پلن Pay as you go، هر تومان شما ارزش واقعی دارد و هدر نمی‌شود.
               </p>
             </motion.div>
+            <motion.div
+              className="mb-20 mt-12 flex flex-col items-center space-y-4"
+              variants={itemVariants}
+            >
+              <a
+                href="/login"
+                className="flex w-full items-center justify-center rounded-full bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition-all duration-300 hover:bg-blue-500 md:w-auto"
+              >
+                <FaCreditCard className="ml-2 inline-block text-xl" />
+                ورود و دریافت شارژ هدیه
+              </a>
+            </motion.div>
 
             {/* بخش مزایای اضافی با انیمیشن */}
             <motion.div

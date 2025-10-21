@@ -25,7 +25,7 @@ export type OpenAILLMID =
   | "gpt-3.5-turbo-16k"
   | "gpt-4-turbo"
   | "dall-e-3-mini"
-  | "gpt-4.1"
+  | "gpt-5-codex"
   | "gpt-5-nano"
   | "gpt-4o-mini-tts"
   | "computer-use-preview"
@@ -37,7 +37,7 @@ export type GoogleLLMID =
   | "gemini-pro-vision" // Gemini Pro Vision
   | "gemini-1.5-pro-latest" // Gemini 1.5 Pro
   | "gemini-1.5-flash" // Gemini 1.5 Flash
-  | "google/gemini-2.5-flash-image-preview"
+  | "google/gemini-2.5-flash-image"
 
 // Anthropic Models
 export type AnthropicLLMID =

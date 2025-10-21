@@ -93,10 +93,10 @@ const GPT5Nano: LLM = {
 }
 
 const GPT4_1: LLM = {
-  modelId: "gpt-4.1",
-  modelName: "GPT-4.1 Code",
+  modelId: "gpt-5-codex",
+  modelName: "gpt-5-codex Code",
   provider: "openai",
-  hostedId: "gpt-4.1",
+  hostedId: "gpt-5-codex",
   platformLink: OPENAI_PLATFORM_LINK,
   imageInput: false,
   pricing: {

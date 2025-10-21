@@ -26,15 +26,15 @@ const MODEL_CATEGORIES: Record<
       name: "💨 Rhyno V1 Pro",
       desc: "حافظه طولانی تا 16K توکن"
     },
-    { id: "gpt-4", name: "🧠 Rhyno V2", desc: "دقیق و تحلیلی" },
+    { id: "gpt-4", name: "🧠 Rhyno V4", desc: "دقیق و تحلیلی" },
     {
       id: "gpt-4-turbo",
-      name: "⚡ Rhyno V3 Turbo",
+      name: "⚡ Rhyno V4 Turbo",
       desc: "نسخه سریع و کم‌هزینه"
     },
     {
       id: "gpt-4-turbo-preview",
-      name: "⚡ Rhyno V3 Preview",
+      name: "⚡ Rhyno V4 Preview",
       desc: "نسخه پیش‌نمایش سریع"
     }
   ],
@@ -75,7 +75,7 @@ const MODEL_CATEGORIES: Record<
   ],
   // "🖥️ اتوماسیون / تعامل با کامپیوتر": [
   //   {
-  //     id: "computer-use-preview",
+  //     id: "google/gemini-2.5-pro",
   //     name: "🖥️ Rhyno Auto",
   //     desc: "تعامل با کامپیوتر و اتوماسیون وظایف"
   //   }
@@ -83,14 +83,14 @@ const MODEL_CATEGORIES: Record<
   "🎨 تصویری": [
     { id: "dall-e-3", name: "🎨 Rhyno Image V1", desc: "تولید تصویر از متن" },
     {
-      id: "google/gemini-2.5-flash-image-preview",
+      id: "google/gemini-2.5-flash-image",
       name: "🎨 Rhyno Image V2",
       desc: "ویرایش حرفه ای عکس"
     }
   ],
   "💻 برنامه‌نویسی / کدنویسی": [
     {
-      id: "gpt-4.1",
+      id: "gpt-5-codex",
       name: "💻 Rhyno Code V1",
       desc: "کمک به کدنویسی و برنامه‌نویسی"
     }

@@ -11,7 +11,10 @@ import {
   IconPhone,
   IconReceipt,
   IconTicket,
-  IconUser
+  IconUser,
+  IconChartPie,
+  IconSum,
+  IconCoin
 } from "@tabler/icons-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
@@ -33,6 +36,156 @@ import { Skeleton } from "@/components/ui/skeleton"
 type Wallet = Tables<"wallets">
 type Transaction = Tables<"transactions">
 
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "gpt-3.5-turbo": "💨 Rhyno V1",
+  "gpt-3.5-turbo-16k": "💨 Rhyno V1 Pro",
+  "gpt-4": "🧠 Rhyno V4",
+  "gpt-4-turbo": "⚡ Rhyno V4 Turbo",
+  "gpt-4-turbo-preview": "⚡ Rhyno V4 Preview",
+  "gpt-4o": "🚀 Rhyno V4 Ultra",
+  "gpt-4o-mini": "⚡ Rhyno V4 Mini",
+  "gpt-4o-mini-tts": "🎤 Rhyno TTS", // ✅ اضافه شد
+  "gpt-4o-transcribe": "🎙️ Rhyno Transcribe", // ✅ اضافه شد
+  "computer-use-preview": "🖥️ Rhyno Auto", // ✅ اضافه شد
+  "gpt-5": "🌌 Rhyno V5 Ultra",
+  "gpt-5-mini": "✨ Rhyno V5 Mini",
+  "gpt-5-nano": "🔹 Rhyno V5 Nano",
+  "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
+  "dall-e-3": "🎨 Rhyno Image V1",
+  "google/gemini-2.5-flash-image": "🎨 Rhyno Image V2",
+  "gpt-5-codex": "💻 Rhyno Code V1",
+  "google/gemini-2.5-pro": "🖥️ Rhyno Pro"
+}
+const formatToken = (num: number) => {
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(2) + " M" // میلیون
+  }
+  if (num >= 1_000) {
+    return (num / 1_000).toFixed(1) + " K" // هزار
+  }
+  return num.toString()
+}
+
+interface ModelUsage {
+  model_name: string
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  total_cost_usd: number // <-- فیلد هزینه اضافه شد
+}
+
+// این ثابت را از کامپوننت اصلی کپی می‌کنیم تا اینجا در دسترس باشد
+
+// تابع جدید برای تبدیل هزینه دلاری به تومان (با دقت اعشار)
+const formatCostToToman = (costUSD: number) => {
+  if (!costUSD || costUSD === 0) return "۰"
+
+  const balanceIRR = costUSD * MANUAL_EXCHANGE_RATE
+  const balanceToman = balanceIRR / 10
+
+  // برای هزینه‌های کمتر از ۱ تومان، ۲ رقم اعشار نشان بده
+  if (balanceToman < 1) {
+    return balanceToman.toFixed(2)
+  }
+  // برای هزینه‌های کمتر از ۱۰۰ تومان، ۱ رقم اعشار نشان بده
+  if (balanceToman < 100) {
+    return balanceToman.toLocaleString("fa-IR", { maximumFractionDigits: 1 })
+  }
+  // برای هزینه‌های بالاتر، گرد کن
+  return balanceToman.toLocaleString("fa-IR", { maximumFractionDigits: 0 })
+}
+
+const UsageHistory: React.FC<{ userId: string }> = ({ userId }) => {
+  const [usage, setUsage] = useState<ModelUsage[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      setLoading(true)
+
+      // اگر از 'as any' استفاده می‌کنید، آن را نگه دارید
+      const { data, error } = await supabase.rpc(
+        "get_user_model_usage" as any,
+        {
+          p_user_id: userId
+        }
+      )
+
+      if (error) {
+        console.error("Error fetching model usage:", error)
+        toast.error("خطا در دریافت تاریخچه مصرف")
+      } else {
+        // اگر از 'as ModelUsage[]' استفاده می‌کنید، آن را نگه دارید
+        setUsage((data as ModelUsage[]) || [])
+      }
+      setLoading(false)
+    }
+    fetchUsage()
+  }, [userId])
+
+  if (loading) {
+    // ... (بخش لودینگ بدون تغییر) ...
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {usage.length > 0 ? (
+        usage.map(item => (
+          <div
+            key={item.model_name}
+            className="font-vazir border-b pb-3 text-sm last:border-b-0"
+          >
+            <p className="text-base font-semibold">
+              {MODEL_DISPLAY_NAMES[item.model_name] || item.model_name}
+            </p>
+            <div className="text-muted-foreground mt-2 flex justify-between">
+              <span>توکن‌های ورودی (Prompt):</span>
+              <span className="font-vazir text-foreground font-medium">
+                {formatToken(item.total_prompt_tokens)}
+              </span>
+            </div>
+            <div className="font-vazir text-muted-foreground flex justify-between">
+              <span>توکن‌های خروجی (Completion):</span>
+              <span className="font-vazir text-foreground font-medium">
+                {formatToken(item.total_completion_tokens)}
+              </span>
+            </div>
+
+            <div className="mt-2 space-y-1 border-t border-dashed border-gray-700 pt-2">
+              {/* مجموع توکن‌ها */}
+              <div className="flex items-center justify-between">
+                <span className="text-foreground flex items-center text-sm font-semibold">
+                  <IconSum size={14} className="ml-1 text-blue-400" />
+                  مجموع توکن‌ها
+                </span>
+                <span className="font-mono font-bold text-blue-300">
+                  {formatToken(
+                    item.total_prompt_tokens + item.total_completion_tokens
+                  )}
+                </span>
+              </div>
+
+              {/* هزینه کل */}
+              <div className="flex items-center justify-between">
+                <span className="text-foreground flex items-center text-sm font-semibold">
+                  <IconCoin size={14} className="ml-1 text-yellow-500" />
+                  هزینه کل
+                </span>
+                <span className="font-vazir font-bold text-yellow-400">
+                  {formatCostToToman(item.total_cost_usd)} تومان
+                </span>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <p className="font-vazir text-muted-foreground py-4 text-center text-sm">
+          تاریخچه مصرفی برای نمایش وجود ندارد.
+        </p>
+      )}
+    </div>
+  )
+}
 // --- کامپوننت تاریخچه واریز (بدون تغییر) ---
 const DepositHistory: React.FC<{ userId: string }> = ({ userId }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -339,7 +492,16 @@ function AccountPageComponent() {
                 </Button>
               </CardContent>
             </Card>
-
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-vazir flex items-center text-lg">
+                  <IconChartPie size={20} className="ml-2" /> آمار مصرف مدل‌ها
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <UsageHistory userId={user.id} />
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="font-vazir flex items-center text-lg">

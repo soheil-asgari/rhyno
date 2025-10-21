@@ -49,16 +49,15 @@ const GEMINI_PRO_VISION: LLM = {
 // ✨ مدل جدید شما در اینجا اضافه می‌شود
 const GEMINI_2_5_FLASH_PREVIEW: LLM = {
   // شناسه دقیق مدل که در کل برنامه استفاده می‌شود
-  modelId: "google/gemini-2.5-flash-image-preview",
+  modelId: "google/gemini-2.5-flash-image",
   // نامی که به کاربر نمایش داده می‌شود
   modelName: "Gemini 2.5 Flash Preview",
   // از آنجایی که از طریق OpenRouter فراخوانی می‌شود، provider را openrouter می‌گذاریم
   provider: "openrouter",
   // شناسه میزبانی شده
-  hostedId: "google/gemini-2.5-flash-image-preview",
+  hostedId: "google/gemini-2.5-flash-image",
   // لینک به صفحه مدل برای اطلاعات بیشتر
-  platformLink:
-    OPENROUTER_PLATFORM_LINK + "google/gemini-2.5-flash-image-preview",
+  platformLink: OPENROUTER_PLATFORM_LINK + "google/gemini-2.5-flash-image",
   // ✨ مهم‌ترین بخش: قابلیت پردازش تصویر را فعال می‌کند
   imageInput: true
 }
