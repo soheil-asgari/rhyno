@@ -2,18 +2,8 @@
 
 import type { Metadata } from "next"
 import Link from "next/link"
-import { FiArrowLeft, FiCalendar, FiUser } from "react-icons/fi"
-import { getAllPosts } from "@/lib/posts"
-
-type Post = {
-  slug: string
-  title: string
-  date: string
-  author: string
-  excerpt: string
-  category: string
-  image?: string
-}
+import { FiArrowLeft, FiCalendar, FiUser, FiEye } from "react-icons/fi"
+import { getAllPosts, type Post } from "@/lib/posts"
 
 // Metadata بهینه برای SEO
 export const metadata: Metadata = {
@@ -90,11 +80,14 @@ const BlogCard = ({ post }: { post: Post }) => {
           {post.excerpt || ""}
         </p>
 
-        <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+        <div className="mt-4 flex items-center justify-start gap-6 text-xs text-gray-500">
+          {/* 1. Author */}
           <div className="flex items-center gap-2">
             <FiUser />
             <span itemProp="author">{post.author || "RhynoAI"}</span>
           </div>
+
+          {/* 2. Date */}
           <div className="flex items-center gap-2">
             <FiCalendar />
             <time
@@ -104,14 +97,25 @@ const BlogCard = ({ post }: { post: Post }) => {
               {postDate}
             </time>
           </div>
+
+          {/* 3. Views (جدید) */}
+          {/* این بخش فقط زمانی نمایش داده می‌شود که دیتای بازدید وجود داشته باشد */}
+          {post.views >= 0 && (
+            <div className="flex items-center gap-2">
+              {/* ⭐️ این خط احتمالاً جا افتاده است ⭐️ */}
+              <FiEye />
+
+              <span>{post.views}</span>
+            </div>
+          )}
         </div>
       </div>
     </article>
   )
 }
 
-export default function BlogPage() {
-  const allPosts: Post[] = getAllPosts()
+export default async function BlogPage() {
+  const allPosts: Post[] = await getAllPosts()
 
   if (allPosts.length === 0) {
     return (
