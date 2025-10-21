@@ -38,7 +38,8 @@ module.exports = {
             "content-creation-ai",
             "keyword-research-with-ai",
             "link-building-guide",
-            "on-page-seo-guide"
+            "on-page-seo-guide",
+            "pejman-jamshidi-seo"
 
         ];
 
