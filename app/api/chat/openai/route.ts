@@ -522,7 +522,7 @@ export async function POST(request: Request) {
         }
 
         if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-          webSearchPayload.service_tier = "priority"
+          webSearchPayload.service_tier = "default"
         }
         console.log(
           "🚀 [PRIORITY-CHECK] Web Search Payload:",
