@@ -179,7 +179,7 @@ export const useChatHandler = () => {
   ) => {
     const startingInput = messageContent
 
-    const b64Images = newMessageImages.map(image => image.base64)
+    // const b64Images = newMessageImages.map(image => image.base64)
     let {
       tempUserChatMessage,
       tempAssistantChatMessage
@@ -188,10 +188,12 @@ export const useChatHandler = () => {
         messageContent,
         chatMessages,
         chatSettings!,
-        b64Images,
+        // b64Images,
+        newMessageImages,
         isRegeneration,
         setChatMessages,
-        selectedAssistant
+        selectedAssistant,
+        setChatImages
       )
     let tempImageUrl: string | null = null
     try {
@@ -273,9 +275,16 @@ export const useChatHandler = () => {
         messageFileItems: retrievedFileItems,
         chatFileItems: chatFileItems
       }
-
       let generatedText = ""
       let assistantFileUrl: string | null = null
+
+      // ✨ [تغییر] چک کردن مدل‌های ساخت عکس قبل از ارسال
+      if (
+        payload.chatSettings.model === "dall-e-3" ||
+        payload.chatSettings.model === "google/gemini-2.5-flash-image"
+      ) {
+        setToolInUse("image_generation")
+      }
 
       // تمام شاخه‌های if/else را پوشش می‌دهیم
       if (payload.chatSettings.model.includes("-tts")) {

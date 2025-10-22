@@ -83,11 +83,16 @@ export const createTempMessages = (
   messageContent: string,
   chatMessages: ChatMessage[],
   chatSettings: ChatSettings,
-  b64Images: string[],
+  // b64Images: string[], // ❌ حذف شد
+  newMessageImages: MessageImage[], // ✨ [اصلاح ۱] اضافه شد
   isRegeneration: boolean,
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
-  selectedAssistant: Tables<"assistants"> | null
+  selectedAssistant: Tables<"assistants"> | null,
+  setChatImages: React.Dispatch<React.SetStateAction<MessageImage[]>> // ✨ [اصلاح ۲] اضافه شد
 ) => {
+  // ✨ [اصلاح ۳] یک ID موقت برای پیام می‌سازیم
+  const tempMessageId = uuidv4()
+
   let tempUserChatMessage: ChatMessage = {
     message: {
       chat_id: "",
@@ -95,8 +100,8 @@ export const createTempMessages = (
       content: messageContent,
       created_at: "",
       file_url: null,
-      id: uuidv4(),
-      image_paths: b64Images,
+      id: tempMessageId, // ✨ [اصلاح ۴] از ID موقت استفاده می‌کنیم
+      image_paths: [], // این توسط استیت chatImages مدیریت می‌شود
       model: chatSettings.model,
       role: "user",
       sequence_number: chatMessages.length,
@@ -122,6 +127,17 @@ export const createTempMessages = (
       user_id: ""
     },
     fileItems: []
+  }
+
+  // ✨ [اصلاح ۵] بلافاصله عکس‌های موقت را به استیت chatImages اضافه می‌کنیم
+  // این باعث می‌شود کامپوننت MessageImages آنها را فوراً رندر کند
+  const tempImages = newMessageImages.map(image => ({
+    ...image,
+    messageId: tempMessageId // عکس‌ها را به پیام موقت متصل می‌کنیم
+  }))
+
+  if (!isRegeneration) {
+    setChatImages(prev => [...prev, ...tempImages])
   }
 
   let newMessages = []
@@ -294,6 +310,7 @@ export const processResponse = async (
 ): Promise<{ type: "text"; data: string } | { type: "image"; data: Blob }> => {
   const contentType = response.headers.get("content-type")
 
+  // منطق تصویر (بدون تغییر)
   if (contentType && contentType.startsWith("image/")) {
     const imageBlob = await response.blob()
     setChatMessages(prev =>
@@ -313,29 +330,60 @@ export const processResponse = async (
     return { type: "image", data: imageBlob }
   }
 
+  // ✨ [تصحیح نهایی] منطق پردازش استریم متن
   if (response.body) {
     let fullText = ""
-    let contentToAdd = ""
+    let buffer = "" // بافر برای مدل محلی
+
+    // console.log("Starting to process response stream...") // <-- لاگ ۱
 
     await consumeReadableStream(
       response.body,
-      chunk => {
+      (chunk: string) => {
         setFirstTokenReceived(true)
-        setToolInUse("none")
-        try {
-          contentToAdd = isHosted
-            ? chunk
-            : chunk
-                .trimEnd()
-                .split("\n")
-                .reduce(
-                  (acc, line) => acc + JSON.parse(line).message.content,
-                  ""
-                )
-          fullText += contentToAdd
-        } catch (error) {
-          console.error("Error parsing JSON:", error)
+        // console.log("STREAM CHUNK RECEIVED:", chunk) // <-- لاگ ۲: این مهم‌ترین لاگ است
+
+        if (isHosted) {
+          // --- منطق برای بک‌اند ما (OpenAI/route.ts) ---
+          let currentChunk = chunk
+          let textReceived = false
+
+          // ۱. چک می‌کنیم آیا سیگنال در این چانک وجود دارد؟
+          if (currentChunk.includes("%%TOOL_CALL:search%%")) {
+            // console.log("✅ Search signal detected!") // <-- لاگ ۳
+            setToolInUse("search")
+            // سیگنال را از چانک حذف کن تا نمایش داده نشود
+            currentChunk = currentChunk.replace("%%TOOL_CALL:search%%", "")
+          }
+
+          // ۲. آیا متنی (به جز سیگنال) در چانک باقی مانده است؟
+          if (currentChunk.length > 0) {
+            // console.log("Text content detected in chunk.") // <-- لاگ ۴
+            setToolInUse("none") // وضعیت را به "در حال تایپ" برگردان
+            fullText += currentChunk
+            textReceived = true
+          }
+
+          // (اگر چانک *فقط* سیگنال بود، `currentChunk.length` صفر است،
+          // `setToolInUse("none")` فراخوانی نمی‌شود و "Searching" باقی می‌ماند)
+        } else {
+          // --- منطق برای مدل‌های محلی (Ollama) ---
+          buffer += chunk
+          let contentToAdd = ""
+          try {
+            contentToAdd = buffer
+              .trimEnd()
+              .split("\n")
+              .reduce((acc, line) => acc + JSON.parse(line).message.content, "")
+            buffer = ""
+            setToolInUse("none")
+            fullText += contentToAdd
+          } catch (error) {
+            // JSON کامل نیست، منتظر بمان
+          }
         }
+
+        // آپدیت UI
         setChatMessages(prev =>
           prev.map(chatMessage => {
             if (chatMessage.message.id === lastChatMessage.message.id) {
@@ -351,6 +399,7 @@ export const processResponse = async (
       controller.signal
     )
 
+    // console.log("Stream processing finished.") // <-- لاگ ۵
     return { type: "text", data: fullText }
   } else {
     console.error("Response body is null")

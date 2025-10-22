@@ -412,27 +412,27 @@ export async function POST(request: Request) {
       )
     }
 
-    if (isDocgenRequest(lastUserMessage)) {
-      // console.log("📄 درخواست ساخت فایل شناسایی شد. هدایت به مسیر DocGen...")
+    // if (isDocgenRequest(lastUserMessage)) {
+    //   // console.log("📄 درخواست ساخت فایل شناسایی شد. هدایت به مسیر DocGen...")
 
-      // توجه: فرض می‌کنیم شما یک مسیر API جدید در /api/chat/docgen ساخته‌اید
-      const docgenUrl = new URL("/api/chat/mcp", request.url)
+    //   // توجه: فرض می‌کنیم شما یک مسیر API جدید در /api/chat/docgen ساخته‌اید
+    //   const docgenUrl = new URL("/api/chat/mcp", request.url)
 
-      const docgenResponse = await fetch(docgenUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: request.headers.get("Cookie") || ""
-        },
-        body: JSON.stringify({ chatSettings, messages, enableWebSearch })
-      })
+    //   const docgenResponse = await fetch(docgenUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     body: JSON.stringify({ chatSettings, messages, enableWebSearch })
+    //   })
 
-      // پاسخ از این مسیر می‌تواند یک لینک دانلود یا خود فایل باشد
-      return new Response(docgenResponse.body, {
-        status: docgenResponse.status,
-        headers: docgenResponse.headers
-      })
-    }
+    //   // پاسخ از این مسیر می‌تواند یک لینک دانلود یا خود فایل باشد
+    //   return new Response(docgenResponse.body, {
+    //     status: docgenResponse.status,
+    //     headers: docgenResponse.headers
+    //   })
+    // }
 
     // if (selectedModel === "gpt-5-nano") {
     //   console.log("🚀 درخواست gpt-5-nano شناسایی شد. هدایت به /api/chat/mcp...")

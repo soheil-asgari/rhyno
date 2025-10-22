@@ -42,7 +42,14 @@ import { WithTooltip } from "../ui/with-tooltip"
 import { MessageActions } from "./message-actions"
 import { MessageMarkdown } from "./message-markdown"
 import { CollapsibleText } from "../CollapsibleText"
-
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from "@/components/ui/dialog"
 const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -218,6 +225,7 @@ const MessageBody: FC<{
   setAudioUrl: (url: string | null) => void
   selectedSpeed: number
   setSelectedSpeed: (speed: number) => void
+  onLinkClick: (href: string) => void
 }> = memo(
   ({
     message,
@@ -237,7 +245,8 @@ const MessageBody: FC<{
     setSelectedSpeed,
     setAudioUrl,
     isCollapsed,
-    audioUrl
+    audioUrl,
+    onLinkClick
   }) => {
     const content = message.content
 
@@ -246,7 +255,34 @@ const MessageBody: FC<{
     //   ` M [MessageBody] Received audioUrl prop for message ID ${message.id}:`,
     //   audioUrl
     // ) // <--- این خط را اضافه کنید
+    // ... (کدهای موجود MessageBody)
 
+    // ✅ [جدید] کامپوننت سفارشی برای رندر لینک‌ها
+    const CustomLinkRenderer: FC<any> = ({ href, children }) => {
+      const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault() // جلوگیری از ناوبری پیش‌فرض
+        onLinkClick(href) // باز کردن مودال
+      }
+
+      return (
+        <a
+          href={href}
+          onClick={handleClick}
+          className="text-blue-400 hover:underline" // ✅ [جدید] استایل آبی
+          target="_blank" // (گرچه مودال باز می‌شود، اما برای اطمینان)
+          rel="noopener noreferrer"
+        >
+          {children}
+        </a>
+      )
+    }
+
+    // ✅ [جدید] کامپوننت‌های Markdown با رندرر سفارشی
+    const markdownComponents = {
+      a: CustomLinkRenderer
+    }
+
+    // ... (بقیه کدهای MessageBody)
     const isTTSMessage = message.model === "gpt-4o-mini-tts"
     const audioContent = isTTSMessage ? audioUrl : null
     // console.log(
@@ -273,6 +309,25 @@ const MessageBody: FC<{
               <div>Searching files...</div>
             </div>
           )
+
+        // ✨ [تغییر] اضافه کردن کیس برای جستجوی وب
+        case "search":
+          return (
+            <div className="flex animate-pulse items-center space-x-2">
+              <IconBolt size={20} />
+              <div>Searching...</div>
+            </div>
+          )
+
+        // ✨ [تغییر] اضافه کردن کیس برای ساخت عکس
+        case "image_generation":
+          return (
+            <div className="flex animate-pulse items-center space-x-2">
+              <IconBolt size={20} />
+              <div>Generating image...</div>
+            </div>
+          )
+
         case "none":
           return <IconCircleFilled className="animate-pulse" size={20} />
         default:
@@ -329,8 +384,9 @@ const MessageBody: FC<{
           {textPart && (
             <MessageMarkdown
               content={textPart}
-              className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
+              className="..."
               dir="rtl"
+              components={markdownComponents} // ✅ [جدید]
             />
           )}
           {imagePart && (
@@ -434,6 +490,7 @@ const MessageBody: FC<{
           content={content}
           className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
           dir="rtl"
+          components={markdownComponents}
         />
       )
     }
@@ -443,6 +500,7 @@ const MessageBody: FC<{
         content={content}
         className="markdown-content-rtl message-line-height whitespace-pre-wrap text-right tracking-normal"
         dir="rtl"
+        components={markdownComponents}
       />
     )
   }
@@ -589,6 +647,62 @@ interface MessageProps {
   onSubmitEdit: (value: string, sequenceNumber: number) => void
 }
 
+// ✨ [کامپوننت جدید] مودال تایید لینک
+// ✨ [کامپوننت جدید] مودال تایید لینک (نسخه فارسی)
+const LinkPreviewModal: FC<{
+  link: string
+  isOpen: boolean
+  onOpenChange: (isOpen: boolean) => void
+}> = ({ link, isOpen, onOpenChange }) => {
+  const handleOpenLink = () => {
+    window.open(link, "_blank", "noopener noreferrer")
+    onOpenChange(false)
+  }
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(link)
+    // می‌توانید یک toast هم اینجا نشان دهید
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="font-vazir border-gray-700 bg-[#2c2c2c] text-white" // فونت وزیر اضافه شد
+        dir="rtl" // ✅ [جدید] جهت راست-به-چپ اضافه شد
+      >
+        <DialogHeader className="text-right">
+          {" "}
+          {/* ✅ [جدید] تراز متن */}
+          <DialogTitle>بررسی ایمنی لینک</DialogTitle>
+          <DialogDescription className="pt-2 text-right text-gray-300">
+            {" "}
+            {/* ✅ [جدید] تراز متن */}
+            این لینک تایید نشده است و ممکن است حاوی اطلاعاتی از گفتگوی شما باشد
+            که با یک سایت شخص ثالث به اشتراک گذاشته می‌شود. لطفاً قبل از ادامه،
+            از اعتماد خود به این لینک مطمئن شوید.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* ✅ [جدید] لینک را چپ‌چین نگه می‌داریم چون آدرس است */}
+        <div
+          className="mt-2 break-all rounded-md bg-black/30 p-3 text-left text-sm text-gray-200"
+          dir="ltr"
+        >
+          {link}
+        </div>
+
+        {/* ✅ [جدید] چیدمان دکمه‌ها برای RTL اصلاح شد */}
+        <DialogFooter className="mt-4 flex-row-reverse space-x-2 sm:justify-start">
+          <Button onClick={handleOpenLink}>باز کردن لینک</Button>
+          <Button variant="outline" onClick={handleCopyLink}>
+            کپی لینک
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 export const Message: FC<MessageProps> = ({
   message,
   fileItems,
@@ -598,6 +712,17 @@ export const Message: FC<MessageProps> = ({
   onCancelEdit,
   onSubmitEdit
 }) => {
+  // ✅ [جدید] استیت‌های مودال لینک
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [selectedLink, setSelectedLink] = useState<string | null>(null)
+
+  // ... (استیت‌های موجود)
+
+  // ✅ [جدید] هندلر برای کلیک روی لینک
+  const handleLinkClick = (href: string) => {
+    setSelectedLink(href)
+    setShowLinkModal(true)
+  }
   const {
     assistants,
     profile,
@@ -897,6 +1022,7 @@ export const Message: FC<MessageProps> = ({
             audioUrl={audioUrl}
             setAudioUrl={setAudioUrl}
             isCollapsed={isCollapsed}
+            onLinkClick={handleLinkClick}
           />
         </div>
 
@@ -932,6 +1058,13 @@ export const Message: FC<MessageProps> = ({
           onOpenChange={isOpen =>
             !isOpen && (setShowImagePreview(false), setSelectedImage(null))
           }
+        />
+      )}
+      {showLinkModal && selectedLink && (
+        <LinkPreviewModal
+          link={selectedLink}
+          isOpen={showLinkModal}
+          onOpenChange={setShowLinkModal}
         />
       )}
 

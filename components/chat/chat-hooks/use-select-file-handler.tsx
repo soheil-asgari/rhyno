@@ -65,6 +65,7 @@ export const useSelectFileHandler = () => {
     }
 
     // --- منطق جدید برای عکس‌ها (فشرده‌سازی + Base64) ---
+    // --- منطق جدید برای عکس‌ها (فشرده‌سازی + Base64) ---
     if (isImage) {
       const model = LLM_LIST.find(llm => llm.modelId === chatSettings.model)
       if (!model?.imageInput) {
@@ -72,45 +73,72 @@ export const useSelectFileHandler = () => {
         return
       }
 
-      // گزینه‌های فشرده‌سازی
-      const options = {
-        maxSizeMB: 1, // حداکثر حجم فایل بعد از فشرده‌سازی (مثلاً ۱ مگابایت)
-        maxWidthOrHeight: 1024, // حداکثر عرض یا ارتفاع
-        useWebWorker: true // برای جلوگیری از هنگ کردن در حین فشرده‌سازی
-      }
+      // --- ✨ [START] راه‌حل: پیش‌نمایش فوری ---
 
-      const compressingPromise = imageCompression(file, options)
+      // ۱. بلافاصله یک ID موقت و URL پیش‌نمایش محلی بساز
+      const tempId = uuidv4() // از uuid برای یک شناسه موقت استفاده می‌کنیم
+      const localPreviewUrl = URL.createObjectURL(file) // از فایل *اصلی* برای پیش‌نمایش فوری استفاده کن
 
-      // toast.promise(compressingPromise, {
-      //   loading: "در حال فشرده‌سازی عکس...",
-      //   success: "عکس با موفقیت فشرده شد!",
-      //   error: "فشرده‌سازی ناموفق بود."
-      // });
-
-      try {
-        const compressedFile = await compressingPromise
-
-        // حالا فایل فشرده شده را به Base64 تبدیل می‌کنیم
-        const reader = new FileReader()
-        reader.readAsDataURL(compressedFile)
-        reader.onloadend = () => {
-          setNewMessageImages(prev => [
-            ...prev,
-            {
-              messageId: "temp",
-              path: "",
-              base64: reader.result as string, // نتیجه Base64
-              url: URL.createObjectURL(compressedFile), // URL محلی برای پیش‌نمایش
-              file: compressedFile
-            }
-          ])
+      // ۲. بلافاصله UI را با پیش‌نمایش محلی آپدیت کن
+      // این باعث می‌شود عکس فوراً نمایش داده شود
+      setNewMessageImages(prev => [
+        ...prev,
+        {
+          messageId: tempId, // ID موقت
+          path: "uploading...", // به کامپوننت MessageImages می‌گوید اسپینر لودینگ را نشان دهد
+          base64: "", // هنوز آماده نیست
+          url: localPreviewUrl, // <-- URL فوری برای پیش‌نمایش
+          file: file // <-- فایل اصلی (فعلاً)
         }
-        setShowFilesDisplay(true)
-      } catch (error) {
-        console.error("Image compression error:", error)
-        toast.error("خطا در هنگام فشرده‌سازی عکس.")
+      ])
+      setShowFilesDisplay(true)
+
+      // ۳. حالا فشرده‌سازی و خواندن Base64 را در پس‌زمینه انجام بده
+      const processImageInBackground = async () => {
+        try {
+          // گزینه‌های فشرده‌سازی
+          const options = {
+            maxSizeMB: 1, // حداکثر حجم فایل بعد از فشرده‌سازی
+            maxWidthOrHeight: 1024, // حداکثر عرض یا ارتفاع
+            useWebWorker: true
+          }
+
+          const compressedFile = await imageCompression(file, options)
+
+          // ۴. تبدیل فایل فشرده به Base64
+          const reader = new FileReader()
+          reader.readAsDataURL(compressedFile)
+          reader.onloadend = () => {
+            const base64 = reader.result as string
+
+            // ۵. آبجکت عکس در استیت را با اطلاعات کامل (فایل فشرده و Base64) آپدیت کن
+            setNewMessageImages(prev =>
+              prev.map(img =>
+                img.messageId === tempId
+                  ? {
+                      ...img,
+                      path: "", // <-- فشرده‌سازی تمام شد، اسپینر را مخفی کن
+                      base64: base64, // <-- Base64 نهایی
+                      file: compressedFile, // <-- فایل فشرده نهایی
+                      url: localPreviewUrl // <-- URL پیش‌نمایش را حفظ کن
+                    }
+                  : img
+              )
+            )
+          }
+        } catch (error) {
+          console.error("Image compression error:", error)
+          toast.error("خطا در هنگام فشرده‌سازی عکس.")
+          // اگر فشرده‌سازی شکست خورد، عکس موقت را از UI حذف کن
+          setNewMessageImages(prev =>
+            prev.filter(img => img.messageId !== tempId)
+          )
+        }
       }
 
+      processImageInBackground() // تابع پس‌زمینه را اجرا کن
+
+      // تابع اصلی بلافاصله return می‌شود و UI را مسدود نمی‌کند
       return
     }
 
