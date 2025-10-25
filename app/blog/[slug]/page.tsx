@@ -127,7 +127,7 @@ export default async function PostPage({ params }: Props) {
               src={image}
               alt={post.title}
               className="mt-4 w-full rounded-lg object-cover"
-              loading="lazy"
+              loading="eager"
             />
           )}
         </header>

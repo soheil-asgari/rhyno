@@ -661,38 +661,39 @@ const LinkPreviewModal: FC<{
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(link)
-    // می‌توانید یک toast هم اینجا نشان دهید
     onOpenChange(false)
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
-        className="font-vazir border-gray-700 bg-[#2c2c2c] text-white" // فونت وزیر اضافه شد
-        dir="rtl" // ✅ [جدید] جهت راست-به-چپ اضافه شد
+        // ✅ تغییر در این خط:
+        // رنگ‌های پیش‌فرض برای لایت مود + رنگ‌های سفارشی شما برای دارک مود
+        className="font-vazir border-border bg-background text-foreground dark:border-gray-700 dark:bg-[#2c2c2c] dark:text-white"
+        dir="rtl"
       >
         <DialogHeader className="text-right">
-          {" "}
-          {/* ✅ [جدید] تراز متن */}
           <DialogTitle>بررسی ایمنی لینک</DialogTitle>
-          <DialogDescription className="pt-2 text-right text-gray-300">
-            {" "}
-            {/* ✅ [جدید] تراز متن */}
-            این لینک تایید نشده است و ممکن است حاوی اطلاعاتی از گفتگوی شما باشد
-            که با یک سایت شخص ثالث به اشتراک گذاشته می‌شود. لطفاً قبل از ادامه،
-            از اعتماد خود به این لینک مطمئن شوید.
+          <DialogDescription
+            // ✅ تغییر در این خط:
+            // استفاده از رنگ پیش‌فرض در لایت مود
+            className="text-muted-foreground pt-2 text-right dark:text-gray-300"
+          >
+            این لینک تایید نشده است لطفاً قبل از ادامه، از اعتماد خود به این
+            لینک مطمئن شوید.
           </DialogDescription>
         </DialogHeader>
 
-        {/* ✅ [جدید] لینک را چپ‌چین نگه می‌داریم چون آدرس است */}
         <div
-          className="mt-2 break-all rounded-md bg-black/30 p-3 text-left text-sm text-gray-200"
+          // ✅ تغییر در این خط:
+          // استفاده از رنگ‌های پیش‌فرض در لایت مود
+          className="bg-muted text-muted-foreground mt-2 break-all rounded-md p-3 text-left text-sm dark:bg-black/30 dark:text-gray-200"
           dir="ltr"
         >
           {link}
         </div>
 
-        {/* ✅ [جدید] چیدمان دکمه‌ها برای RTL اصلاح شد */}
+        {/* این قسمت مشکلی نداشت و دست نخورده باقی ماند */}
         <DialogFooter className="mt-4 flex-row-reverse space-x-2 sm:justify-start">
           <Button onClick={handleOpenLink}>باز کردن لینک</Button>
           <Button variant="outline" onClick={handleCopyLink}>
@@ -965,21 +966,89 @@ export const Message: FC<MessageProps> = ({
 
   return (
     <div
+      // 1. کلاس 'relative' از این div حذف شد
       className="flex w-full justify-center px-4 py-3 transition-colors duration-200"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       onKeyDown={handleKeyDown}
     >
-      <div
-        className={cn(
-          "relative w-full max-w-2xl transition-all duration-200",
-          message.role === "user"
-            ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]"
-            : "assistant-message border-none bg-transparent px-0 py-2",
-          message.model === "gpt-4o-mini-tts" && "px-6 py-5" // استایل بهتر برای پیام صوتی
-        )}
-      >
-        <div className="absolute end-5 top-7 sm:end-0">
+      {/* 2. این div نگه‌دارنده جدید است. */}
+      {/* این div در مرکز قرار می‌گیرد و عرض حداکثر را کنترل می‌کند */}
+      <div className="relative w-full max-w-2xl">
+        {/* 3. این div خود کادر پیام است */}
+        <div
+          className={cn(
+            // 'max-w-2xl' از اینجا حذف شد چون به پدر منتقل شد
+            "relative w-full transition-all duration-200",
+            message.role === "user"
+              ? "border-border rounded-xl border bg-[hsl(var(--muted))] px-6 py-5 text-[hsl(var(--foreground))]"
+              : "assistant-message border-none bg-transparent px-0 py-2",
+            message.model === "gpt-4o-mini-tts" && "px-6 py-5" // استایل بهتر برای پیام صوتی
+          )}
+        >
+          {/* بلاک MessageActions از اینجا حذف شده است */}
+
+          <div className="space-y-3">
+            <MessageHeader
+              message={message}
+              profile={profile}
+              assistantImage={messageAssistantImage}
+              modelData={modelData}
+              assistantName={assistantName}
+            />
+            <MessageBody
+              message={message}
+              isEditing={isEditing}
+              isGenerating={isGenerating}
+              isLast={isLast}
+              firstTokenReceived={firstTokenReceived}
+              toolInUse={toolInUse}
+              editedMessage={editedMessage}
+              setEditedMessage={setEditedMessage}
+              editInputRef={editInputRef}
+              selectedSpeed={selectedSpeed}
+              setSelectedSpeed={setSelectedSpeed}
+              // ✨ Props مربوط به TTS پاس داده شد
+              onRegenerateTTS={handleRegenerateTTS}
+              onDownloadTTS={handleDownloadTTS}
+              selectedVoice={selectedVoice}
+              setSelectedVoice={setSelectedVoice}
+              audioUrl={audioUrl}
+              setAudioUrl={setAudioUrl}
+              isCollapsed={isCollapsed}
+              onLinkClick={handleLinkClick}
+            />
+          </div>
+
+          <MessageSources
+            fileItems={fileItems}
+            fileSummary={fileSummary}
+            onFileItemClick={handleFileItemClick}
+          />
+
+          <MessageImages
+            message={message}
+            chatImages={chatImages}
+            onImageClick={handleImageClick}
+          />
+
+          {isEditing && (
+            <div className="mt-4 flex justify-center space-x-2">
+              <Button size="sm" onClick={handleSendEdit}>
+                Save & Send
+              </Button>
+              <Button size="sm" variant="outline" onClick={onCancelEdit}>
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>{" "}
+        {/* <-- پایان کادر پیام */}
+        {/* 4. بلاک MessageActions به اینجا منتقل شد */}
+        {/* - بیرون از کادر پیام، اما داخل نگه‌دارنده max-w-2xl */}
+        {/* - 'pt-2' فاصله بالایی ایجاد می‌کند */}
+        {/* - 'justify-start' آن را در RTL به سمت راست (start) می‌برد */}
+        <div className="flex w-full justify-end pt-2">
           <MessageActions
             onCopy={handleCopy}
             onEdit={() => onStartEdit(message)}
@@ -993,63 +1062,9 @@ export const Message: FC<MessageProps> = ({
             onToggleCollapse={() => setIsCollapsed((prev: boolean) => !prev)}
           />
         </div>
-
-        <div className="space-y-3">
-          <MessageHeader
-            message={message}
-            profile={profile}
-            assistantImage={messageAssistantImage}
-            modelData={modelData}
-            assistantName={assistantName}
-          />
-          <MessageBody
-            message={message}
-            isEditing={isEditing}
-            isGenerating={isGenerating}
-            isLast={isLast}
-            firstTokenReceived={firstTokenReceived}
-            toolInUse={toolInUse}
-            editedMessage={editedMessage}
-            setEditedMessage={setEditedMessage}
-            editInputRef={editInputRef}
-            selectedSpeed={selectedSpeed}
-            setSelectedSpeed={setSelectedSpeed}
-            // ✨ Props مربوط به TTS پاس داده شد
-            onRegenerateTTS={handleRegenerateTTS}
-            onDownloadTTS={handleDownloadTTS}
-            selectedVoice={selectedVoice}
-            setSelectedVoice={setSelectedVoice}
-            audioUrl={audioUrl}
-            setAudioUrl={setAudioUrl}
-            isCollapsed={isCollapsed}
-            onLinkClick={handleLinkClick}
-          />
-        </div>
-
-        <MessageSources
-          fileItems={fileItems}
-          fileSummary={fileSummary}
-          onFileItemClick={handleFileItemClick}
-        />
-
-        <MessageImages
-          message={message}
-          chatImages={chatImages}
-          onImageClick={handleImageClick}
-        />
-
-        {isEditing && (
-          <div className="mt-4 flex justify-center space-x-2">
-            <Button size="sm" onClick={handleSendEdit}>
-              Save & Send
-            </Button>
-            <Button size="sm" variant="outline" onClick={onCancelEdit}>
-              Cancel
-            </Button>
-          </div>
-        )}
-      </div>
-
+      </div>{" "}
+      {/* <-- پایان نگه‌دارنده جدید max-w-2xl */}
+      {/* مودال‌ها در خارج از نگه‌دارنده باقی می‌مانند */}
       {showImagePreview && selectedImage && (
         <FilePreview
           type="image"
@@ -1067,7 +1082,6 @@ export const Message: FC<MessageProps> = ({
           onOpenChange={setShowLinkModal}
         />
       )}
-
       {showFileItemPreview && selectedFileItem && (
         <FilePreview
           type="file_item"
