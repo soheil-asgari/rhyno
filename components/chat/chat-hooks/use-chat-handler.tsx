@@ -206,7 +206,8 @@ export const useChatHandler = () => {
       setIsPromptPickerOpen(false)
       setIsFilePickerOpen(false)
       setNewMessageImages([])
-
+      setNewMessageFiles([])
+      setShowFilesDisplay(false)
       const newAbortController = new AbortController()
       setAbortController(newAbortController)
 

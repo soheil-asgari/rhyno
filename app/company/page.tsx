@@ -119,10 +119,14 @@ export default function CompanyPage() {
   ]
   return (
     // ✅ [تغییر] آپدیت رنگ پس‌زمینه دارک
-    <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-white text-gray-800 transition-colors duration-300 dark:bg-[#0f1018] dark:text-gray-300">
+    <div className="relative min-h-screen w-full overflow-x-hidden bg-white text-gray-800 transition-colors duration-300 dark:bg-[#0f1018] dark:text-gray-300">
+      {/* 👇 افکت‌ها در بیرون محدوده relative */}
       <Header navLinks={companyNavLinks} />
-      <StarryBackground /> {/* <-- [جدید] اضافه کردن پس‌زمینه ستاره‌ای */}
-      <AnimatedGridPattern />
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <StarryBackground />
+        <AnimatedGridPattern />
+      </div>{" "}
+      {/* <-- حالا به درستی داخل این div مهار می‌شود */}
       <main className="container relative z-10 mx-auto px-4 py-16 md:py-24">
         {/* --- بخش هیرو (معرفی) --- */}
         <section className="py-20 text-center md:py-24">

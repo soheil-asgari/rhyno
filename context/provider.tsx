@@ -13,7 +13,7 @@ import {
 } from "@/types"
 import { AssistantImage } from "@/types/images/assistant-image"
 import { VALID_ENV_KEYS } from "@/types/valid-keys"
-import { FC, useMemo, useState } from "react"
+import { FC, useCallback, useEffect, useMemo, useState } from "react"
 
 interface ChatbotUIProviderProps {
   children: React.ReactNode
@@ -23,7 +23,7 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
   // این بخش تمام state های برنامه را با useState تعریف می‌کند
   // PROFILE STORE
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null)
-
+  const [chatSettings, setChatSettings] = useState<ChatSettings | null>(null)
   // ITEMS STORE
   const [assistants, setAssistants] = useState<Tables<"assistants">[]>([])
   const [collections, setCollections] = useState<Tables<"collections">[]>([])
@@ -45,7 +45,32 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
 
   // ... (بقیه state ها نیز باید به همین شکل اضافه شوند)
   // ... (برای سادگی، فقط موارد مربوط به مشکل شما را اینجا آورده‌ام)
+  useEffect(() => {
+    // این کد هر بار که chatSettings تغییر می‌کند اجرا می‌شود
+    console.log("ChatSettings updated in provider:", chatSettings)
+  }, [chatSettings]) // وابسته به chatSettings
 
+  // 👇 این تابع آپدیت شده‌ی setChatSettings است (اختیاری اما بهتر)
+  // این تابع به شما اجازه می‌دهد قبل از آپدیت state هم لاگ بگیرید
+  const updateChatSettings = useCallback(
+    (
+      newSettings:
+        | ChatSettings
+        | ((prevState: ChatSettings | null) => ChatSettings | null)
+    ) => {
+      console.log("setChatSettings called in provider with:", newSettings) // <-- لاگ ۱: مقدار جدید دریافتی
+      setChatSettings(prevState => {
+        const updatedSettings =
+          typeof newSettings === "function"
+            ? newSettings(prevState)
+            : newSettings
+        console.log("Previous chatSettings in provider:", prevState) // <-- لاگ ۲: مقدار قبلی
+        console.log("New chatSettings in provider will be:", updatedSettings) // <-- لاگ ۳: مقداری که ست می‌شود
+        return updatedSettings
+      })
+    },
+    []
+  )
   const contextValue = useMemo(
     () => ({
       profile,
@@ -70,7 +95,7 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
       setTools,
       workspaces,
       setWorkspaces,
-
+      setChatSettings: updateChatSettings,
       chatFiles,
       setChatFiles,
       chatImages,

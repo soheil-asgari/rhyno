@@ -312,9 +312,13 @@ export default function HomePageClient() {
 
   // --- رندر نهایی ---
   return (
-    <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-white text-gray-800 transition-colors duration-300 dark:bg-black dark:text-gray-300">
-      <AnimatedGridPattern />
-      <StarryBackground />
+    <div className="relative min-h-screen w-full overflow-x-hidden bg-white text-gray-800 transition-colors duration-300 dark:bg-[#0f1018] dark:text-gray-300">
+      {/* 👇 افکت‌ها در بیرون محدوده relative */}
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <StarryBackground />
+        <AnimatedGridPattern />
+      </div>
+
       <div className="relative z-10">
         {/* ✅ ۶. جایگزینی هدر قدیمی با کامپوننت جدید */}
         <Header navLinks={companyNavLinks} />

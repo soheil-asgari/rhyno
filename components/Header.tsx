@@ -106,7 +106,7 @@ export default function Header({ navLinks = [] }: { navLinks: NavLink[] }) {
             </Link>
           ))}
           <Link
-            href="https://rhynochat.com"
+            href="https://rhynoai.ir"
             target="_blank"
             className="w-full rounded-lg bg-blue-600 py-2.5 text-center font-bold text-white"
             onClick={() => setIsMenuOpen(false)}

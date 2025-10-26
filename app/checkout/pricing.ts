@@ -292,10 +292,10 @@ export const models: ModelPricing[] = [
     id: "gpt-4o-realtime-preview-2025-06-03",
     name: "🎙️ Rhyno Live V1",
     توضیحات: "پاسخ زنده و فوری",
-    inputPricePer1MTokenUSD: 70.0,
-    outputPricePer1MTokenUSD: 120.0,
+    inputPricePer1MTokenUSD: 60.0,
+    outputPricePer1MTokenUSD: 100.0,
     ...(() => {
-      const { base, final } = calcCost(70.0, 120.0)
+      const { base, final } = calcCost(60.0, 100.0)
       return {
         costExampleUSD: base,
         finalCostUSD: final,

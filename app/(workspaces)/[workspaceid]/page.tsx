@@ -1,41 +1,21 @@
 "use client"
 
-import { ChatbotUIContext } from "@/context/context"
-import { useContext } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
+import Loading from "@/app/loading"
 
-export default function WorkspacePage({
-  params
-}: {
-  params: { workspaceid: string }
-}) {
-  const { selectedWorkspace } = useContext(ChatbotUIContext)
+export default function WorkspacePage() {
+  const params = useParams()
   const router = useRouter()
 
-  // console.log("WorkspacePage: params:", params)
-  // console.log(
-  //   "WorkspacePage: selectedWorkspace:",
-  //   JSON.stringify(selectedWorkspace, null, 2)
-  // )
+  useEffect(() => {
+    // این صفحه (`/[workspaceId]`) محتوایی ندارد
+    // به محض بارگذاری، کاربر را به صفحه‌ی چت همان workspace هدایت کن
+    if (params.workspaceid) {
+      router.push(`/${params.workspaceid}/chat`)
+    }
+  }, [params.workspaceid, router])
 
-  // ریدایرکت به /chat اگر selectedWorkspace وجود ندارد
-  if (!selectedWorkspace) {
-    // console.log(
-    //   "WorkspacePage: No selectedWorkspace, redirecting to /:workspaceid/chat"
-    // )
-    router.push(`/${params.workspaceid}/chat`)
-    return null
-  }
-
-  // اعتبارسنجی نام workspace
-  const workspaceName =
-    selectedWorkspace.name && typeof selectedWorkspace.name === "string"
-      ? selectedWorkspace.name
-      : "Workspace بدون نام"
-
-  return (
-    <div className="flex h-screen w-full flex-col items-center justify-center">
-      <div className="text-4xl">{workspaceName}</div>
-    </div>
-  )
+  // در مدتی که ریدایرکت انجام می‌شود، یک لودینگ نمایش بده
+  return <Loading />
 }

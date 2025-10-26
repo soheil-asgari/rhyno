@@ -996,6 +996,17 @@ export const Message: FC<MessageProps> = ({
               modelData={modelData}
               assistantName={assistantName}
             />
+            <MessageSources
+              fileItems={fileItems}
+              fileSummary={fileSummary}
+              onFileItemClick={handleFileItemClick}
+            />
+
+            <MessageImages
+              message={message}
+              chatImages={chatImages}
+              onImageClick={handleImageClick}
+            />
             <MessageBody
               message={message}
               isEditing={isEditing}
@@ -1019,18 +1030,6 @@ export const Message: FC<MessageProps> = ({
               onLinkClick={handleLinkClick}
             />
           </div>
-
-          <MessageSources
-            fileItems={fileItems}
-            fileSummary={fileSummary}
-            onFileItemClick={handleFileItemClick}
-          />
-
-          <MessageImages
-            message={message}
-            chatImages={chatImages}
-            onImageClick={handleImageClick}
-          />
 
           {isEditing && (
             <div className="mt-4 flex justify-center space-x-2">

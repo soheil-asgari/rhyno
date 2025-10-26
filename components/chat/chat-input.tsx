@@ -73,7 +73,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     handleFocusChatInput,
     setChatMessages
   } = useChatHandler()
-
+  console.log("ChatInput render - chatSettings.model:", chatSettings?.model)
   // ✨ تابع جدید و هوشمند برای مدیریت دو سناریوی صوتی
   const handleVoiceSubmit = async (audioBlob: Blob) => {
     const selectedModel = chatSettings?.model
