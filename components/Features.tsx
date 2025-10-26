@@ -2,7 +2,7 @@
 
 import { motion, Variants } from "framer-motion"
 import { FiZap, FiCpu, FiRepeat, FiLock } from "react-icons/fi"
-import SectionTitle from "@/components/SectionTitle"
+import { SectionTitle } from "@/components/SectionTitle"
 import React from "react"
 
 export default function Features() {
