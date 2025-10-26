@@ -1,33 +1,30 @@
+// components/AnimatedButton.tsx
 "use client"
 
+import React from "react"
+import Link, { LinkProps } from "next/link"
 import { motion } from "framer-motion"
-import Link from "next/link"
-import { ReactNode } from "react"
 
-interface AnimatedButtonProps {
-  href: string
-  children: ReactNode
-  className?: string
-}
+// ✅ ۱. تعریف پراپ‌های جدید
+// ما تمام پراپ‌های یک لینک (LinkProps) و تمام ویژگی‌های یک تگ <a>
+// (مثل target, rel) را با هم ترکیب می‌کنیم.
+type AnimatedButtonProps = LinkProps &
+  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps> & {
+    children: React.ReactNode
+    className?: string
+  }
 
+// ✅ ۲. کامپوننت آپدیت شده
+// ما پراپ‌ها را با ...props دریافت می‌کنیم و به Link پاس می‌دهیم
 export default function AnimatedButton({
-  href,
   children,
-  className
+  className,
+  ...props // (href, target, rel و... همگی اینجا هستند)
 }: AnimatedButtonProps) {
   return (
-    <motion.div
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, amount: 0.3 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-    >
-      <Link
-        href={href}
-        className={`inline-block rounded-lg bg-white px-6 py-3 font-bold text-black transition-colors duration-300 hover:bg-gray-200 md:px-8 md:py-4 ${className}`}
-      >
+    // می‌توانید انیمیشن‌های خودتان را اینجا اضافه کنید
+    <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+      <Link className={className} {...props}>
         {children}
       </Link>
     </motion.div>

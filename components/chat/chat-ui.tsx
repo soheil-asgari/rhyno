@@ -17,7 +17,8 @@ import { useParams } from "next/navigation"
 import { FC, useContext, useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { useScroll } from "./chat-hooks/use-scroll"
-import { ChatInput } from "./chat-input"
+// ❌ ChatInput دیگر اینجا import نمی‌شود (چون در ChatPage است)
+// import { ChatInput } from "./chat-input"
 import { ChatMessages } from "./chat-messages"
 import { ChatScrollButtons } from "./chat-scroll-buttons"
 import useDynamicVh from "@/lib/hooks/use-dynamic-vh"
@@ -27,7 +28,8 @@ const ChatHelp = dynamic(() => import("./chat-help").then(mod => mod.ChatHelp))
 const ChatSecondaryButtons = dynamic(() =>
   import("./chat-secondary-buttons").then(mod => mod.ChatSecondaryButtons)
 )
-const VoiceUI = dynamic(() => import("./voice-ui").then(mod => mod.VoiceUI))
+// ❌ VoiceUI دیگر اینجا import نمی‌شود
+// const VoiceUI = dynamic(() => import("./voice-ui").then(mod => mod.VoiceUI))
 
 interface ChatUIProps {
   isRealtimeMode: boolean
@@ -38,8 +40,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   const params = useParams()
   const context = useContext(ChatbotUIContext)
   const {
-    // 👇 ==== اصلاح شماره ۱: chatMessages را اینجا اضافه کنید ==== 👇
-    chatMessages,
+    chatMessages, // اطمینان حاصل کنید که chatMessages از context گرفته می‌شود
     setChatMessages,
     selectedChat,
     setSelectedChat,
@@ -69,11 +70,13 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     scrollToTop
   } = useScroll()
 
-  const [loading, setLoading] = useState(true)
+  // 👇 ==== اصلاح شماره ۱ (رفع فلش):
+  // اگر chatid وجود دارد، لودینگ true است، اگر نه (چت جدید)، false است.
+  const [loading, setLoading] = useState(!!params.chatid)
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
+      // setLoading(true) // دیگر لازم نیست اینجا باشد
       await fetchMessages()
       await fetchChat()
       scrollToBottom()
@@ -82,24 +85,23 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     }
 
     if (!params.chatid) {
-      setLoading(false)
+      // setLoading(false) // دیگر لازم نیست، چون useState این کار را کرد
       return
     }
 
-    // 👇 ==== اصلاح شماره ۲: اینجا از chatMessages استفاده کنید ==== 👇
     if (
       selectedChat &&
       selectedChat.id === params.chatid &&
       chatMessages.length > 0
     ) {
-      setLoading(false)
+      // setLoading(false) // دیگر لازم نیست
       return
     }
 
     fetchData().then(() => {
       handleFocusChatInput()
     })
-  }, [params.chatid, selectedChat])
+  }, [params.chatid, selectedChat]) // وابستگی‌ها درست هستند
 
   const fetchMessages = async () => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)
@@ -196,7 +198,10 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   }
 
   return (
-    <div className="relative flex h-[calc(var(--vh,1vh)*100)] flex-col items-center">
+    // 👇 ==== اصلاح شماره ۲ (رفع Layout):
+    // h-[calc(var(--vh,1vh)*100)] (ارتفاع ۱۰۰٪ صفحه)
+    // به size-full (ارتفاع و عرض ۱۰۰٪ والد) تغییر کرد.
+    <div className="relative flex size-full flex-col items-center">
       <div className="absolute left-4 top-2.5 flex justify-center">
         <ChatScrollButtons
           isAtTop={isAtTop}
@@ -222,16 +227,20 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
         <ChatMessages />
         <div ref={messagesEndRef} />
       </div>
-      <div className="relative w-full max-w-4xl items-end px-2 pb-3 pt-0 sm:pb-8 sm:pt-5">
+
+      {/* 👇 این بخش‌ها کامنت شده باقی می‌مانند، 
+        چون ChatPage اکنون مسئول نمایش آنهاست.
+      */}
+      {/* <div className="relative w-full max-w-4xl items-end px-2 pb-3 pt-0 sm:pb-8 sm:pt-5">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (
           <ChatInput />
         )}
-      </div>
-      <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
+      </div> */}
+      {/* <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
         <ChatHelp />
-      </div>
+      </div> */}
     </div>
   )
 }

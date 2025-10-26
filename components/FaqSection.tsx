@@ -129,12 +129,16 @@ const FaqItem = ({
   onClick: () => void
 }) => {
   return (
-    <div className="border-b border-white/10 py-5 last:border-none">
+    // ✅ ۲. اصلاح رنگ بوردر
+    <div className="border-b border-black/10 py-5 transition-colors duration-300 last:border-none dark:border-white/10">
       <button
         onClick={onClick}
         className="flex w-full items-center justify-between gap-4 text-right"
       >
-        <span className="text-lg font-medium text-white">{item.question}</span>
+        {/* ✅ ۳. اصلاح رنگ متن سوال */}
+        <span className="text-lg font-medium text-black transition-colors duration-300 dark:text-white">
+          {item.question}
+        </span>
         <div className="shrink-0 text-blue-400">
           {isOpen ? <FiMinus size={22} /> : <FiPlus size={22} />}
         </div>
@@ -148,7 +152,10 @@ const FaqItem = ({
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <p className="leading-relaxed text-gray-400">{item.answer}</p>
+            {/* ✅ ۴. اصلاح رنگ متن پاسخ */}
+            <p className="leading-relaxed text-gray-700 transition-colors duration-300 dark:text-gray-400">
+              {item.answer}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -166,13 +173,15 @@ const FaqSection = () => {
 
   return (
     <section id="faq" className="py-16 md:py-24">
+      {/* این کامپوننت اکنون از نسخه import شده و بهینه‌سازی شده استفاده می‌کند */}
       <SectionTitle>سوالات متداول</SectionTitle>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.7 }}
-        className="mx-auto max-w-4xl rounded-2xl border border-white/10 bg-black/20 p-6 backdrop-blur-sm md:p-8"
+        // ✅ ۵. اصلاح رنگ پس‌زمینه و بوردر
+        className="mx-auto max-w-4xl rounded-2xl border border-black/10 bg-gray-100 p-6 backdrop-blur-sm transition-colors duration-300 md:p-8 dark:border-white/10 dark:bg-black/20"
       >
         {faqData.map((item, index) => (
           <FaqItem

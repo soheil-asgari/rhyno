@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-// ✅ ساخت صفحات استاتیک (عالی، بدون تغییر)
+// ✅ ساخت صفحات استاتیک
 export async function generateStaticParams() {
   // ⭐️ "await" را اینجا اضافه کنید
   const posts = await getAllPosts()
@@ -72,7 +72,6 @@ export default async function PostPage({ params }: Props) {
   const post = await getPostBySlug(params.slug)
 
   // ⭐️ ۳. مدیریت 404 برای صفحه
-  // اگر پستی وجود نداشته باشد، صفحه 404 نمایش داده می‌شود
   if (!post) {
     notFound()
   }
@@ -89,24 +88,28 @@ export default async function PostPage({ params }: Props) {
   const image = post.image || "https://rhynoai.ir/default-blog.jpg"
 
   return (
-    <main className="font-vazir bg-background py-12 text-white sm:py-20">
+    // 🟢 تغییر یافته: رنگ متن پیش‌فرض (لایت) و رنگ دارک مود
+    <main className="font-vazir bg-background py-12 text-gray-900 sm:py-20 dark:text-white">
       {/* ⭐️ ۴. اضافه کردن شمارنده بازدید */}
-      {/* این کامپوننت در سمت کلاینت اجرا شده و بازدید را ثبت می‌کند */}
       <ViewCounter slug={post.slug} />
 
       <article className="container mx-auto max-w-3xl px-4">
-        {/* 🟢 هدر مقاله (عالی، بدون تغییر) */}
-        <header className="mb-8 border-b border-gray-800 pb-6 text-right">
+        {/* 🟢 هدر مقاله (تغییر یافته) */}
+        {/* 🟢 تغییر یافته: رنگ border برای لایت و دارک مود */}
+        <header className="mb-8 border-b border-gray-200 pb-6 text-right dark:border-gray-800">
           <h1 className="mb-4 text-3xl font-extrabold leading-snug">
             {post.title}
           </h1>
-          <div className="flex flex-wrap items-center justify-end gap-6 text-sm text-gray-400">
+          {/* 🟢 تغییر یافته: رنگ متن متا (نویسنده و تاریخ) برای لایت و دارک */}
+          <div className="flex flex-wrap items-center justify-end gap-6 text-sm text-gray-600 dark:text-gray-400">
             <div className="flex items-center gap-2">
-              <FiUser className="text-gray-500" />
+              {/* 🟢 تغییر یافته: رنگ آیکون‌ها برای لایت و دارک */}
+              <FiUser className="text-gray-600 dark:text-gray-500" />
               <span>{authorName}</span>
             </div>
             <div className="flex items-center gap-2">
-              <FiCalendar className="text-gray-500" />
+              {/* 🟢 تغییر یافته: رنگ آیکون‌ها برای لایت و دارک */}
+              <FiCalendar className="text-gray-600 dark:text-gray-500" />
               <time dateTime={post.date || new Date().toISOString()}>
                 {postDate}
               </time>
@@ -114,8 +117,9 @@ export default async function PostPage({ params }: Props) {
             {post.category && (
               <div>
                 <Link
-                  href={`/blog/category/${post.category}`} // (مطمئن شوید این صفحه وجود دارد)
-                  className="text-blue-400 hover:underline"
+                  href={`/blog/category/${post.category}`}
+                  // 🟢 تغییر یافته: رنگ لینک برای لایت و دارک مود
+                  className="text-blue-600 hover:underline dark:text-blue-400"
                 >
                   {post.category}
                 </Link>
@@ -132,9 +136,16 @@ export default async function PostPage({ params }: Props) {
           )}
         </header>
 
-        {/* 🟢 محتوای مقاله (عالی، بدون تغییر) */}
+        {/* 🟢 محتوای مقاله (تغییر یافته) */}
+        {/*
+          🟢 مهم‌ترین تغییر:
+          1. 'prose-invert' حذف شد تا پیش‌فرض لایت باشد.
+          2. 'dark:prose-invert' اضافه شد تا فقط در دارک مود متن‌ها سفید شوند.
+          3. 'prose-a:text-blue-600' برای رنگ لینک لایت مود اضافه شد.
+          4. 'dark:prose-a:text-blue-400' برای رنگ لینک دارک مود حفظ شد.
+        */}
         <div
-          className="prose prose-invert prose-base prose-p:leading-relaxed prose-a:text-blue-400 max-w-none text-right"
+          className="prose dark:prose-invert prose-base prose-p:leading-relaxed prose-a:text-blue-600 dark:prose-a:text-blue-400 max-w-none text-right"
           dir="rtl"
           dangerouslySetInnerHTML={{ __html: post.contentHtml }}
         />
@@ -194,8 +205,10 @@ export default async function PostPage({ params }: Props) {
       </article>
 
       {/* ⭐️ ۵. استفاده از کامپوننت مقالات مرتبط */}
-      <section className="container mx-auto mt-12 max-w-3xl border-t border-gray-800 px-4 pt-8 text-right">
-        <h2 className="mb-6 text-2xl font-bold text-white">مقالات مرتبط</h2>
+      {/* 🟢 تغییر یافته: رنگ border برای لایت و دارک مود */}
+      <section className="container mx-auto mt-12 max-w-3xl border-t border-gray-200 px-4 pt-8 text-right dark:border-gray-800">
+        {/* 🟢 تغییر یافته: 'text-white' حذف شد تا از <main> ارث‌بری کند */}
+        <h2 className="mb-6 text-2xl font-bold">مقالات مرتبط</h2>
         <RelatedPosts currentPostSlug={post.slug} category={post.category} />
       </section>
     </main>

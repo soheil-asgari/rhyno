@@ -1,10 +1,12 @@
 "use client"
 "use strict"
 
+// ... (تمام import های شما مثل قبل باقی می‌ماند) ...
 import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
 import { useTheme } from "next-themes"
 import dynamic from "next/dynamic"
+// 👇 ۱. useRef و useEffect اسکرول را از اینجا حذف کنید
 import { useEffect, useContext } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { MODEL_PROMPTS } from "@/lib/build-prompt"
@@ -26,10 +28,6 @@ const ChatUI = dynamic(
 const QuickSettings = dynamic(() =>
   import("@/components/chat/quick-settings").then(mod => mod.QuickSettings)
 )
-// Brand دیگر لازم نیست
-// const Brand = dynamic(() =>
-//   import("@/components/ui/brand").then(mod => mod.Brand)
-// )
 const VoiceUI = dynamic(
   () => import("@/components/chat/voice-ui").then(mod => mod.VoiceUI),
   { ssr: false }
@@ -45,11 +43,12 @@ export default function ChatPage({
   const router = useRouter()
   const welcome = searchParams.get("welcome")
 
-  // ✨ ۱. پروفایل کاربر را از کانتکست بگیرید
   const { chatSettings, setChatSettings, chatMessages, profile } =
     useContext(ChatbotUIContext)
 
-  // 🔹 نمایش Toast خوش‌آمدگویی (بدون تغییر)
+  // 👇 ۲. chatContainerRef از اینجا حذف شد
+
+  // ... (useEffect خوش‌آمدگویی بدون تغییر) ...
   useEffect(() => {
     if (welcome === "true") {
       toast.success("🎉 ۱$ خوش‌آمدگویی به کیف پول شما اضافه شد!")
@@ -59,7 +58,7 @@ export default function ChatPage({
     }
   }, [welcome, router])
 
-  // 🔹 تنظیم prompt مدل (بدون تغییر)
+  // ... (useEffect تنظیم prompt بدون تغییر) ...
   useEffect(() => {
     if (!chatSettings) return
     setChatSettings(prev => ({
@@ -68,7 +67,8 @@ export default function ChatPage({
     }))
   }, [chatSettings?.model, setChatSettings])
 
-  // ✨ ۲. نام کاربر را استخراج کنید
+  // 👇 ۳. useEffect اسکرول از اینجا حذف شد
+
   const userName = profile?.display_name || profile?.username || "کاربر"
   const firstName = userName.split(" ")[0]
   const isRealtimeMode = chatSettings?.model?.includes("realtime") ?? false
@@ -76,45 +76,54 @@ export default function ChatPage({
   return (
     <>
       <Toaster position="top-right" />
-      {chatMessages.length === 0 ? (
-        <div className="relative flex size-full flex-col items-center justify-center">
-          <div className="mb-20 flex size-full flex-col items-center justify-center">
-            {/* ✨ ۳. کامپوننت Brand با پیام خوش‌آمدگویی جایگزین شد */}
-            <div className="text-center" dir="rtl">
-              <div className="font-vazir text-3xl font-bold">
-                سلام {firstName} 👋
-              </div>
-              <div className="font-vazir mt-2 text-lg">
-                چطور می‌توانم کمکتان کنم؟
+
+      <div className="relative flex size-full flex-col overflow-hidden">
+        {/* تنظیمات (بدون تغییر) */}
+        <div className="absolute left-2 top-2">
+          <QuickSettings />
+        </div>
+        <div className="absolute right-2 top-2">
+          <ChatSettings />
+        </div>
+
+        {/* 👇 ۴. بخش محتوا:
+          overflow-y-auto و ref از اینجا حذف شدند.
+          min-h-0 برای اصلاح باگ flex باقی می‌ماند.
+          ChatUI خودش اسکرول داخلی را مدیریت خواهد کرد.
+        */}
+        <div className="min-h-0 flex-1">
+          {chatMessages.length === 0 ? (
+            // حالت خوش‌آمدگویی (بدون تغییر)
+            <div className="flex size-full flex-col items-center justify-center">
+              <div className="text-center" dir="rtl">
+                <div className="font-vazir text-3xl font-bold">
+                  سلام {firstName} 👋
+                </div>
+                <div className="font-vazir mt-2 text-lg">
+                  چطور می‌توانم کمکتان کنم؟
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="absolute left-2 top-2">
-            <QuickSettings />
-          </div>
-
-          <div className="absolute right-2 top-2">
-            <ChatSettings />
-          </div>
-
-          <div className="flex grow flex-col items-center justify-center" />
-
-          <div className="w-full min-w-[300px] items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
-            {isRealtimeMode ? (
-              <VoiceUI chatSettings={chatSettings} />
-            ) : (
-              <ChatInput />
-            )}
-          </div>
-
-          <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
-            <ChatHelp />
-          </div>
+          ) : (
+            // حالت چت (بدون تغییر)
+            <ChatUI isRealtimeMode={isRealtimeMode} />
+          )}
         </div>
-      ) : (
-        <ChatUI isRealtimeMode={isRealtimeMode} />
-      )}
+
+        {/* بخش ورودی چت (بدون تغییر) */}
+        <div className="mx-auto w-full min-w-[300px] items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
+          {isRealtimeMode ? (
+            <VoiceUI chatSettings={chatSettings} />
+          ) : (
+            <ChatInput />
+          )}
+        </div>
+
+        {/* راهنما (بدون تغییر) */}
+        <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
+          <ChatHelp />
+        </div>
+      </div>
     </>
   )
 }

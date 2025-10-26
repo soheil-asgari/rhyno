@@ -27,6 +27,7 @@ module.exports = {
             config.transform(config, '/about'),
             config.transform(config, '/contact'),
             config.transform(config, '/blog'),
+            config.transform(config, '/company'),
         ]);
 
         // مسیرهای بلاگ — اینجا باید لیست slugها رو دستی یا داینامیک وارد کنید
@@ -39,7 +40,9 @@ module.exports = {
             "keyword-research-with-ai",
             "link-building-guide",
             "on-page-seo-guide",
-            "pejman-jamshidi-seo"
+            "pejman-jamshidi-seo",
+            "what-is-ai-explained",
+            "ai-seo-transformation"
 
         ];
 

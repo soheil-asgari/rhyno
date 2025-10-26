@@ -1,3 +1,4 @@
+// HomePageClient.tsx
 "use client"
 
 import {
@@ -15,30 +16,27 @@ import React, {
   useRef,
   PropsWithChildren
 } from "react"
-import Link from "next/link"
-import Image from "next/image"
+// ❌ دیگر نیازی به Link, Image, FiMenu, FiX در اینجا نیست (در Header.tsx هستند)
 import dynamic from "next/dynamic"
 import { cn } from "@/lib/utils"
+import { LogoTicker } from "@/components/LogoTicker"
+// ✅ ۱. وارد کردن کامپوننت‌های بهینه‌سازی شده
 
-// ✅ OPTIMIZATION 1: Dynamically import heavy/off-screen components
-// These components will now be "lazy-loaded". Their code won't be in the
-// initial JavaScript bundle, making the initial page load much faster.
+import { AnimatedGridPattern } from "@/components/AnimatedGridPattern"
+import { BentoCard, BentoCardContent } from "@/components/BentoCard"
+import { SectionTitle } from "@/components/SectionTitle"
+import { StarryBackground } from "@/components/StarryBackground"
+// ✅ (این import ها مشکلی ندارند)
 const FreeChat = dynamic(() => import("@/components/FreeChat"), { ssr: false })
 const Testimonials = dynamic(() => import("@/components/Testimonials"))
-
-// --- REMOVED Lottie import ---
-// ❌ PROBLEM: import roboticsAnimation from "../public/animations/robotics.json"
-// This line was removed. Importing the large animation file directly
-// was the biggest cause of the slow load time.
+import Header, { type NavLink } from "@/components/Header"
 
 import {
-  FiArrowRight,
+  FiArrowRight, // (برای دکمه "شروع قدرتمند" لازم است)
   FiZap,
   FiSmile,
   FiImage,
-  FiFileText,
-  FiMenu,
-  FiX
+  FiFileText
 } from "react-icons/fi"
 import { BsCodeSlash } from "react-icons/bs"
 import { BiSolidUserVoice } from "react-icons/bi"
@@ -47,92 +45,16 @@ import { LuMousePointerClick, LuBrainCircuit } from "react-icons/lu"
 import { GoGoal } from "react-icons/go"
 import AnimatedButton from "@/components/AnimatedButton"
 import FaqSection from "@/components/FaqSection"
+// ❌ ThemeToggleButton هم در Header.tsx است
 
-// --- Helper components can stay here as they are small ---
-const AnimatedGridPattern = memo(() => (
-  <div className="pointer-events-none absolute inset-0 z-0">
-    <div
-      className="absolute size-full bg-[radial-gradient(circle_at_center,rgba(100,116,139,0.1)_0%,rgba(100,116,139,0)_50%)]"
-      style={{
-        animation: "pulse 10s cubic-bezier(0.4, 0, 0.6, 1) infinite"
-      }}
-    />
-    <div className="absolute size-full bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
-  </div>
-))
-AnimatedGridPattern.displayName = "AnimatedGridPattern"
+// ❌ ۲. تمام تعاریف کامپوننت‌های محلی از اینجا حذف شدند
+// ❌ const AnimatedGridPattern = ...
+// ❌ const BentoCard = ...
+// ❌ const BentoCardContent = ...
+// ❌ const SectionTitle = ...
+// ❌ const HeaderBrand = ...
 
-const BentoCard = ({
-  className = "",
-  children
-}: PropsWithChildren<{ className?: string }>) => {
-  const ref = useRef<HTMLDivElement>(null)
-  const mouseX = useMotionValue(0)
-  const mouseY = useMotionValue(0)
-  const springConfig = { damping: 20, stiffness: 150 }
-  const smoothMouseX = useSpring(mouseX, springConfig)
-  const smoothMouseY = useSpring(mouseY, springConfig)
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return
-    const { left, top } = ref.current.getBoundingClientRect()
-    mouseX.set(e.clientX - left)
-    mouseY.set(e.clientY - top)
-  }
-
-  const backgroundGlow = useTransform(
-    [smoothMouseX, smoothMouseY],
-    ([x, y]) =>
-      `radial-gradient(600px circle at ${x}px ${y}px, rgba(59, 130, 246, 0.15), transparent 80%)`
-  )
-
-  return (
-    <motion.div
-      ref={ref}
-      onMouseMove={handleMouseMove}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className={cn(
-        "group relative rounded-2xl border border-white/10 bg-black/20 p-1 backdrop-blur-sm",
-        className
-      )}
-    >
-      <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-blue-500/50 to-green-500/50 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="relative size-full rounded-[15px] bg-gray-950/80 p-6">
-        <motion.div
-          className="pointer-events-none absolute -inset-px rounded-[15px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-          style={{ background: backgroundGlow }}
-        />
-        <div className="relative z-10 h-full">{children}</div>
-      </div>
-    </motion.div>
-  )
-}
-
-const BentoCardContent = ({
-  icon,
-  title,
-  desc
-}: {
-  icon: React.ReactNode
-  title: string
-  desc: string
-}) => (
-  <div>
-    <div className="mb-3 text-blue-400">
-      {React.cloneElement(icon as React.ReactElement, {
-        className:
-          "h-7 w-7 transition-transform duration-300 group-hover:scale-110"
-      })}
-    </div>
-    <h3 className="mb-2 text-lg font-semibold text-white">{title}</h3>
-    <p className="text-sm text-gray-400">{desc}</p>
-  </div>
-)
-
-// --- Page Data ---
+// --- Page Data (این بخش‌ها مشکلی ندارند) ---
 const logos = [
   "OpenAI",
   "Google AI",
@@ -146,33 +68,33 @@ const features = [
   {
     icon: <FiZap />,
     title: "سرعت بی‌نظیر",
-    desc: "پاسخ‌ها را در کسری از ثانیه دریافت کنید و جریان کاری خود را متحول سازید."
+    desc: "پاسخ‌ها را در کسری از ثانیه دریافت کنید..."
   },
   {
     icon: <BsCodeSlash />,
     title: "کدنویسی هوشمند",
-    desc: "مدل بهینه‌شده مخصوص کدنویسی با قابلیت درک و تولید کدهای پیچیده."
+    desc: "مدل بهینه‌شده مخصوص کدنویسی..."
   },
   {
     icon: <BiSolidUserVoice />,
     title: "تبدیل متن به صدا",
-    desc: "متن‌های خود را با کیفیتی استثنایی و صداهای طبیعی به صوت تبدیل کنید."
+    desc: "متن‌های خود را با کیفیتی استثنایی..."
   },
   {
     icon: <FiFileText />,
     title: "تولید و تحلیل فایل",
-    desc: "خروجی‌های دقیق در قالب Excel دریافت و داده‌های موجود در فایل‌ها را تحلیل کنید."
+    desc: "خروجی‌های دقیق در قالب Excel..."
   },
   {
     icon: <FiImage />,
     title: "تولید تصویر خلاقانه",
-    desc: "تصاویر خلاقانه و حرفه‌ای را تنها با چند کلمه و در چند ثانیه بسازید.",
+    desc: "تصاویر خلاقانه و حرفه‌ای را...",
     className: "lg:col-span-2"
   },
   {
     icon: <FiSmile />,
     title: "رابط کاربری لذت‌بخش",
-    desc: "تجربه‌ای ساده و کاربرپسند که کار با هوش مصنوعی را آسان می‌کند.",
+    desc: "تجربه‌ای ساده و کاربرپسند...",
     className: "lg:col-span-2"
   }
 ]
@@ -180,17 +102,17 @@ const processSteps = [
   {
     icon: <LuMousePointerClick size={32} />,
     title: "۱. درخواست خود را وارد کنید",
-    desc: "چه تولید متن باشد، چه کد یا تصویر، ایده خود را بنویسید."
+    desc: "چه تولید متن باشد، چه کد یا تصویر..."
   },
   {
     icon: <LuBrainCircuit size={32} />,
     title: "۲. هوش مصنوعی پردازش می‌کند",
-    desc: "بهترین مدل‌های AI درخواست شما را در لحظه تحلیل و پردازش می‌کنند."
+    desc: "بهترین مدل‌های AI درخواست شما را در لحظه..."
   },
   {
     icon: <GoGoal size={32} />,
     title: "۳. نتیجه را دریافت کنید",
-    desc: "خروجی باکیفیت و دقیق را فورا دریافت و از آن استفاده کنید."
+    desc: "خروجی باکیفیت و دقیق را فورا دریافت..."
   }
 ]
 const pricingFeatures = [
@@ -202,79 +124,35 @@ const pricingFeatures = [
   "مدل‌های Realtime"
 ]
 
-const SectionTitle = memo(
-  ({ children, className = "" }: PropsWithChildren<{ className?: string }>) => (
-    <h2
-      className={cn(
-        "mb-12 text-center text-3xl font-bold text-white sm:text-4xl lg:text-5xl",
-        className
-      )}
-    >
-      {" "}
-      {children}{" "}
-    </h2>
-  )
-)
-SectionTitle.displayName = "SectionTitle"
-const HeaderBrand: React.FC = memo(() => (
-  <Link href="/" className="flex items-center space-x-2 rtl:space-x-reverse">
-    {" "}
-    <Image
-      src="/rhyno1.png"
-      width={40}
-      height={40}
-      priority
-      alt="Rhyno Logo"
-      className="rounded-full object-cover"
-    />{" "}
-    <span className="text-xl font-semibold text-white">Rhyno AI</span>{" "}
-  </Link>
-))
-HeaderBrand.displayName = "HeaderBrand"
-const LogoTicker = memo(() => (
-  <div className="relative w-full overflow-hidden py-8 [mask-image:linear-gradient(to_right,transparent_0%,black_15%,black_85%,transparent_100%)]">
-    {" "}
-    <div className="animate-scroll flex will-change-transform">
-      {" "}
-      {[...logos, ...logos].map((logo, index) => (
-        <span
-          key={index}
-          className="mx-6 shrink-0 whitespace-nowrap text-lg font-medium text-gray-500 sm:mx-10 md:text-xl"
-        >
-          {" "}
-          {logo}{" "}
-        </span>
-      ))}{" "}
-    </div>{" "}
-  </div>
-))
-LogoTicker.displayName = "LogoTicker"
-
 // --- Main Component ---
 export default function HomePageClient() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-
-  // ✅ OPTIMIZATION 2: State for lazy-loading the Lottie animation data
-  type AnimationData = object | null
-  const [animationData, setAnimationData] = useState<AnimationData>(null)
-
-  useEffect(() => {
-    // This fetch runs on the client-side after the page is interactive
-    fetch("/animations/robotics.json")
-      .then(res => res.json())
-      .then(data => setAnimationData(data))
-      .catch(err => console.error("Failed to load animation", err))
-  }, []) // Empty array ensures this runs only once
-
-  const navLinks = [
+  const companyNavLinks: NavLink[] = [
     { href: "#features", label: "ویژگی‌ها" },
     { href: "#process", label: "فرآیند کار" },
     { href: "#pricing", label: "تعرفه‌ها" },
     { href: "/about", label: "درباره ما" },
     { href: "/blog", label: "بلاگ" },
     { href: "/contact", label: "تماس با ما" },
-    { href: "#faq", label: "سوالات متداول" }
+    { href: "#faq", label: "سوالات متداول" },
+    { href: "/company", label: "شرکت" }
   ]
+  // ❌ ۳. این state دیگر نیاز نیست (در Header.tsx است)
+  // const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  // (این state برای Lottie لازم است)
+  type AnimationData = object | null
+  const [animationData, setAnimationData] = useState<AnimationData>(null)
+
+  useEffect(() => {
+    fetch("/animations/robotics.json")
+      .then(res => res.json())
+      .then(data => setAnimationData(data))
+      .catch(err => console.error("Failed to load animation", err))
+  }, [])
+
+  // ❌ ۴. این آرایه دیگر نیاز نیست (در Header.tsx است)
+  // const navLinks = [ ... ]
+
   const heroTitle = "مرکز فرماندهی هوش مصنوعی شما"
   const titleWords = heroTitle.split(" ")
   const titleContainerVariants: Variants = {
@@ -292,7 +170,9 @@ export default function HomePageClient() {
       transition: { type: "tween", duration: 0.8, ease: [0.22, 1, 0.36, 1] }
     }
   }
-  // --- کامپوننت جدید MultiModalHero ---
+
+  // --- کامپوننت MultiModalHero ---
+  // ✅ ۵. رنگ‌های داخل این کامپوننت محلی اصلاح شد
   const MultiModalHero = () => {
     const [showPrompt, setShowPrompt] = useState(false)
     const [isProcessing, setIsProcessing] = useState(false)
@@ -300,39 +180,36 @@ export default function HomePageClient() {
 
     const promptText = '"یه ایده خوب برای ساخت محتوا بده"'
 
-    // داده‌های نمونه برای کارت‌های خروجی
     const outputCards = [
       {
         icon: <FiFileText />,
         title: "ایده مقاله",
-        desc: "ساختار یک مقاله بلاگ جذاب در مورد آینده AI."
+        desc: "ساختار یک مقاله بلاگ جذاب..."
       },
       {
         icon: <FiImage />,
         title: "تصویر پیشنهادی",
-        desc: "یک تصویر هنری مینیمال از یک مغز دیجیتال."
+        desc: "یک تصویر هنری مینیمال..."
       },
       {
         icon: <BsCodeSlash />,
         title: "اسکریپت کوتاه",
-        desc: "اسکریپت پایتون برای پیدا کردن ترندهای روز."
+        desc: "اسکریپت پایتون برای پیدا کردن..."
       },
       {
         icon: <BiSolidUserVoice />,
         title: "اسکریپت پادکست",
-        desc: "متن یک پادکست کوتاه ۵ دقیقه‌ای با لحن صمیمی."
+        desc: "متن یک پادکست کوتاه ۵ دقیقه‌ای..."
       }
     ]
 
     useEffect(() => {
-      // تایم‌لاین انیمیشن
-      const timer1 = setTimeout(() => setShowPrompt(true), 500) // ۱. نمایش پرامپت
-      const timer2 = setTimeout(() => setIsProcessing(true), 1700) // ۲. نمایش پردازش
+      const timer1 = setTimeout(() => setShowPrompt(true), 500)
+      const timer2 = setTimeout(() => setIsProcessing(true), 1700)
       const timer3 = setTimeout(() => {
-        setIsProcessing(false) // ۳. پنهان کردن پردازش
-        setShowOutputs(true) //    و نمایش خروجی‌ها
+        setIsProcessing(false)
+        setShowOutputs(true)
       }, 3500)
-
       return () => {
         clearTimeout(timer1)
         clearTimeout(timer2)
@@ -340,19 +217,14 @@ export default function HomePageClient() {
       }
     }, [])
 
-    // Variants برای انیمیشن گرید
     const gridVariants: Variants = {
       hidden: { opacity: 0 },
       visible: {
         opacity: 1,
-        transition: {
-          staggerChildren: 0.2, // انیمیشن آبشاری فرزندان
-          delayChildren: 0.1
-        }
+        transition: { staggerChildren: 0.2, delayChildren: 0.1 }
       }
     }
 
-    // Variants برای هر کارت در گرید
     const cardVariants: Variants = {
       hidden: { opacity: 0, y: 20 },
       visible: {
@@ -365,6 +237,7 @@ export default function HomePageClient() {
     return (
       <div className="relative mx-auto flex w-full max-w-4xl flex-col items-center gap-6 py-8">
         {/* ۱. کارت پرامپت */}
+
         <AnimatePresence>
           {showPrompt && (
             <motion.div
@@ -372,17 +245,19 @@ export default function HomePageClient() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
-              className="w-full max-w-lg rounded-2xl border border-blue-500/30 bg-gray-950/80 p-5 text-center shadow-xl shadow-blue-500/10 backdrop-blur-md"
+              // ✅ FIX: اصلاح رنگ پس‌زمینه
+              className="w-full max-w-lg rounded-2xl border border-blue-500/30 bg-white p-5 text-center shadow-xl shadow-blue-500/10 backdrop-blur-md transition-colors duration-300 dark:bg-gray-950/80"
             >
-              <p className="text-lg text-gray-300">{promptText}</p>
+              {/* ✅ FIX: اصلاح رنگ متن */}
+              <p className="text-lg text-gray-700 transition-colors duration-300 dark:text-gray-300">
+                {promptText}
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ۲. نشانگر پردازش */}
+        {/* ۲. نشانگر پردازش (مشکلی ندارد) */}
         <div className="my-4 h-12">
-          {" "}
-          {/* یک نگه‌دارنده فضا برای جلوگیری از پرش صفحه */}
           <AnimatePresence>
             {isProcessing && (
               <motion.div
@@ -418,7 +293,7 @@ export default function HomePageClient() {
             >
               {outputCards.map((card, i) => (
                 <motion.div key={i} variants={cardVariants}>
-                  {/* استفاده مجدد از کامپوننت BentoCard شما */}
+                  {/* این کامپوننت اکنون از نسخه import شده و بهینه‌سازی شده استفاده می‌کند */}
                   <BentoCard className="h-full">
                     <BentoCardContent
                       icon={card.icon}
@@ -434,84 +309,20 @@ export default function HomePageClient() {
       </div>
     )
   }
+
+  // --- رندر نهایی ---
   return (
-    <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-black text-gray-300">
+    <div className="font-vazir min-h-screen w-full overflow-x-hidden bg-white text-gray-800 transition-colors duration-300 dark:bg-black dark:text-gray-300">
       <AnimatedGridPattern />
+      <StarryBackground />
       <div className="relative z-10">
-        <motion.header
-          initial={{ y: -100 }}
-          animate={{ y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="sticky top-0 z-40 border-b border-white/10 bg-black/30 py-4 backdrop-blur-lg"
-        >
-          <nav className="container relative mx-auto flex items-center justify-between px-4">
-            <HeaderBrand />
-            <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center space-x-8 md:flex rtl:space-x-reverse">
-              {navLinks.map(link => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
-                >
-                  {" "}
-                  {link.label}{" "}
-                </Link>
-              ))}
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="hidden md:block">
-                <AnimatedButton
-                  href="/login"
-                  className="flex items-center space-x-1.5 rounded-lg border border-gray-700 bg-white px-4 py-2 text-sm font-bold text-black transition-all hover:bg-gray-200 hover:shadow-lg hover:shadow-white/10 rtl:space-x-reverse"
-                >
-                  {" "}
-                  <span>شروع رایگان</span> <FiArrowRight />{" "}
-                </AnimatedButton>
-              </div>
-              <div className="md:hidden">
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="text-white focus:outline-none"
-                  aria-label="Toggle menu"
-                >
-                  {" "}
-                  {isMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}{" "}
-                </button>
-              </div>
-            </div>
-          </nav>
-          {isMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-4 flex flex-col items-center space-y-4 px-4 md:hidden"
-            >
-              {" "}
-              {navLinks.map(link => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="w-full py-2 text-center text-gray-300 transition-colors hover:text-white"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {" "}
-                  {link.label}{" "}
-                </Link>
-              ))}{" "}
-              <Link
-                href="/login"
-                className="w-full rounded-lg bg-blue-600 py-2.5 text-center font-bold text-white"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {" "}
-                شروع رایگان{" "}
-              </Link>{" "}
-            </motion.div>
-          )}
-        </motion.header>
+        {/* ✅ ۶. جایگزینی هدر قدیمی با کامپوننت جدید */}
+        <Header navLinks={companyNavLinks} />
+
+        {/* ❌ ۷. کل بلاک <motion.header> ... </motion.header> از اینجا حذف شد */}
 
         <main className="container mx-auto px-4">
+          {/* --- بخش Hero --- */}
           <section className="py-20 text-center md:py-32">
             <motion.h1
               variants={titleContainerVariants}
@@ -534,7 +345,8 @@ export default function HomePageClient() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 1.2 }}
-              className="mx-auto max-w-2xl text-base leading-relaxed text-gray-400 sm:text-lg"
+              // ✅ ۸. اصلاح رنگ متن زیرعنوان
+              className="mx-auto max-w-2xl text-base leading-relaxed text-gray-700 transition-colors duration-300 sm:text-lg dark:text-gray-400"
               dir="rtl"
             >
               تمام مدل‌های قدرتمند AI در دستان شما، سریع و بدون پیچیدگی. خلاقیت
@@ -554,6 +366,7 @@ export default function HomePageClient() {
                   ease: "easeInOut"
                 }}
               >
+                {/* (این دکمه مشکلی ندارد) */}
                 <AnimatedButton
                   href="#pricing"
                   className="inline-block rounded-lg bg-blue-600 px-8 py-3.5 font-bold text-black shadow-lg shadow-blue-600/20 transition-all hover:scale-110 hover:bg-blue-700 hover:shadow-blue-600/40"
@@ -565,27 +378,29 @@ export default function HomePageClient() {
             </motion.div>
           </section>
 
+          {/* --- بخش MultiModalHero --- */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative mb-20" // کمی فاصله از پایین اضافه کردیم
+            className="relative mb-20"
           >
-            {/* افکت نور پس‌زمینه را می‌توانیم نگه داریم */}
-            <div className="absolute inset-x-0 -top-10 z-0 h-1/2 bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15)_0%,_transparent_60%)]" />
-
-            {/* اینجا کامپوننت جدید را فراخوانی می‌کنیم */}
+            {/* ✅ ۹. اصلاح opacity نور پس‌زمینه */}
+            <div className="absolute inset-x-0 -top-10 z-0 h-1/2 bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15)_0%,_transparent_60%)] opacity-30 transition-opacity duration-300 dark:opacity-100" />
             <MultiModalHero />
           </motion.div>
 
+          {/* --- بخش LogoTicker --- */}
           <section className="py-16">
-            <p className="mb-4 text-center text-sm font-semibold uppercase tracking-widest text-gray-500">
+            {/* ✅ ۱۰. اصلاح رنگ متن */}
+            <p className="mb-4 text-center text-sm font-semibold uppercase tracking-widest text-gray-600 transition-colors duration-300 dark:text-gray-500">
               {" "}
               مورد اعتماد با استفاده از مدل‌های پیشرو{" "}
             </p>
             <LogoTicker />
           </section>
 
+          {/* --- بخش Features --- */}
           <section id="features" className="py-16 md:py-24">
             <SectionTitle>
               {" "}
@@ -601,6 +416,7 @@ export default function HomePageClient() {
             </div>
           </section>
 
+          {/* --- بخش Process --- */}
           <section id="process" className="py-16 md:py-24">
             <SectionTitle>سادگی در سه مرحله</SectionTitle>
             <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-3">
@@ -613,22 +429,24 @@ export default function HomePageClient() {
                   transition={{ duration: 0.5, delay: i * 0.2 }}
                   className="relative flex flex-col items-center text-center"
                 >
-                  {" "}
                   <div className="mb-4 flex size-16 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400">
                     {" "}
                     {step.icon}{" "}
-                  </div>{" "}
-                  <h3 className="mb-2 text-lg font-semibold text-white">
+                  </div>
+                  {/* ✅ ۱۱. اصلاح رنگ متن */}
+                  <h3 className="mb-2 text-lg font-semibold text-black transition-colors duration-300 dark:text-white">
                     {" "}
                     {step.title}{" "}
-                  </h3>{" "}
-                  <p className="text-sm text-gray-400">{step.desc}</p>{" "}
+                  </h3>
+                  {/* ✅ ۱۲. اصلاح رنگ متن */}
+                  <p className="text-sm text-gray-700 transition-colors duration-300 dark:text-gray-400">
+                    {step.desc}
+                  </p>
                   {i < processSteps.length - 1 && (
                     <div className="absolute left-1/2 top-8 hidden h-full w-[calc(100%+2rem)] -translate-y-px translate-x-1/2 items-center md:flex">
-                      {" "}
-                      <div className="h-px w-full bg-gradient-to-r from-blue-500/0 via-blue-500/50 to-blue-500/0" />{" "}
+                      <div className="h-px w-full bg-gradient-to-r from-blue-500/0 via-blue-500/50 to-blue-500/0" />
                     </div>
-                  )}{" "}
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -636,6 +454,7 @@ export default function HomePageClient() {
 
           <Testimonials />
 
+          {/* --- بخش Pricing --- */}
           <section id="pricing" className="py-16 text-center md:py-24">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
@@ -645,15 +464,18 @@ export default function HomePageClient() {
               className="relative rounded-2xl p-px [animation:rotate_4s_linear_infinite] [background:conic-gradient(from_var(--angle),_theme(colors.green.500/.2),_theme(colors.blue.500/.2)_50%,_theme(colors.green.500/.2))]"
               style={{ "--angle": "0deg" } as React.CSSProperties}
             >
-              <div className="relative overflow-hidden rounded-[15px] bg-gray-950 p-8 shadow-2xl md:p-12">
-                <div className="absolute -left-20 -top-20 z-0 size-60 rounded-full bg-green-500/10 blur-3xl" />
-                <div className="absolute -bottom-20 -right-20 z-0 size-60 rounded-full bg-blue-500/10 blur-3xl" />
+              {/* ✅ ۱۳. اصلاح رنگ پس‌زمینه */}
+              <div className="relative overflow-hidden rounded-[15px] bg-gray-50 p-8 shadow-2xl transition-colors duration-300 md:p-12 dark:bg-gray-950">
+                <div className="absolute -left-20 -top-20 z-0 size-60 rounded-full bg-green-500/10 opacity-30 blur-3xl dark:opacity-100" />
+                <div className="absolute -bottom-20 -right-20 z-0 size-60 rounded-full bg-blue-500/10 opacity-30 blur-3xl dark:opacity-100" />
                 <div className="relative z-10">
-                  <h3 className="mb-2 text-3xl font-bold text-white">
+                  {/* ✅ ۱۴. اصلاح رنگ متن */}
+                  <h3 className="mb-2 text-3xl font-bold text-black transition-colors duration-300 dark:text-white">
                     {" "}
                     پلن دسترسی کامل{" "}
                   </h3>
-                  <p className="mb-10 text-base text-gray-400">
+                  {/* ✅ ۱۵. اصلاح رنگ متن */}
+                  <p className="mb-10 text-base text-gray-700 transition-colors duration-300 dark:text-gray-400">
                     {" "}
                     فقط به اندازه مصرف پرداخت کنید و به تمام امکانات دسترسی
                     داشته باشید.{" "}
@@ -662,11 +484,15 @@ export default function HomePageClient() {
                     {pricingFeatures.map(item => (
                       <li key={item} className="flex items-center gap-3">
                         {" "}
-                        <FaCheckCircle className="shrink-0 text-green-400" />{" "}
-                        <span className="text-gray-300">{item}</span>{" "}
+                        <FaCheckCircle className="shrink-0 text-green-400" />
+                        {/* ✅ ۱۶. اصلاح رنگ متن */}
+                        <span className="text-gray-800 transition-colors duration-300 dark:text-gray-300">
+                          {item}
+                        </span>{" "}
                       </li>
                     ))}
                   </ul>
+                  {/* (این دکمه مشکلی ندارد) */}
                   <AnimatedButton
                     href="/checkout"
                     className="w-full rounded-lg bg-white px-10 py-4 font-bold text-black transition-transform hover:scale-105 sm:w-auto"
@@ -678,12 +504,15 @@ export default function HomePageClient() {
               </div>
             </motion.div>
           </section>
+
           <FaqSection />
         </main>
 
-        <footer className="border-t border-white/10 py-8 pb-28 text-center sm:pb-8">
+        {/* --- بخش Footer --- */}
+        {/* ✅ ۱۷. اصلاح رنگ‌های فوتر */}
+        <footer className="border-t border-black/10 py-8 pb-28 text-center transition-colors duration-300 sm:pb-8 dark:border-white/10">
           <div className="container mx-auto flex flex-col items-center justify-between gap-6 px-4 sm:flex-row">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600 transition-colors duration-300 dark:text-gray-500">
               {" "}
               &copy; {new Date().getFullYear()} Rhyno AI. تمامی حقوق محفوظ
               است.{" "}

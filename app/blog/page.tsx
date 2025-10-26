@@ -5,7 +5,7 @@ import Link from "next/link"
 import { FiArrowLeft, FiCalendar, FiUser, FiEye } from "react-icons/fi"
 import { getAllPosts, type Post } from "@/lib/posts"
 
-// Metadata بهینه برای SEO
+// Metadata (عالی، بدون تغییر)
 export const metadata: Metadata = {
   title: "بلاگ هوش مصنوعی Rhyno AI | مقالات، آموزش‌ها و اخبار AI",
   description:
@@ -37,7 +37,6 @@ export const metadata: Metadata = {
   }
 }
 
-// کارت مقاله بهینه با تصویر
 const BlogCard = ({ post }: { post: Post }) => {
   const postDate = post.date
     ? new Date(post.date).toLocaleDateString("fa-IR", {
@@ -49,13 +48,13 @@ const BlogCard = ({ post }: { post: Post }) => {
 
   return (
     <article
-      className="group flex flex-col rounded-xl border border-gray-800 bg-gray-900/50 p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20"
+      className="group flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 dark:bg-gray-900/50 dark:hover:shadow-2xl dark:hover:shadow-blue-900/20"
       itemScope
       itemType="https://schema.org/BlogPosting"
     >
       <div className="flex flex-col" dir="rtl">
         {post.category && (
-          <span className="mb-2 inline-block rounded-full bg-blue-600/20 px-3 py-1 text-xs font-semibold text-blue-400">
+          <span className="mb-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-600/20 dark:text-blue-400">
             {post.category}
           </span>
         )}
@@ -70,17 +69,20 @@ const BlogCard = ({ post }: { post: Post }) => {
         )}
 
         <h3
-          className="mb-2 text-lg font-semibold text-white"
+          className="mb-2 text-lg font-semibold text-gray-900 dark:text-white"
           itemProp="headline"
         >
           <Link href={`/blog/${post.slug}`}>{post.title}</Link>
         </h3>
 
-        <p className="flex-1 text-sm text-gray-400" itemProp="description">
+        <p
+          className="flex-1 text-sm text-gray-600 dark:text-gray-400"
+          itemProp="description"
+        >
           {post.excerpt || ""}
         </p>
 
-        <div className="mt-4 flex items-center justify-start gap-6 text-xs text-gray-500">
+        <div className="mt-4 flex items-center justify-start gap-6 text-xs text-gray-500 dark:text-gray-500">
           {/* 1. Author */}
           <div className="flex items-center gap-2">
             <FiUser />
@@ -99,12 +101,9 @@ const BlogCard = ({ post }: { post: Post }) => {
           </div>
 
           {/* 3. Views (جدید) */}
-          {/* این بخش فقط زمانی نمایش داده می‌شود که دیتای بازدید وجود داشته باشد */}
           {post.views >= 0 && (
             <div className="flex items-center gap-2">
-              {/* ⭐️ این خط احتمالاً جا افتاده است ⭐️ */}
               <FiEye />
-
               <span>{post.views}</span>
             </div>
           )}
@@ -119,7 +118,7 @@ export default async function BlogPage() {
 
   if (allPosts.length === 0) {
     return (
-      <div className="flex h-screen items-center justify-center text-white">
+      <div className="flex h-screen items-center justify-center text-gray-900 dark:text-white">
         <p>هنوز مقاله‌ای منتشر نشده است.</p>
       </div>
     )
@@ -129,14 +128,15 @@ export default async function BlogPage() {
   const otherPosts = allPosts.slice(1)
 
   return (
-    <div className="font-vazir bg-background min-h-screen w-full overflow-x-hidden text-gray-300">
+    <div className="font-vazir bg-background min-h-screen w-full overflow-x-hidden text-gray-900 dark:text-gray-300">
       <main className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
         <header className="mb-12 text-center">
-          <h1 className="mb-3 text-4xl font-extrabold text-white md:text-5xl">
+          <h1 className="mb-3 text-4xl font-extrabold text-gray-900 md:text-5xl dark:text-white">
             بلاگ هوش مصنوعی Rhyno AI
           </h1>
-          <p className="mx-auto max-w-2xl text-gray-400">
+
+          <p className="mx-auto max-w-2xl text-gray-600 dark:text-gray-400">
             جدیدترین تحلیل‌ها، آموزش‌ها و اخبار دنیای هوش مصنوعی را اینجا دنبال
             کنید.
           </p>
@@ -144,10 +144,10 @@ export default async function BlogPage() {
 
         {/* Featured Post */}
         <section className="mb-16">
-          <article className="group rounded-2xl border border-gray-800 bg-gray-900/50 p-6 transition-all duration-300 hover:bg-gray-800/60">
+          <article className="group rounded-2xl border border-gray-200 bg-gray-50 p-6 transition-all duration-300 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:bg-gray-800/60">
             <div dir="rtl" itemScope itemType="https://schema.org/BlogPosting">
               {featuredPost.category && (
-                <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-400">
+                <span className="mb-3 inline-block rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
                   {featuredPost.category}
                 </span>
               )}
@@ -162,7 +162,7 @@ export default async function BlogPage() {
               )}
 
               <h2
-                className="mb-3 text-xl font-semibold text-white hover:text-blue-400 md:text-2xl"
+                className="mb-3 text-xl font-semibold text-gray-900 hover:text-blue-600 md:text-2xl dark:text-white dark:hover:text-blue-400"
                 itemProp="headline"
               >
                 <Link href={`/blog/${featuredPost.slug}`}>
@@ -170,13 +170,16 @@ export default async function BlogPage() {
                 </Link>
               </h2>
 
-              <p className="mb-5 text-gray-400" itemProp="description">
+              <p
+                className="mb-5 text-gray-600 dark:text-gray-400"
+                itemProp="description"
+              >
                 {featuredPost.excerpt || ""}
               </p>
 
               <Link
                 href={`/blog/${featuredPost.slug}`}
-                className="group flex items-center font-semibold text-blue-400"
+                className="group flex items-center font-semibold text-blue-600 dark:text-blue-400"
               >
                 <span>ادامه مطلب</span>
                 <FiArrowLeft className="mr-2 transition-transform duration-300 group-hover:-translate-x-1" />
@@ -188,7 +191,7 @@ export default async function BlogPage() {
         {/* All Posts Grid */}
         {otherPosts.length > 0 && (
           <section>
-            <h2 className="mb-8 text-center text-3xl font-bold text-white">
+            <h2 className="mb-8 text-center text-3xl font-bold text-gray-900 dark:text-white">
               آخرین مقالات
             </h2>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
