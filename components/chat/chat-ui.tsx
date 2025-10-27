@@ -96,9 +96,9 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     }
 
     fetchData().then(() => {
-      if (window.innerWidth > 768) {
-        handleFocusChatInput()
-      }
+      // if (window.innerWidth > 768) {
+      //   handleFocusChatInput()
+      // }
     })
     // 👇 وابستگی chatMessages و selectedChat صحیح است
   }, [params.chatid, selectedChat, chatMessages])
@@ -198,8 +198,9 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   // آبجکت chatMessages واقعاً تغییر کند، و نه با هر بار تایپ کردن.
   const memoizedChatMessages = useMemo(() => {
     return <ChatMessages />
-  }, [chatMessages]) // وابستگی به chatMessages
+  }, [chatMessages])
 
+  const memoizedChatInput = useMemo(() => <ChatInput />, [])
   if (loading) {
     return <Loading />
   }
@@ -236,13 +237,15 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
       </div>
 
       {/* 👇 ==== اصلاح شماره ۴ (اصلی): 'grow' به 'grow-0' تغییر کرد ==== 👇 */}
+
       <div className="flex w-full min-w-[300px] grow-0 flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (
-          <ChatInput />
+          memoizedChatInput
         )}
       </div>
+
       <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
         <ChatHelp />
       </div>
