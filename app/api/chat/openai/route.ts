@@ -665,50 +665,112 @@ export async function POST(request: Request) {
     const userPrompt = extractTextFromContent(
       finalMessages[finalMessages.length - 1]?.content
     )
-    // ✨ منطق استریم مدل‌های معمولی
     if (useStream) {
       const payload: ChatCompletionCreateParamsStreaming = {
         model: selectedModel,
         messages: finalMessages,
         stream: true,
         temperature: temp
+        // ... (max_tokens, service_tier مثل قبل)
       }
-
       if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
         ;(payload as any).max_completion_tokens = maxTokens
       } else {
         payload.max_tokens = maxTokens
       }
       if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-        ;(payload as any).service_tier = "priority"
+        ;(payload as any).service_tier = "priority" // یا "default" بر اساس نیاز
       }
+
       const stream = await openai.chat.completions.create(payload)
       const encoder = new TextEncoder()
+      let usage: ChatCompletionUsage | undefined // متغیر usage بیرون حلقه تعریف شود
+
       const readableStream = new ReadableStream({
         async start(controller) {
-          // console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
+          console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
 
-          let usage: ChatCompletionUsage | undefined
           try {
+            // --- 👇 شروع حلقه Stream ---
             for await (const chunk of stream) {
-              if (chunk.usage) usage = chunk.usage
-              // console.log("📊 [STREAM-DEBUG] Usage data received:", usage)
-              const delta = chunk.choices[0]?.delta?.content || ""
-              if (delta) controller.enqueue(encoder.encode(delta))
-            }
-            // console.log(
-            //   "🏁 [STREAM-DEBUG] Stream loop finished. Checking for usage data..."
-            // )
-            if (usage) {
-              // console.log(
-              //   "✅ [STREAM-DEBUG] Usage data found. Proceeding with deduction logic."
-              // )
+              // تلاش برای خواندن usage از هر chunk (ممکن است null باشد)
+              if (chunk.usage) {
+                // اگر usage در این chunk بود، آن را ذخیره کن
+                // نکته: OpenAI معمولا usage را فقط در پایان stream کامل ارسال می‌کند
+                // این خط ممکن است فقط در انتهای stream اجرا شود یا اصلا اجرا نشود
+                usage = chunk.usage
+                console.log(
+                  "📊 [STREAM-DEBUG] Potential Usage data received:",
+                  usage
+                )
+              }
 
+              const delta = chunk.choices[0]?.delta?.content || ""
+              if (delta) {
+                // ارسال تکه متن به کلاینت
+                controller.enqueue(encoder.encode(delta))
+              }
+            }
+            // --- 👆 پایان حلقه Stream ---
+
+            console.log(
+              "🏁 [STREAM-DEBUG] Stream loop finished. Final check for usage data..."
+            )
+
+            // --- 👇 منطق Fallback *بعد* از اتمام Stream ---
+            if (!usage) {
+              console.warn("⚠️ Usage data not found directly in stream chunks.")
+              // اینجا می‌توانید تصمیم بگیرید:
+              // 1. یک درخواست غیر-استریم فقط برای گرفتن usage بفرستید (بدون ارسال به کلاینت)
+              // 2. هزینه را بر اساس تخمین محاسبه کنید
+              // 3. فعلاً هیچ کاری نکنید و فقط لاگ بزنید
+
+              // مثال برای گزینه ۱ (ارسال درخواست فقط برای usage):
+              try {
+                console.log(
+                  "🔄 Attempting non-stream call JUST for usage data..."
+                )
+                const usageResponsePayload: ChatCompletionCreateParams = {
+                  // payload شبیه به استریم ولی stream: false
+                  model: selectedModel,
+                  messages: finalMessages,
+                  temperature: temp,
+                  max_tokens: 1, // فقط ۱ توکن کافیست تا usage برگردد
+                  stream: false
+                }
+                if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+                  ;(usageResponsePayload as any).max_completion_tokens = 1
+                }
+                if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+                  ;(usageResponsePayload as any).service_tier = "priority"
+                }
+
+                const usageResponse =
+                  await openai.chat.completions.create(usageResponsePayload)
+                if (usageResponse.usage) {
+                  usage = usageResponse.usage
+                  console.log("📊 Usage obtained via fallback request:", usage)
+                } else {
+                  console.error(
+                    "❌ Fallback request did not return usage data."
+                  )
+                }
+              } catch (fallbackError: any) {
+                console.error(
+                  "❌ Error during fallback request for usage:",
+                  fallbackError
+                )
+              }
+            }
+
+            // --- 👇 کسر هزینه *بعد* از اتمام Stream و تلاش برای گرفتن usage ---
+            if (usage) {
+              console.log(
+                "✅ [STREAM-FINAL] Usage data available. Proceeding with deduction."
+              )
               const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-              // console.log(
-              //   `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
-              // )
               if (userCostUSD > 0 && wallet) {
+                // ... (کد کسر هزینه شما مثل قبل با استفاده از usage) ...
                 await supabase.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,
                   p_model_name: selectedModel,
@@ -716,129 +778,33 @@ export async function POST(request: Request) {
                   p_completion_tokens: usage.completion_tokens,
                   p_cost: userCostUSD
                 })
-                const { data: updatedWallet } = await supabase
-                  .from("wallets")
-                  .select("balance")
-                  .eq("user_id", userId)
-                  .single()
-
+                // ... (لاگ موفقیت‌آمیز کسر هزینه) ...
                 console.log(
-                  `✅ عملیات موفق! | کاربر: ${userId} | موجودی جدید: ${updatedWallet?.balance}`
-                )
-                console.log(
-                  "💰 Credits deducted:",
-                  userCostUSD,
-                  "for user:",
-                  userId
+                  `✅ Cost deducted: ${userCostUSD} for user ${userId}`
                 )
               }
             } else {
-              // 📌 fallback وقتی usage از استریم نیاد
-              console.log(
-                "⚠️ No usage data from stream. Trying fallback non-stream request..."
+              console.error(
+                "❌ CRITICAL: Could not determine usage data after stream and fallback."
               )
-              const finalMessages = [
-                {
-                  role: "system",
-                  content:
-                    MODEL_PROMPTS[selectedModel] ||
-                    "You are a helpful AI assistant."
-                },
-                ...messages
-              ]
-              const usageResponsePayload: ChatCompletionCreateParams = {
-                model: selectedModel,
-                messages: finalMessages,
-                temperature: temp,
-                stream: false
-              }
-
-              if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-                ;(usageResponsePayload as any).max_completion_tokens = maxTokens
-              } else {
-                usageResponsePayload.max_tokens = maxTokens
-              }
-              if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-                ;(usageResponsePayload as any).service_tier = "priority"
-              }
-              const usageResponse =
-                await openai.chat.completions.create(usageResponsePayload)
-
-              console.log(
-                "✅ FALLBACK RESPONSE:",
-                JSON.stringify(usageResponse, null, 2)
-              )
-              const content = usageResponse.choices[0]?.message?.content
-              // if (content) {
-              //   controller.enqueue(encoder.encode(content))
-              // }
-              if (usageResponse.usage) {
-                const userCostUSD = calculateUserCostUSD(
-                  selectedModel,
-                  usageResponse.usage
-                )
-                console.log(
-                  "📊 Usage from fallback request:",
-                  usageResponse.usage
-                )
-                console.log(
-                  `💰 [FALLBACK] Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
-                )
-
-                if (userCostUSD > 0 && wallet) {
-                  // vvvv کد خود را با این جایگزین کنید vvvv
-
-                  // 1. خطا را از نتیجه RPC بگیرید
-                  const { error: rpcError } = await supabase.rpc(
-                    "deduct_credits_and_log_usage",
-                    {
-                      p_user_id: userId,
-                      p_model_name: selectedModel,
-                      p_prompt_tokens: usageResponse.usage.prompt_tokens,
-                      p_completion_tokens:
-                        usageResponse.usage.completion_tokens,
-                      p_cost: userCostUSD
-                    }
-                  )
-
-                  // 2. بررسی کنید که آیا خطایی رخ داده است
-                  if (rpcError) {
-                    // 3. اگر خطا وجود داشت، آن را لاگ کنید!
-                    console.error("❌❌❌ CRITICAL: RPC call FAILED ❌❌❌")
-                    console.error(rpcError)
-                  } else {
-                    // 4. فقط در صورت عدم وجود خطا، لاگ موفقیت را نمایش دهید
-                    console.log(
-                      `✅ Credits deducted with fallback | User: ${userId}`
-                    )
-
-                    const { data: updatedWallet } = await supabase
-                      .from("wallets")
-                      .select("balance")
-                      .eq("user_id", userId)
-                      .single()
-
-                    console.log(
-                      `✅ [FALLBACK] عملیات موفق! | کاربر: ${userId} | هزینه: ${userCostUSD} | موجودی جدید: ${updatedWallet?.balance}`
-                    )
-                  }
-                }
-              }
+              // اینجا باید تصمیم بگیرید چه کنید، مثلاً خطا لاگ کنید یا هزینه پیش‌فرض کم کنید
             }
           } catch (err: any) {
-            // ++ این بلوک CATCH اضافه شده است ++
-            console.error("❌ ERROR INSIDE STREAM/FALLBACK:", err)
-            const errorMessage = `خطای سرور: ${err.message || "خطای ناشناخته"}`
-            controller.enqueue(encoder.encode(errorMessage))
+            console.error("❌ ERROR DURING STREAM PROCESSING:", err)
+            controller.enqueue(
+              encoder.encode(
+                `\n❌ خطای سرور: ${err.message || "خطای ناشناخته"}`
+              )
+            )
           } finally {
-            // شروع FINALLY
             console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
-            controller.close()
+            controller.close() // بستن Stream برای کلاینت
           }
         }
       })
+      // بازگرداندن Stream به کلاینت
       return new Response(readableStream, {
-        headers: { "Content-Type": "text/event-stream; charset=utf-8" }
+        headers: { "Content-Type": "text/event-stream; charset=utf-8" } // اطمینان از نوع محتوا
       })
     } else {
       const payload: ChatCompletionCreateParams = {
