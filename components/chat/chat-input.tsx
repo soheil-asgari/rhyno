@@ -160,10 +160,15 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      handleFocusChatInput()
-    }, 200)
-    return () => clearTimeout(timer)
+    // 👇 ==== اصلاح اصلی اینجاست ==== 👇
+    // فقط در صورتی فوکوس کن که عرض صفحه بزرگتر از 768 پیکسل (دسکتاپ) باشد
+    if (window.innerWidth > 768) {
+      const timer = setTimeout(() => {
+        handleFocusChatInput()
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+    // وابستگی‌ها تغییر نمی‌کند
   }, [selectedPreset, selectedAssistant, handleFocusChatInput])
 
   const handleKeyDown = useCallback(

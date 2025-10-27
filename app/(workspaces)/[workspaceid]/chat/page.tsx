@@ -5,7 +5,7 @@ import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
 import { useTheme } from "next-themes"
 import dynamic from "next/dynamic"
-import { useEffect, useContext } from "react"
+import { useEffect, useContext, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { MODEL_PROMPTS } from "@/lib/build-prompt"
 import toast, { Toaster } from "react-hot-toast"
@@ -64,6 +64,7 @@ export default function ChatPage({
   const userName = profile?.display_name || profile?.username || "کاربر"
   const firstName = userName.split(" ")[0]
   const isRealtimeMode = chatSettings?.model?.includes("realtime") ?? false
+  const memoizedWelcomeChatInput = useMemo(() => <ChatInput />, [])
 
   return (
     <>
@@ -93,7 +94,7 @@ export default function ChatPage({
             {isRealtimeMode ? (
               <VoiceUI chatSettings={chatSettings} />
             ) : (
-              <ChatInput />
+              memoizedWelcomeChatInput
             )}
           </div>
           <div className="absolute right-2 top-2">
