@@ -695,19 +695,14 @@ export async function POST(request: Request) {
             for await (const chunk of stream) {
               // تلاش برای خواندن usage از هر chunk (ممکن است null باشد)
               if (chunk.usage) {
-                // اگر usage در این chunk بود، آن را ذخیره کن
-                // نکته: OpenAI معمولا usage را فقط در پایان stream کامل ارسال می‌کند
-                // این خط ممکن است فقط در انتهای stream اجرا شود یا اصلا اجرا نشود
                 usage = chunk.usage
-                console.log(
-                  "📊 [STREAM-DEBUG] Potential Usage data received:",
-                  usage
-                )
+                console.log("📊 [STREAM-DEBUG] Potential Usage data:", usage)
               }
 
               const delta = chunk.choices[0]?.delta?.content || ""
               if (delta) {
                 // ارسال تکه متن به کلاینت
+                console.log(`➡️ [STREAM-SENDING] Delta: "${delta}"`)
                 controller.enqueue(encoder.encode(delta))
               }
             }
