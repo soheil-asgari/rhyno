@@ -14,7 +14,8 @@ import useHotkey from "@/lib/hooks/use-hotkey"
 import { LLMID, ChatMessage, MessageImage } from "@/types"
 import { Tables } from "@/supabase/types"
 import { useParams } from "next/navigation"
-import { FC, useContext, useEffect, useState } from "react"
+// 👇 ==== اصلاح شماره ۱: useMemo را اضافه کنید ==== 👇
+import { FC, useContext, useEffect, useState, useMemo } from "react"
 import dynamic from "next/dynamic"
 import { useScroll } from "./chat-hooks/use-scroll"
 import { ChatInput } from "./chat-input"
@@ -38,8 +39,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   const params = useParams()
   const context = useContext(ChatbotUIContext)
   const {
-    // 👇 ==== اصلاح شماره ۱: chatMessages را اینجا اضافه کنید ==== 👇
-    chatMessages,
+    chatMessages, // برای useMemo به این نیاز داریم
     setChatMessages,
     selectedChat,
     setSelectedChat,
@@ -86,7 +86,6 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
       return
     }
 
-    // 👇 ==== اصلاح شماره ۲: اینجا از chatMessages استفاده کنید ==== 👇
     if (
       selectedChat &&
       selectedChat.id === params.chatid &&
@@ -97,12 +96,12 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     }
 
     fetchData().then(() => {
-      // ✅ فقط در صورتی که عرض صفحه بزرگتر از 768 پیکسل (دسکتاپ) باشد، فوکوس کن
       if (window.innerWidth > 768) {
         handleFocusChatInput()
       }
     })
-  }, [params.chatid, selectedChat])
+    // 👇 وابستگی chatMessages و selectedChat صحیح است
+  }, [params.chatid, selectedChat, chatMessages])
 
   const fetchMessages = async () => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)
@@ -194,6 +193,13 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     })
   }
 
+  // 👇 ==== اصلاح شماره ۲: کامپوننت ChatMessages را Memoize کنید ==== 👇
+  // این باعث می شود که ChatMessages فقط زمانی رندر شود که
+  // آبجکت chatMessages واقعاً تغییر کند، و نه با هر بار تایپ کردن.
+  const memoizedChatMessages = useMemo(() => {
+    return <ChatMessages />
+  }, [chatMessages]) // وابستگی به chatMessages
+
   if (loading) {
     return <Loading />
   }
@@ -222,10 +228,15 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
         onScroll={handleScroll}
       >
         <div ref={messagesStartRef} />
-        <ChatMessages />
+
+        {/* 👇 ==== اصلاح شماره ۳: از کامپوننت Memoize شده استفاده کنید ==== 👇 */}
+        {memoizedChatMessages}
+
         <div ref={messagesEndRef} />
       </div>
-      <div className="flex w-full min-w-[300px] grow flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
+
+      {/* 👇 ==== اصلاح شماره ۴ (اصلی): 'grow' به 'grow-0' تغییر کرد ==== 👇 */}
+      <div className="flex w-full min-w-[300px] grow-0 flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (
