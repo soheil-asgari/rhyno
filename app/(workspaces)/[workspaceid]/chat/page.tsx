@@ -78,29 +78,27 @@ export default function ChatPage({
               : "opacity-100"
           }`}
         >
-          <div className="text-center" dir="rtl">
-            <div className="font-vazir text-3xl font-bold">
-              سلام {firstName} 👋
+          <div className="flex flex-1 items-center justify-center">
+            <div className="text-center" dir="rtl">
+              <div className="font-vazir text-3xl font-bold">
+                سلام {firstName} 👋
+              </div>
+              <div className="font-vazir mt-2 text-lg"></div>
             </div>
-            <div className="font-vazir mt-2 text-lg"></div>
           </div>
 
-          <div className="absolute left-2 top-2">
-            <QuickSettings />
-          </div>
-
-          <div className="absolute right-2 top-2">
-            <ChatSettings />
-          </div>
-
-          <div className="w-full min-w-[300px] items-end px-2 pb-24 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
+          {/* ✅ ۲. این div اکنون به پایین صفحه هل داده می‌شود */}
+          {/* ✅ ۳. کلاس pb-24 به pb-3 و sm:pb-8 تغییر کرد */}
+          <div className="w-full min-w-[300px] items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
             {isRealtimeMode ? (
               <VoiceUI chatSettings={chatSettings} />
             ) : (
               <ChatInput />
             )}
           </div>
-
+          <div className="absolute right-2 top-2">
+            <ChatSettings />
+          </div>
           <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
             <ChatHelp />
           </div>

@@ -97,7 +97,10 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     }
 
     fetchData().then(() => {
-      handleFocusChatInput()
+      // ✅ فقط در صورتی که عرض صفحه بزرگتر از 768 پیکسل (دسکتاپ) باشد، فوکوس کن
+      if (window.innerWidth > 768) {
+        handleFocusChatInput()
+      }
     })
   }, [params.chatid, selectedChat])
 
@@ -222,7 +225,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
         <ChatMessages />
         <div ref={messagesEndRef} />
       </div>
-      <div className="relative w-full max-w-4xl items-end px-2 pb-3 pt-0 sm:pb-8 sm:pt-5">
+      <div className="flex w-full min-w-[300px] grow flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (

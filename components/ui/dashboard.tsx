@@ -56,7 +56,7 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   // برای جلوگیری از خطای Hydration، مقدار localStorage را فقط در سمت کلاینت می‌خوانیم
   useEffect(() => {
     const storedShowSidebar = localStorage.getItem("showSidebar")
-    setShowSidebar(storedShowSidebar === "false")
+    setShowSidebar(storedShowSidebar === "true")
     setIsInitialized(true)
   }, [])
 
