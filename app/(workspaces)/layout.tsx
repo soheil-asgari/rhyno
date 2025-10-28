@@ -34,18 +34,10 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const params = useParams()
   const router = useRouter()
 
-  // ✅ اصلاح شد: از نام‌گذاری استاندارد camelCase استفاده می‌کنیم
-  // ‼️ توجه: مطمئن شوید نام پوشه‌های داینامیک شما [workspaceId] و [chatId] باشد
-  const workspaceid = params.workspaceid as string
-  const chatId = params.chatId as string | undefined
-
-  const context = useContext(ChatbotUIContext)
-  if (!context) {
-    throw new Error("useContext must be used within a ChatbotUIProvider")
-  }
-
   const {
-    workspaces, // ✅ برای بهینه‌سازی، لیست workspaces را از کانتکست می‌خوانیم
+    workspaces,
+    setWorkspaces,
+    setSelectedWorkspace,
     setAssistants,
     setChats,
     setCollections,
@@ -55,83 +47,59 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setPresets,
     setPrompts,
     setTools,
-    setSelectedWorkspace,
     setSelectedChat,
     setChatMessages
-  } = context
+  } = useContext(ChatbotUIContext)
 
   const [loading, setLoading] = useState(true)
   const [isValidWorkspace, setIsValidWorkspace] = useState(false)
+  const workspaceid = params.workspaceid as string
+  const chatId = params.chatid as string
 
-  useEffect(() => {
-    const validateAndFetchData = async () => {
-      // اگر شناسه workspace از URL نیامده بود، آن را نامعتبر تلقی کن
-      if (!workspaceid) {
-        setIsValidWorkspace(false)
-        setLoading(false)
-        return
-      }
-
-      // ابتدا در لیستی که از قبل داریم جستجو کن
-      let workspace: Tables<"workspaces"> | null | undefined
-
-      // اگر در لیست نبود، از دیتابیس بپرس
-      if (!workspace) {
-        workspace = await getWorkspaceById(workspaceid)
-      }
-
-      // حالا کد بدون خطای تایپ‌اسکریپت کار می‌کند
-      if (workspace) {
-        setSelectedWorkspace(workspace)
-        setIsValidWorkspace(true)
-      } else {
-        setIsValidWorkspace(false)
-      }
-
-      // ✅ اگر workspace پیدا شد، آن را معتبر علامت زده و در state قرار بده
-      setIsValidWorkspace(true)
-      setSelectedWorkspace(workspace)
-
-      // حالا بقیه اطلاعات مربوط به این workspace معتبر را واکشی کن
-      const [
-        assistants,
-        chats,
-        collections,
-        folders,
-        files,
-        presets,
-        prompts,
-        tools,
-        models
-      ] = await Promise.all([
-        getAssistantWorkspacesByWorkspaceId(workspaceid),
-        getChatsByWorkspaceId(workspaceid),
-        getCollectionWorkspacesByWorkspaceId(workspaceid),
-        getFoldersByWorkspaceId(workspaceid),
-        getFileWorkspacesByWorkspaceId(workspaceid),
-        getPresetWorkspacesByWorkspaceId(workspaceid),
-        getPromptWorkspacesByWorkspaceId(workspaceid),
-        getToolWorkspacesByWorkspaceId(workspaceid),
-        getModelWorkspacesByWorkspaceId(workspaceid)
-      ])
-
-      setAssistants(assistants.assistants || [])
-      setChats(chats || [])
-      setCollections(collections.collections || [])
-      setFolders(folders || [])
-      setFiles(files.files || [])
-      setPresets(presets.presets || [])
-      setPrompts(prompts.prompts || [])
-      setTools(tools.tools || [])
-      setModels(models.models || [])
-
-      setLoading(false)
+  const fetchData = useCallback(async () => {
+    const workspace = await getWorkspaceById(workspaceid)
+    if (!workspace) {
+      return setIsValidWorkspace(false)
     }
 
-    validateAndFetchData()
+    setIsValidWorkspace(true)
+    setSelectedWorkspace(workspace)
+
+    const [
+      assistants,
+      chats,
+      collections,
+      folders,
+      files,
+      models,
+      presets,
+      prompts,
+      tools
+    ] = await Promise.all([
+      getAssistantWorkspacesByWorkspaceId(workspaceid),
+      getChatsByWorkspaceId(workspaceid),
+      getCollectionWorkspacesByWorkspaceId(workspaceid),
+      getFoldersByWorkspaceId(workspaceid),
+      getFileWorkspacesByWorkspaceId(workspaceid),
+      getModelWorkspacesByWorkspaceId(workspaceid),
+      getPresetWorkspacesByWorkspaceId(workspaceid),
+      getPromptWorkspacesByWorkspaceId(workspaceid),
+      getToolWorkspacesByWorkspaceId(workspaceid)
+    ])
+
+    setAssistants(assistants.assistants)
+    setChats(chats)
+    setCollections(collections.collections)
+    setFolders(folders)
+    setFiles(files.files)
+    setModels(models.models)
+    setPresets(presets.presets)
+    setPrompts(prompts.prompts)
+    setTools(tools.tools)
+
+    return true
   }, [
     workspaceid,
-    workspaces,
     setSelectedWorkspace,
     setAssistants,
     setChats,
@@ -145,14 +113,42 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   ])
 
   useEffect(() => {
-    // این useEffect مسئول هدایت کاربر در صورت نامعتبر بودن workspace است
+    if (!workspaces) return
+    if (workspaces.length === 0) {
+      return notFound()
+    }
+
+    fetchData().then(isValid => {
+      setLoading(false)
+      if (isValid) {
+        setIsValidWorkspace(true)
+      } else {
+        setIsValidWorkspace(false)
+      }
+    })
+  }, [
+    workspaceid,
+    workspaces,
+    setSelectedWorkspace,
+    setAssistants,
+    setChats,
+    setCollections,
+    setFolders,
+    setFiles,
+    setModels,
+    setPresets,
+    setPrompts,
+    setTools,
+    fetchData
+  ])
+
+  useEffect(() => {
     if (!loading && !isValidWorkspace) {
       router.push("/")
     }
   }, [loading, isValidWorkspace, router])
 
   useEffect(() => {
-    // این useEffect مسئول واکشی پیام‌های یک چت خاص است
     const fetchChatMessages = async () => {
       if (chatId) {
         const chat = await getChatById(chatId)
@@ -171,17 +167,27 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       }
     }
 
-    // فقط در صورتی پیام‌ها را واکشی کن که در یک workspace معتبر باشیم
     if (isValidWorkspace) {
       fetchChatMessages()
     }
   }, [chatId, isValidWorkspace, setSelectedChat, setChatMessages])
 
-  // تا زمانی که در حال بررسی هستیم یا workspace نامعتبر است و در حال هدایت شدن است، صفحه لودینگ را نمایش بده
   if (loading || !isValidWorkspace) {
     return <Loading />
   }
 
-  // فقط اگر workspace معتبر بود، داشبورد و محتوای صفحه را نمایش بده
-  return <Dashboard>{children}</Dashboard>
+  return (
+    <Dashboard>
+      <div className="flex h-full">
+        {/* 👇 ==== اصلاح اصلی اینجاست ==== 👇
+          1. 'overflow-y-auto': به این div اسکرول داخلی می‌دهد.
+          2. 'min-h-0': یک ترفند flexbox است که به 'overflow-y-auto' اجازه می‌دهد
+             به درستی کار کند و از کش آمدن کانتینر جلوگیری می‌کند.
+        */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {children}
+        </div>
+      </div>
+    </Dashboard>
+  )
 }

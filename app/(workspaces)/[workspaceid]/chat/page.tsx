@@ -73,7 +73,8 @@ export default function ChatPage({
       <div className="relative size-full">
         {/* خوش‌آمدگویی */}
         <div
-          className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-500 ${
+          // 👇 ==== اصلاح شماره ۱: 'justify-center' از اینجا حذف شد ==== 👇
+          className={`absolute inset-0 flex flex-col items-center transition-opacity duration-500 ${
             chatMessages.length > 0
               ? "pointer-events-none opacity-0"
               : "opacity-100"
@@ -88,9 +89,8 @@ export default function ChatPage({
             </div>
           </div>
 
-          {/* ✅ ۲. این div اکنون به پایین صفحه هل داده می‌شود */}
-          {/* ✅ ۳. کلاس pb-24 به pb-3 و sm:pb-8 تغییر کرد */}
-          <div className="w-full min-w-[300px] items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
+          {/* 👇 ==== اصلاح شماره ۲: 'min-w-[300px]' از اینجا حذف شد ==== 👇 */}
+          <div className="w-full items-end px-2 pb-3 pt-0 sm:w-[600px] sm:pb-8 sm:pt-5 md:w-[700px] lg:w-[700px] xl:w-[800px]">
             {isRealtimeMode ? (
               <VoiceUI chatSettings={chatSettings} />
             ) : (

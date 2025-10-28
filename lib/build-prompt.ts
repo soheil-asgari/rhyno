@@ -104,7 +104,7 @@ export async function buildFinalMessages(
     throw new Error(`No prompt found for model: ${chatSettings.model}`)
   }
   if (firstName) {
-    modelPrompt += ` The user's first name is ${firstName}. Address them by their first name in your responses.`
+    modelPrompt += ` The user's first name is ${firstName}. Address them by their first name in your responses. and say hello once`
   }
   // 🎤 استثنا برای مدل‌های Realtime → فقط پرامپت ساده برگردون
   if (chatSettings.model.includes("realtime")) {

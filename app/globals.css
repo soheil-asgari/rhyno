@@ -68,8 +68,9 @@
   }
 
   body {
-    @apply min-h-screen font-vazir text-foreground bg-background;
-   
+    @apply font-vazir text-foreground bg-background;
+
+    
     /* background-color: #111827; 
     background-image: radial-gradient(
       ellipse at top,

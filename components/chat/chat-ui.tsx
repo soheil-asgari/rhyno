@@ -14,7 +14,6 @@ import useHotkey from "@/lib/hooks/use-hotkey"
 import { LLMID, ChatMessage, MessageImage } from "@/types"
 import { Tables } from "@/supabase/types"
 import { useParams } from "next/navigation"
-// 👇 ==== اصلاح شماره ۱: useMemo را اضافه کنید ==== 👇
 import { FC, useContext, useEffect, useState, useMemo } from "react"
 import dynamic from "next/dynamic"
 import { useScroll } from "./chat-hooks/use-scroll"
@@ -39,7 +38,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   const params = useParams()
   const context = useContext(ChatbotUIContext)
   const {
-    chatMessages, // برای useMemo به این نیاز داریم
+    chatMessages,
     setChatMessages,
     selectedChat,
     setSelectedChat,
@@ -100,7 +99,6 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
       //   handleFocusChatInput()
       // }
     })
-    // 👇 وابستگی chatMessages و selectedChat صحیح است
   }, [params.chatid, selectedChat, chatMessages])
 
   const fetchMessages = async () => {
@@ -193,9 +191,6 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
     })
   }
 
-  // 👇 ==== اصلاح شماره ۲: کامپوننت ChatMessages را Memoize کنید ==== 👇
-  // این باعث می شود که ChatMessages فقط زمانی رندر شود که
-  // آبجکت chatMessages واقعاً تغییر کند، و نه با هر بار تایپ کردن.
   const memoizedChatMessages = useMemo(() => {
     return <ChatMessages />
   }, [chatMessages])
@@ -206,7 +201,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
   }
 
   return (
-    <div className="relative flex h-[calc(var(--vh,1vh)*100)] flex-col items-center">
+    <div className="relative flex min-h-[calc(var(--vh,1vh)*100)] flex-col items-center">
       <div className="absolute left-4 top-2.5 flex justify-center">
         <ChatScrollButtons
           isAtTop={isAtTop}
@@ -224,28 +219,31 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
           {context.selectedChat?.name || "Chat"}
         </div>
       </div>
+
+      {/* 👇 ==== اصلاح شماره ۱: کلاس 'flex-1' از اینجا حذف شد ==== 👇 */}
       <div
-        className="flex w-full flex-1 flex-col overflow-auto border-b"
+        className="flex w-full flex-col border-b" // 'flex-1' حذف شد
         onScroll={handleScroll}
       >
         <div ref={messagesStartRef} />
 
-        {/* 👇 ==== اصلاح شماره ۳: از کامپوننت Memoize شده استفاده کنید ==== 👇 */}
         {memoizedChatMessages}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 👇 ==== اصلاح شماره ۴ (اصلی): 'grow' به 'grow-0' تغییر کرد ==== 👇 */}
+      {/* 👇 ==== اصلاح شماره ۲: فاصله‌انداز (Spacer) اضافه شد ==== 👇 */}
+      {/* این المان، فضای خالی بین پیام‌ها و کادر ورودی را پر می‌کند */}
+      <div className="flex-1" />
 
-      <div className="flex w-full min-w-[300px] grow-0 flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
+      {/* کادر ورودی */}
+      <div className="flex w-full grow-0 flex-col justify-end px-2 pb-3 sm:w-[600px] md:w-[700px] lg:w-[700px] xl:w-[800px]">
         {isRealtimeMode ? (
           <VoiceUI chatSettings={context.chatSettings} />
         ) : (
           memoizedChatInput
         )}
       </div>
-
       <div className="absolute bottom-2 right-2 hidden md:block lg:bottom-4 lg:right-4">
         <ChatHelp />
       </div>
