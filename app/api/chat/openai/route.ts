@@ -735,9 +735,14 @@ export async function POST(request: Request) {
                 }
                 if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
                   ;(usageResponsePayload as any).max_completion_tokens = 1
+                } else {
+                  // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
+                  usageResponsePayload.max_tokens = 1
                 }
+                // ✅✅✅ پایان اصلاحیه ✅✅✅
+
                 if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-                  ;(usageResponsePayload as any).service_tier = "priority"
+                  ;(usageResponsePayload as any).service_tier = "default"
                 }
 
                 const usageResponse =
