@@ -730,9 +730,11 @@ export async function POST(request: Request) {
                   model: selectedModel,
                   messages: finalMessages,
                   temperature: temp,
-                  max_tokens: 1, // فقط ۱ توکن کافیست تا usage برگردد
+                  // ❌ خط max_tokens: 1 از اینجا حذف شد
                   stream: false
                 }
+
+                // ✅✅✅ منطق صحیح if/else ✅✅✅
                 if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
                   ;(usageResponsePayload as any).max_completion_tokens = 1
                 } else {
@@ -742,6 +744,7 @@ export async function POST(request: Request) {
                 // ✅✅✅ پایان اصلاحیه ✅✅✅
 
                 if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+                  // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
                   ;(usageResponsePayload as any).service_tier = "default"
                 }
 
