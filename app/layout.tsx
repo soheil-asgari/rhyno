@@ -1,4 +1,4 @@
-// 🎯 مسیر فایل: app/layout.tsx (نسخه نهایی و پاک‌سازی شده)
+// 🎯 مسیر فایل: app/layout.tsx
 
 import { GlobalState } from "@/components/utility/global-state"
 import { Providers } from "@/components/utility/providers"
@@ -19,6 +19,7 @@ const ClientToaster = dynamic(
   { ssr: false }
 )
 
+// ... (کد فونت‌ها و metadata ... همان قبلی)
 const vazirmatn = Vazirmatn({
   subsets: ["arabic"],
   weight: ["400", "500", "700", "800", "900"],
@@ -84,6 +85,7 @@ export default async function RootLayout({
   children,
   params
 }: RootLayoutProps) {
+  // ... (کد supabase و session ... همان قبلی)
   const { locale } = params
   const cookieStore = cookies()
 
@@ -112,6 +114,7 @@ export default async function RootLayout({
   return (
     <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
       <head />
+      {/* ... (تگ‌های <link> فونت ... همان قبلی) ... */}
       <link
         rel="preload"
         href="/_next/static/media/vazirmatn-arabic-400-normal.f37c0063.woff2"
@@ -127,22 +130,8 @@ export default async function RootLayout({
         crossOrigin="anonymous"
       />
 
-      {/* ✅ Preload برای CSS chunks مهم */}
-      <link
-        rel="preload"
-        href="/_next/static/css/6fc3bac732a18601.css"
-        as="style"
-      />
-      <link
-        rel="preload"
-        href="/_next/static/css/9a9630344bf412aa.css"
-        as="style"
-      />
-      <link
-        rel="preload"
-        href="/_next/static/css/5a2157a4165fe8a6.css"
-        as="style"
-      />
+      {/* تگ‌های CSS دستی که 404 می‌دادند حذف شده‌اند */}
+
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
@@ -153,8 +142,16 @@ export default async function RootLayout({
             resources={resources}
           >
             <ClientToaster />
-            <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
-              {session ? <GlobalState>{children}</GlobalState> : children}
+
+            {/* 👇 ==== اصلاح اصلی اینجاست ==== 👇
+              1. کلاس 'items-center' حذف شد (تا محتوا در عرض کامل کش بیاید).
+              2. یک 'div' جدید با 'flex-1' اضافه شد تا زنجیره ارتفاع حفظ شود.
+            */}
+            <div className="bg-background text-foreground flex h-dvh flex-col overflow-x-auto">
+              {/* این div جدید فرزند flex-col است و رشد می‌کند (flex-1) */}
+              <div className="min-h-0 w-full flex-1">
+                {session ? <GlobalState>{children}</GlobalState> : children}
+              </div>
             </div>
             <Analytics />
             <SpeedInsights />

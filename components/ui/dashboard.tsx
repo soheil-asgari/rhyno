@@ -91,11 +91,11 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
   }
 
   return (
-    // ✨ ۱. به کانتینر اصلی relative اضافه می‌کنیم تا سایدبار absolute درون آن بماند
-    <div className="relative flex size-full">
+    // ✨ ۱. با افزودن overflow-hidden، از اسکرول کل صفحه جلوگیری می‌کنیم
+    <div className="relative flex size-full overflow-hidden">
       <CommandK />
 
-      {/* ✨ ۲. (اختیاری ولی پیشنهادی) یک پس‌زمینه تیره برای بستن سایدبار در موبایل */}
+      {/* ... (کد مربوط به overlay موبایل - بدون تغییر) ... */}
       {showSidebar && (
         <div
           onClick={handleToggleSidebar}
@@ -103,27 +103,20 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
         />
       )}
 
-      {/* ✨ ۳. بخش سایدبار با کلاس‌های واکنش‌گرا */}
+      {/* ... (کد مربوط به سایدبار - بدون تغییر) ... */}
       <div
         className={cn(
-          // استایل‌های پایه
           "bg-background h-full transition-all duration-300 ease-in-out dark:border-none",
-
-          // رفتار در موبایل (Overlay)
-          "absolute z-30", // کاملا روی صفحه قرار می‌گیرد
+          "absolute z-30",
           showSidebar
             ? "translate-x-0"
-            : "ltr:-translate-x-full rtl:translate-x-full", // با transform مخفی/نمایان می‌شود
-
-          // رفتار در دسکتاپ (Push) - با md: بازنویسی می‌شود
-          "md:relative md:translate-x-0", // به حالت عادی برمی‌گردد
+            : "ltr:-translate-x-full rtl:translate-x-full",
+          "md:relative md:translate-x-0",
           showSidebar
             ? "min-w-[350px] ltr:md:border-r-2 rtl:md:border-l-2"
-            : "min-w-0 md:pointer-events-none md:w-0" // عرض آن تغییر می‌کند
+            : "min-w-0 md:pointer-events-none md:w-0"
         )}
-        // style prop حذف شد و منطق آن به کلاس‌ها منتقل شد
       >
-        {/* این div داخلی باعث می‌شود محتوای سایدبار هنگام بسته شدن فشرده نشود */}
         <div className="h-full w-[350px] overflow-hidden">
           {showSidebar && (
             <Tabs
@@ -141,9 +134,9 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* ✨ ۴. بخش محتوای اصلی */}
+      {/* ✨ ۲. بخش محتوای اصلی */}
       <div
-        className="relative flex-1 flex-col" // کلاس‌ها ساده‌سازی شد
+        className="relative flex-1 flex-col overflow-y-auto" // ✨ ۳. با overflow-y-auto فقط این بخش اسکرول می‌خورد
         onDrop={onFileDrop}
         onDragOver={onDragOver}
         onDragEnter={handleDragEnter}
@@ -154,24 +147,33 @@ export const Dashboard: FC<DashboardProps> = ({ children }) => {
             drop file here
           </div>
         ) : (
-          children
+          children // محتوا (children) اکنون به درستی در این کانتینر اسکرول می‌خورد
         )}
-
-        <Button
-          className={cn(
-            "absolute top-[50%] z-40 size-[32px] cursor-pointer transition-transform duration-200 md:z-10", // z-index برای نمایش روی سایدبار در موبایل
-            "start-[4px]",
-            showSidebar
-              ? "ltr:rotate-180 rtl:rotate-0"
-              : "ltr:rotate-0 rtl:rotate-180"
-          )}
-          variant="ghost"
-          size="icon"
-          onClick={handleToggleSidebar}
-        >
-          <IconChevronCompactRight size={24} />
-        </Button>
       </div>
+
+      {/* ✨ ۴. دکمه به بیرون از div محتوا منتقل شد */}
+      {/* اکنون فرزند مستقیم div اصلی است و اسکرول محتوا روی آن تأثیری ندارد */}
+      <Button
+        className={cn(
+          // موقعیت 'absolute' نسبت به div اصلی (که relative است)
+          "absolute top-1/2 z-40 size-[32px] -translate-y-1/2 cursor-pointer transition-all duration-300 ease-in-out md:z-10",
+
+          // منطق چرخش (بدون تغییر)
+          showSidebar
+            ? "ltr:rotate-180 rtl:rotate-0"
+            : "ltr:rotate-0 rtl:rotate-180",
+
+          // ✨ ۵. منطق جدید برای موقعیت افقی
+          // چون دکمه دیگر توسط سایدبار "هل" داده نمی‌شود، باید موقعیتش را دستی با 'left' یا 'right' کنترل کنیم
+          "ltr:left-[4px] rtl:right-[4px]", // حالت پیش‌فرض (موبایل و دسکتاپ بسته)
+          showSidebar && "md:ltr:left-[354px] md:rtl:right-[354px]" // حالت دسکتاپ باز (350px سایدبار + 4px فاصله)
+        )}
+        variant="ghost"
+        size="icon"
+        onClick={handleToggleSidebar}
+      >
+        <IconChevronCompactRight size={24} />
+      </Button>
     </div>
   )
 }

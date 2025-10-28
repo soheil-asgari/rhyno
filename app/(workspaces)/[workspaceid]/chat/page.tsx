@@ -34,7 +34,7 @@ const VoiceUI = dynamic(
 export default function ChatPage({
   params
 }: {
-  params: { workspaceId: string }
+  params: { workspaceid: string }
 }) {
   const { theme } = useTheme()
   const searchParams = useSearchParams()
