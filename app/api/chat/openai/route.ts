@@ -806,8 +806,13 @@ export async function POST(request: Request) {
         }
       })
       // بازگرداندن Stream به کلاینت
+      // بازگرداندن Stream به کلاینت
       return new Response(readableStream, {
-        headers: { "Content-Type": "text/event-stream; charset=utf-8" } // اطمینان از نوع محتوا
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no"
+        }
       })
     } else {
       const payload: ChatCompletionCreateParams = {
