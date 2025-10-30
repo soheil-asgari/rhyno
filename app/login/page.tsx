@@ -381,8 +381,8 @@ export default async function LoginPage({
     : "bg-foreground/10 text-foreground"
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-center gap-1 px-8 sm:max-w-md">
-      <form className="animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2">
+    <div className="flex w-full flex-1 flex-col items-center justify-center gap-1 px-8">
+      <form className="animate-in text-foreground flex w-full flex-col justify-center gap-2 sm:max-w-md">
         {/* جایگزین کردن Brand با انیمیشن */}
         <div className="mb-0 flex justify-center">
           <AnimationHero />

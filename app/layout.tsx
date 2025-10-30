@@ -149,7 +149,7 @@ export default async function RootLayout({
             */}
             <div className="bg-background text-foreground flex h-dvh flex-col overflow-x-auto">
               {/* این div جدید فرزند flex-col است و رشد می‌کند (flex-1) */}
-              <div className="min-h-0 w-full flex-1">
+              <div className="flex min-h-0 w-full flex-1 flex-col">
                 {session ? <GlobalState>{children}</GlobalState> : children}
               </div>
             </div>
