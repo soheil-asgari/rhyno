@@ -514,18 +514,36 @@ export default function HomePageClient() {
 
         {/* --- بخش Footer --- */}
         {/* ✅ ۱۷. اصلاح رنگ‌های فوتر */}
-        <footer className="border-t border-black/10 py-8 pb-28 text-center transition-colors duration-300 sm:pb-8 dark:border-white/10">
+        <footer className="font-vazir border-t border-black/10 py-8 pb-28 text-center transition-colors duration-300 sm:pb-8 dark:border-white/10">
           <div className="container mx-auto flex flex-col items-center justify-between gap-6 px-4 sm:flex-row">
-            <p className="text-sm text-gray-600 transition-colors duration-300 dark:text-gray-500">
-              {" "}
-              &copy; {new Date().getFullYear()} Rhyno AI. تمامی حقوق محفوظ
-              است.{" "}
-            </p>
-            <div
-              dangerouslySetInnerHTML={{
-                __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT' alt='نماد اعتماد الکترونیکی' style='cursor:pointer; width:80px;' code='snXTJxUEZgVAphAqD5lpep29PJRZ2haT'></a>`
-              }}
-            />
+            {/* ===== بخش سمت راست ===== */}
+            <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+              <p className="text-sm text-gray-600 transition-colors duration-300 dark:text-gray-500">
+                &copy; {new Date().getFullYear()} Rhyno AI. تمامی حقوق محفوظ
+                است.
+              </p>
+              <a
+                href="/privacy"
+                className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
+              >
+                حریم خصوصی
+              </a>
+            </div>
+
+            {/* ===== بخش سمت چپ ===== */}
+            <div className="flex flex-col-reverse items-center gap-2 sm:flex-row sm:gap-4">
+              <a
+                href="/terms"
+                className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
+              >
+                قوانین و مقررات
+              </a>
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT' alt='نماد اعتماد الکترونیکی' style='cursor:pointer; width:80px;' code='snXTJxUEZgVAphAqD5lpep29PJRZ2haT'></a>`
+                }}
+              />
+            </div>
           </div>
         </footer>
       </div>
