@@ -362,6 +362,16 @@ export const useChatHandler = () => {
           URL.revokeObjectURL(tempImageUrl)
 
           generatedText = `![Generated Image](${publicUrl})`
+          setChatMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.message.id === tempAssistantChatMessage.message.id
+                ? {
+                    ...msg,
+                    message: { ...msg.message, content: generatedText }
+                  }
+                : msg
+            )
+          )
         } else {
           generatedText = aiResponse.data
         }
