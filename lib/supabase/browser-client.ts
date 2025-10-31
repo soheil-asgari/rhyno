@@ -1,3 +1,5 @@
+// lib\supabase\browser-client.ts
+
 import { Database } from "@/supabase/types"
 import { createBrowserClient } from "@supabase/ssr"
 

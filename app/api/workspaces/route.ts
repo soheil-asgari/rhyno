@@ -7,7 +7,9 @@ import {
   createWorkspace,
   updateWorkspace,
   deleteWorkspace
-} from "@/db/workspaces" // مسیر فایل سرور شما
+} from "@/db/workspaces.server" // <-- سرور
+// مسیر فایل سرور شما
+import { supabase } from "@/lib/supabase/server-client"
 
 export async function GET(request: Request) {
   try {

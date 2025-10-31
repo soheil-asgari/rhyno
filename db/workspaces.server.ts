@@ -1,5 +1,5 @@
-// db\workspaces.ts
-import { supabase } from "@/lib/supabase/browser-client"
+// db\workspaces.server.ts
+import { supabase } from "@/lib/supabase/server-client"
 import { TablesInsert, TablesUpdate } from "@/supabase/types"
 
 export const getHomeWorkspaceByUserId = async (userId: string) => {
