@@ -16,6 +16,8 @@ import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 import { handleTTS } from "@/app/api/chat/handlers/tts"
 import { modelsWithRial } from "@/app/checkout/pricing"
 import { handleSTT } from "@/app/api/chat/handlers/stt"
+import jwt from "jsonwebtoken"
+import { createClient } from "@supabase/supabase-js"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -211,9 +213,61 @@ export async function POST(request: Request) {
     }
     const token = authHeader.split(" ")[1]
 
-    console.log(
-      `Checking env vars... JWT_SECRET starts with: ${process.env.SUPABASE_JWT_SECRET?.substring(0, 5)}`
+    let userId: string
+
+    // ۱. اعتبارسنجی دستی توکن با JWT_SECRET
+    try {
+      if (!process.env.SUPABASE_JWT_SECRET) {
+        throw new Error("SUPABASE_JWT_SECRET is not set on server!")
+      }
+      // توکن را با «راز» (Secret) که در Vercel ست کردید، باز می‌کنیم
+      const decodedToken = jwt.verify(
+        token,
+        process.env.SUPABASE_JWT_SECRET
+      ) as jwt.JwtPayload
+
+      if (!decodedToken.sub) {
+        throw new Error("Invalid token: No 'sub' (user ID) found.")
+      }
+      userId = decodedToken.sub // 'sub' (Subject) همان User ID است
+      console.log(`✅ Token MANUALLY verified! User ID: ${userId}`)
+    } catch (err: any) {
+      // اگر «راز» شما در Vercel اشتباه باشد، این بخش اجرا می‌شود
+      console.error("❌ Manual JWT Verification Failed:", err.message)
+      return new NextResponse(
+        `Unauthorized: Manual verification failed: ${err.message}`,
+        { status: 401 }
+      )
+    }
+
+    // ۲. ساخت کلاینت ادمین (Admin) برای گرفتن آبجکت کامل User
+    // (این کار تمام ارورهای TypeScript قبلی را حل می‌کند)
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set on server!")
+    }
+
+    // از createClient معمولی با کلید SERVICE_ROLE استفاده می‌کنیم
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
+    // با استفاده از کلاینت ادمین، آبجکت کامل user را می‌گیریم
+    const {
+      data: { user },
+      error: adminError
+    } = await supabaseAdmin.auth.admin.getUserById(userId)
+
+    if (adminError || !user) {
+      console.error("❌ Admin client failed to get user:", adminError?.message)
+      return new NextResponse(
+        `Unauthorized: User not found with admin client: ${adminError?.message}`,
+        { status: 401 }
+      )
+    }
+
+    // ✅ حالا ما آبجکت User کامل را داریم (برای handleTTS و...)
+    console.log(`✅ Full user object retrieved for: ${user.email}`)
 
     const cookieStore = cookies()
     const supabase = createServerClient(
@@ -221,19 +275,6 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
-
-    // و به روش استاندارد کاربر را می‌گیریم
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser(token) // 👈 این خطی است که 401 می‌دهد
-
-    if (authError || !user) {
-      console.error("❌ Supabase auth.getUser failed:", authError?.message)
-      return new NextResponse("Unauthorized: Invalid token", { status: 401 })
-    }
-
-    const userId = user.id
     console.log(`✅ User ${userId} successfully authenticated via Supabase.`)
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
