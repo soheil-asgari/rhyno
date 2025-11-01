@@ -2,30 +2,28 @@ import { Database, Tables } from "@/supabase/types"
 import { VALID_ENV_KEYS } from "@/types/valid-keys"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { SupabaseClient } from "@supabase/supabase-js"
 
 // ✅ کد اصلاح شده در server-chat-helpers.ts
 
-export async function getServerProfile(userId: string) {
-  const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-  )
+export async function getServerProfile(
+  userId: string,
+  supabaseAdmin: SupabaseClient // ✨ ورودی جدید
+) {
+  // 👇 ۳. تمام کدهای ساخت کلاینت داخلی حذف شد
+  // const cookieStore = cookies()
+  // const supabase = createServerClient(...)
 
   if (!userId) {
     throw new Error("User ID was not provided to getServerProfile")
   }
 
-  // ۱. پروفایل خام را از دیتابیس بگیرید
-  // (من نام متغیر را به rawProfile تغییر دادم تا واضح‌تر باشد)
-  const { data: profiles, error } = await supabase
+  // 👇 ۴. از کلاینت ادمینِ ورودی برای کوئری استفاده کنید
+  const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
     .select("*")
     .eq("user_id", userId)
-  // .single() ❌ دیگر از این استفاده نمی‌کنیم
 
-  // اگر خطایی رخ داد یا اصلاً پروفایلی پیدا نشد
   if (error || !profiles || profiles.length === 0) {
     console.error(
       "Error fetching profile by user_id:",
@@ -34,10 +32,9 @@ export async function getServerProfile(userId: string) {
     throw new Error(`Profile not found for user_id: ${userId}`)
   }
 
-  // ✅ اولین پروفایل را از لیست برمی‌داریم
+  // اولین پروفایل را برمی‌داریم (برای حل مشکل ردیف‌های تکراری)
   const profile = profiles[0]
 
-  // ... (ادامه کد شما برای addApiKeysToProfile)
   const profileWithKeys = addApiKeysToProfile(profile)
   return profileWithKeys
 }
