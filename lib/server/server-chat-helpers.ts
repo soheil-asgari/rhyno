@@ -3,29 +3,19 @@ import { VALID_ENV_KEYS } from "@/types/valid-keys"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
-export async function getServerProfile() {
+export async function getServerProfile(userId: string) {
   const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
+  const supabase = createServerClient(
+    // ✅ ما هنوز به کلاینت سرور نیاز داریم
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        }
-      }
-    }
+    { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
   )
-
-  const user = (await supabase.auth.getUser()).data.user
-  if (!user) {
-    throw new Error("User not found")
-  }
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single()
 
   if (!profile) {

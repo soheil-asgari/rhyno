@@ -260,7 +260,7 @@ export async function POST(request: Request) {
     }
     // ✨ پایان بخش پرداخت و احراز هویت
 
-    const profile = await getServerProfile()
+    const profile = await getServerProfile(userId)
     checkApiKey(profile.openai_api_key, "OpenAI")
     const openai = new OpenAI({
       apiKey: profile.openai_api_key || "",
