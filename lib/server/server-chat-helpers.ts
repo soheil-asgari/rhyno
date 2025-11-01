@@ -3,28 +3,35 @@ import { VALID_ENV_KEYS } from "@/types/valid-keys"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
+// ✅ کد اصلاح شده در server-chat-helpers.ts
+
 export async function getServerProfile(userId: string) {
-  const cookieStore = cookies()
+  const cookieStore = cookies() // (این خطوط را از قبل دارید)
   const supabase = createServerClient(
-    // ✅ ما هنوز به کلاینت سرور نیاز داریم
+    // (این خطوط را از قبل دارید)
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
   )
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("user_id", userId)
-    .single()
-
-  if (!profile) {
-    throw new Error("Profile not found")
+  if (!userId) {
+    throw new Error("User ID was not provided to getServerProfile")
   }
 
-  const profileWithKeys = addApiKeysToProfile(profile)
+  // 👇✅ تغییر اصلی اینجاست
+  const { data: profile, error } = await supabase
+    .from("profiles") // ✅ نام جدول شما "profiles" است
+    .select("*")
+    .eq("user_id", userId) // ✅ ستون "user_id" را جستجو کن
+    .single()
 
-  return profileWithKeys
+  if (error || !profile) {
+    console.error("Error fetching profile by user_id:", error?.message)
+    // ارور را کمی واضح‌تر می‌کنیم
+    throw new Error(`Profile not found for user_id: ${userId}`)
+  }
+
+  return profile
 }
 
 function addApiKeysToProfile(profile: Tables<"profiles">) {
