@@ -228,9 +228,9 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       console.error("❌ Supabase auth.getUser failed:", authError?.message)
+      console.error("❌ Received Authorization Header:", authHeader) // ✨ این خط جدید را اضافه کنید
       return new NextResponse("Unauthorized: Invalid token", { status: 401 })
     }
-
     // ✅ اگر کد به اینجا برسد، یعنی کاربر با موفقیت شناسایی شده است
     const userId = user.id
     console.log(
@@ -348,9 +348,9 @@ export async function POST(request: Request) {
           })
         }
       )
-
       if (!response.ok) {
         const errorBody = await response.json()
+        console.error("❌ OpenAI Realtime Error Body:", errorBody) // ✨ این خط را اضافه کنید
         throw new Error(
           errorBody.error?.message || "Failed to create realtime session"
         )
@@ -360,7 +360,10 @@ export async function POST(request: Request) {
       // console.log("🔊 Session modalities:", session.modalities)
       // console.log("🔊 Session voice:", session.voice)
       // console.log("🔊 Session instructions:", session.instructions)
-
+      console.log(
+        "🌐 Realtime session raw response from OpenAI:",
+        JSON.stringify(session, null, 2)
+      ) // ✨ این خط را فعال کنید!
       const { error: insertError } = await supabase
         .from("realtime_sessions")
         .insert({

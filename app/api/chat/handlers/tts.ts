@@ -12,11 +12,12 @@ interface HandlerParams {
     messages?: { role: string; content: any }[]
     input?: string
     voice?: string
-    [key: string]: any
     speed?: number
+    [key: string]: any
   }
   user: User
   supabase: SupabaseClient
+  openaiApiKey?: string // ⚡ اضافه کردن این خط
 }
 
 // محاسبه هزینه
@@ -94,7 +95,7 @@ export async function handleTTS({
       )
     }
 
-    const profile = await getServerProfile()
+    const profile = await getServerProfile(user.id)
 
     // درخواست به OpenAI TTS
     const response = await fetch("https://api.openai.com/v1/audio/speech", {

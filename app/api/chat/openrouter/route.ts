@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     }
     // ✨ پایان بخش پرداخت و احراز هویت
 
-    const profile = await getServerProfile()
+    const profile = await getServerProfile(userId)
     checkApiKey(profile.openrouter_api_key, "OpenRouter")
 
     const openrouter = new OpenAI({

@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 
     // ۵. ساخت تصویر و مدیریت خطا با قابلیت بازگشت وجه (بدون تغییر)
     try {
-      const profile = await getServerProfile()
+      const profile = await getServerProfile(userId)
       checkApiKey(profile.openai_api_key, "OpenAI")
       const openai = new OpenAI({
         apiKey: profile.openai_api_key || "",

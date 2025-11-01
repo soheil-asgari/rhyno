@@ -523,7 +523,7 @@ export default function HomePageClient() {
                 است.
               </p>
               <a
-                href="/privacy"
+                href="https://www.rhynoai.ir/privacy"
                 className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
               >
                 حریم خصوصی
@@ -533,7 +533,7 @@ export default function HomePageClient() {
             {/* ===== بخش سمت چپ ===== */}
             <div className="flex flex-col-reverse items-center gap-2 sm:flex-row sm:gap-4">
               <a
-                href="/terms"
+                href="https://www.rhynoai.ir/terms"
                 className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
               >
                 قوانین و مقررات

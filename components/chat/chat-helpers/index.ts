@@ -22,7 +22,14 @@ import {
 import React from "react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
+import { supabase } from "@/lib/supabase/browser-client"
 
+export const getAuthToken = async (): Promise<string | undefined> => {
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+  return session?.access_token
+}
 export const validateChatSettings = (
   chatSettings: ChatSettings | null,
   modelData: LLM | undefined,
@@ -244,14 +251,15 @@ export const handleHostedChat = async (
     messages: formattedMessages,
     customModelId: provider === "custom" ? modelData.hostedId : ""
   }
-
+  const token = await getAuthToken()
   const response = await fetchChatResponse(
     apiEndpoint,
     requestBody,
     true,
     newAbortController,
     setIsGenerating,
-    setChatMessages
+    setChatMessages,
+    token
   )
 
   return await processResponse(
@@ -273,10 +281,20 @@ export const fetchChatResponse = async (
   isHosted: boolean,
   controller: AbortController,
   setIsGenerating: React.Dispatch<React.SetStateAction<boolean>>,
-  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  token?: string // ✨ اضافه کردن پارامتر اختیاری توکن
 ) => {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json"
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}` // ✨ اضافه کردن هدر Authorization
+  }
+
   const response = await fetch(url, {
     method: "POST",
+    headers,
     body: JSON.stringify(body),
     signal: controller.signal
   })
@@ -289,9 +307,7 @@ export const fetchChatResponse = async (
     }
 
     const errorData = await response.json()
-
     toast.error(errorData.message)
-
     setIsGenerating(false)
     setChatMessages(prevMessages => prevMessages.slice(0, -2))
   }

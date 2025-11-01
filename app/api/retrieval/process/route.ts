@@ -12,6 +12,8 @@ import { FileItemChunk } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { cookies } from "next/headers"
+import { createServerClient } from "@supabase/ssr"
 
 export async function POST(req: Request) {
   try {
@@ -19,8 +21,20 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+    )
 
-    const profile = await getServerProfile()
+    const {
+      data: { user }
+    } = await supabase.auth.getUser()
+
+    if (!user) return new NextResponse("Unauthorized", { status: 401 })
+
+    const profile = await getServerProfile(user.id)
 
     const formData = await req.formData()
 

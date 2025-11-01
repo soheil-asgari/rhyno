@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     // (چک کردن موجودی کیف پول را اینجا اضافه کنید...)
 
     // ۲. آماده‌سازی OpenRouter
-    const profile = await getServerProfile()
+    const profile = await getServerProfile(userId)
     checkApiKey(profile.openrouter_api_key, "OpenRouter")
 
     const openrouter = new OpenAI({

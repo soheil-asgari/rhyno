@@ -50,6 +50,8 @@ import {
   DialogTitle,
   DialogDescription
 } from "@/components/ui/dialog"
+import { getUserAccessToken } from "@/lib/auth/client-helpers"
+
 const ICON_SIZE = 32
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -879,15 +881,25 @@ export const Message: FC<MessageProps> = ({
       m => m.message.role === "user"
     )
     if (!lastUserMessage) {
-      // console.error("No user message found to regenerate speech.")
       setIsGenerating(false)
       return
     }
 
     try {
+      // 🌟🌟🌟 خط جدید ۱: دریافت توکن کاربر 🌟🌟🌟
+      const token = await getUserAccessToken()
+      if (!token) {
+        console.error("❌ User access token not found for TTS.")
+        throw new Error("User not authenticated. Cannot regenerate speech.")
+      }
+      // 🌟🌟🌟 پایان خط جدید ۱ 🌟🌟🌟
+
       const response = await fetch("/api/chat/openai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` // 👈🌟 خط جدید ۲: ارسال توکن در هدر
+        },
         body: JSON.stringify({
           chatSettings: {
             model: "gpt-4o-mini-tts",

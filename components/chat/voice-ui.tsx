@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import { CircularAudioVisualizer } from "./CircularAudioVisualizer"
+import { supabase } from "@/lib/supabase/client"
+
 interface VoiceUIProps {
   chatSettings: any
 }
@@ -69,6 +71,29 @@ const useAudioVisualizer = (stream: MediaStream | null) => {
   return volume
 }
 
+const getUserAccessToken = async (): Promise<string | null> => {
+  try {
+    // 2. استفاده از کلاینت ایمپورت شده
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession()
+
+    if (error) {
+      console.error("Supabase getSession error:", error)
+      return null
+    }
+
+    if (session) {
+      return session.access_token
+    }
+
+    return null
+  } catch (err) {
+    console.error("Error fetching user token:", err)
+    return null
+  }
+}
 export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">(
     "idle"
@@ -122,21 +147,25 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
     async (model: string) => {
       setStatus("connecting")
       try {
+        const token = await getUserAccessToken()
+
+        if (!token) {
+          throw new Error("User not authenticated. Missing access token.")
+        }
+
+        // **👇 اصلاحیه شما:** اضافه کردن هدر Authorization
         const res = await fetch("/api/chat/openai", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}` // ✨ توکن کاربر را اضافه کنید
+          },
           body: JSON.stringify({ chatSettings: { model } })
         })
 
         if (!res.ok) {
           const errorData = await res.json()
           throw new Error(errorData.message || "Failed to get ephemeral key.")
-        }
-
-        const sessionData = await res.json()
-        const EPHEMERAL_KEY = sessionData.client_secret?.value
-        if (!EPHEMERAL_KEY) {
-          throw new Error("Invalid session data from server.")
         }
 
         const pc = new RTCPeerConnection()
@@ -314,7 +343,8 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
-
+        const sessionData = await res.json()
+        const EPHEMERAL_KEY = sessionData.client_secret?.value
         const sdpResponse = await fetch(
           `https://api.openai.com/v1/realtime?model=${model}`,
           {

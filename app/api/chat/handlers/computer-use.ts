@@ -54,7 +54,7 @@ export async function handleComputerUse({
     // =================================================================
     // ✨ بخش ۲: فراخوانی API اصلی
     // =================================================================
-    const profile = await getServerProfile()
+    const profile = await getServerProfile(user.id) // ✅ اصلاح userId
     const openai = new OpenAI({ apiKey: profile.openai_api_key || "" })
 
     const response = await openai.responses.create({
@@ -79,8 +79,6 @@ export async function handleComputerUse({
         }
       ]
     })
-
-    // این مدل معمولاً usage برنمی‌گرداند، پس از هزینه ثابت استفاده می‌کنیم
 
     // =================================================================
     // ✨ بخش ۳: کسر هزینه در صورت موفقیت

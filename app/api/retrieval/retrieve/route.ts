@@ -2,6 +2,8 @@ import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
 import { createClient } from "@supabase/supabase-js"
 import OpenAI from "openai"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   try {
@@ -19,9 +21,26 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get: (name: string) => cookies().get(name)?.value
+        }
+      }
+    )
 
+    const {
+      data: { user }
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return new Response("Unauthorized", { status: 401 })
+    }
+
+    const profile = await getServerProfile(user.id)
     console.log("Fetching server profile...")
-    const profile = await getServerProfile()
 
     console.log("Checking API key for OpenAI...")
     checkApiKey(profile.openai_api_key, "OpenAI")

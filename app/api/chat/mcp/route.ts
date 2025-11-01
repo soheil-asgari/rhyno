@@ -128,11 +128,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const profile = await getServerProfile()
-    const openai = new OpenAI({
-      apiKey: profile.openai_api_key || "",
-      organization: profile.openai_organization_id
-    })
+    const profile = await getServerProfile(user.id) // ✅ اصلاح userId
+    const openai = new OpenAI({ apiKey: profile.openai_api_key || "" })
 
     const selectedModel = "gpt-5-nano" as LLMID
 

@@ -10,6 +10,51 @@ import { supabase } from "@/lib/supabase/browser-client"
 import { uploadMessageImage } from "@/db/storage/message-images"
 import { v4 as uuidv4 } from "uuid"
 
+let pdfjsLib: any = null
+
+const extractPdfText = async (file: File) => {
+  // حفاظت از سمت سرور
+  if (typeof window === "undefined") {
+    throw new Error("PDF parsing only works in the browser")
+  }
+
+  if (!pdfjsLib) {
+    try {
+      // ✨ تغییر کلیدی: هدف قرار دادن مستقیم فایل build.
+      // از مسیر "pdfjs-dist/build/pdf.min.mjs" استفاده کنید
+      const pdfjsModule = await import("pdfjs-dist/build/pdf.min.mjs")
+
+      // گرفتن شیء اصلی. استفاده از `* as pdfjs` در `import()` منجر به یک wrapper می‌شود.
+      // این ساختار به طور قابل اعتماد default export را استخراج می‌کند.
+      pdfjsLib = pdfjsModule.default || pdfjsModule
+
+      if (!pdfjsLib || typeof pdfjsLib.getDocument !== "function") {
+        throw new Error("PDF.js object not properly loaded.")
+      }
+
+      // تنظیم مسیر Worker (استفاده از CDN توصیه شده است)
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.js`
+    } catch (error) {
+      // این خطا را لاگ کنید تا مسیر دقیق شکست را ببینیم
+      console.error("🔴 خطا در بارگیری PDF.js. Import ناموفق بود:", error)
+      throw new Error("Cannot load PDF parsing library.")
+    }
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  // این خط اکنون باید کار کند، زیرا pdfjsLib باید شیء معتبری باشد.
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+  let text = ""
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    text += content.items.map((item: any) => item.str).join(" ") + "\n"
+  }
+
+  return text
+}
+
 // این بخش بدون تغییر باقی می‌ماند
 export const ACCEPTED_FILE_TYPES = [
   "text/csv",
@@ -222,9 +267,9 @@ export const useSelectFileHandler = () => {
         setNewMessageFiles(prev => prev.filter(f => f.id !== "loading"))
       }
     } else {
-      file.type.includes("pdf")
-        ? reader.readAsArrayBuffer(file)
-        : reader.readAsText(file)
+      // این بخش برای TEXT/CSV/JSON است که باید خوانده شود
+      // ❌ توجه: دیگر شرط 'file.type.includes("pdf")' در اینجا وجود ندارد
+      reader.readAsText(file)
     }
   }
   return {
