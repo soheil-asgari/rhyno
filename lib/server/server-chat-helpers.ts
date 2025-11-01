@@ -19,22 +19,26 @@ export async function getServerProfile(userId: string) {
 
   // ۱. پروفایل خام را از دیتابیس بگیرید
   // (من نام متغیر را به rawProfile تغییر دادم تا واضح‌تر باشد)
-  const { data: rawProfile, error } = await supabase
+  const { data: profiles, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("user_id", userId)
-    .single()
+  // .single() ❌ دیگر از این استفاده نمی‌کنیم
 
-  if (error || !rawProfile) {
-    console.error("Error fetching profile by user_id:", error?.message)
+  // اگر خطایی رخ داد یا اصلاً پروفایلی پیدا نشد
+  if (error || !profiles || profiles.length === 0) {
+    console.error(
+      "Error fetching profile by user_id:",
+      error?.message || "No profiles found"
+    )
     throw new Error(`Profile not found for user_id: ${userId}`)
   }
 
-  // ۲. 👇✅ *** این خط را اضافه کنید ***
-  // کلیدهای API سرور را با پروفایل دیتابیس ادغام کنید
-  const profileWithKeys = addApiKeysToProfile(rawProfile)
+  // ✅ اولین پروفایل را از لیست برمی‌داریم
+  const profile = profiles[0]
 
-  // ۳. آبجکت ادغام شده را برگردانید
+  // ... (ادامه کد شما برای addApiKeysToProfile)
+  const profileWithKeys = addApiKeysToProfile(profile)
   return profileWithKeys
 }
 function addApiKeysToProfile(profile: Tables<"profiles">) {
