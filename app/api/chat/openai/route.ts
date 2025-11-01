@@ -315,9 +315,11 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: request.headers.get("Cookie") || ""
+          // 👇✅ *** این خط را اضافه کنید ***
+          // توکن موبایل را هم به API بعدی پاس بده
+          Authorization: request.headers.get("Authorization") || "",
+          Cookie: request.headers.get("Cookie") || "" // (این را برای وب‌سایت نگه دارید)
         },
-        // ✨ [FIX] از متغیر requestBody که در بالا ساختیم استفاده می‌کنیم
         body: JSON.stringify(requestBody)
       })
       return new Response(openrouterResponse.body, {
