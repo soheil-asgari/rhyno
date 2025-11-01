@@ -6,9 +6,8 @@ import { cookies } from "next/headers"
 // ✅ کد اصلاح شده در server-chat-helpers.ts
 
 export async function getServerProfile(userId: string) {
-  const cookieStore = cookies() // (این خطوط را از قبل دارید)
+  const cookieStore = cookies()
   const supabase = createServerClient(
-    // (این خطوط را از قبل دارید)
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
@@ -18,22 +17,26 @@ export async function getServerProfile(userId: string) {
     throw new Error("User ID was not provided to getServerProfile")
   }
 
-  // 👇✅ تغییر اصلی اینجاست
-  const { data: profile, error } = await supabase
-    .from("profiles") // ✅ نام جدول شما "profiles" است
+  // ۱. پروفایل خام را از دیتابیس بگیرید
+  // (من نام متغیر را به rawProfile تغییر دادم تا واضح‌تر باشد)
+  const { data: rawProfile, error } = await supabase
+    .from("profiles")
     .select("*")
-    .eq("user_id", userId) // ✅ ستون "user_id" را جستجو کن
+    .eq("user_id", userId)
     .single()
 
-  if (error || !profile) {
+  if (error || !rawProfile) {
     console.error("Error fetching profile by user_id:", error?.message)
-    // ارور را کمی واضح‌تر می‌کنیم
     throw new Error(`Profile not found for user_id: ${userId}`)
   }
 
-  return profile
-}
+  // ۲. 👇✅ *** این خط را اضافه کنید ***
+  // کلیدهای API سرور را با پروفایل دیتابیس ادغام کنید
+  const profileWithKeys = addApiKeysToProfile(rawProfile)
 
+  // ۳. آبجکت ادغام شده را برگردانید
+  return profileWithKeys
+}
 function addApiKeysToProfile(profile: Tables<"profiles">) {
   const apiKeys = {
     [VALID_ENV_KEYS.OPENAI_API_KEY]: "openai_api_key",
