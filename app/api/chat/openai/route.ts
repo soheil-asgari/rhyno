@@ -348,7 +348,12 @@ export async function POST(request: Request) {
         model: selectedModel
       }
 
-      return await handleTTS({ body: ttsBody, user, supabase })
+      return await handleTTS({
+        request, // 👈 اینو اضافه کن
+        body: ttsBody,
+        user,
+        supabase
+      })
     }
 
     if (selectedModel.includes("realtime")) {

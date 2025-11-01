@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import OpenAI from "openai"
 import { handleDalleRequest } from "@/lib/dalle-handler"
@@ -10,7 +9,13 @@ import { cookies } from "next/headers"
 // ✨ ایمپورت متمرکز قیمت‌گذاری
 import { modelsWithRial } from "@/app/checkout/pricing"
 
-export const runtime = "edge"
+import { NextRequest, NextResponse } from "next/server"
+
+import { createClient } from "@supabase/supabase-js"
+
+import jwt from "jsonwebtoken"
+
+export const runtime: ServerRuntime = "nodejs"
 
 // ✨ ثابت‌ها و تابع محاسبه هزینه (مشابه کد دوم شما)
 const PROFIT_MARGIN = 1.4
@@ -56,7 +61,65 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    const authHeader = request.headers.get("Authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return new NextResponse("Unauthorized: Missing Bearer token", {
+        status: 401
+      })
+    }
+    const token = authHeader.split(" ")[1]
 
+    let userId: string
+
+    // ۱. اعتبارسنجی دستی توکن با JWT_SECRET
+    try {
+      if (!process.env.SUPABASE_JWT_SECRET) {
+        throw new Error("SUPABASE_JWT_SECRET is not set on server!")
+      }
+      const decodedToken = jwt.verify(
+        token,
+        process.env.SUPABASE_JWT_SECRET
+      ) as jwt.JwtPayload
+
+      if (!decodedToken.sub) {
+        throw new Error("Invalid token: No 'sub' (user ID) found.")
+      }
+      userId = decodedToken.sub // 'sub' همان User ID است
+      console.log(`[Agent] ✅ Token MANUALLY verified! User ID: ${userId}`)
+    } catch (err: any) {
+      console.error("[Agent] ❌ Manual JWT Verification Failed:", err.message)
+      return new NextResponse(
+        `Unauthorized: Manual verification failed: ${err.message}`,
+        { status: 401 }
+      )
+    }
+
+    // ۲. ساخت کلاینت ادمین (Admin) برای گرفتن آبجکت کامل User
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set on server!")
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const {
+      data: { user },
+      error: adminError
+    } = await supabaseAdmin.auth.admin.getUserById(userId)
+
+    if (adminError || !user) {
+      console.error(
+        "[Agent] ❌ Admin client failed to get user:",
+        adminError?.message
+      )
+      return new NextResponse(
+        `Unauthorized: User not found with admin client: ${adminError?.message}`,
+        { status: 401 }
+      )
+    }
+    console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
     // ۱. احراز هویت و بررسی کیف پول کاربر (بدون تغییر)
     const cookieStore = cookies()
     const supabase = createServerClient(
@@ -64,13 +127,6 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-    const userId = user.id
 
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
@@ -144,7 +200,7 @@ export async function POST(request: Request) {
 
     // ۵. ساخت تصویر و مدیریت خطا با قابلیت بازگشت وجه (بدون تغییر)
     try {
-      const profile = await getServerProfile(userId)
+      const profile = await getServerProfile(userId, supabaseAdmin)
       checkApiKey(profile.openai_api_key, "OpenAI")
       const openai = new OpenAI({
         apiKey: profile.openai_api_key || "",

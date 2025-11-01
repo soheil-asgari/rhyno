@@ -24,6 +24,7 @@ import {
 } from "../chat-helpers"
 import { supabase } from "@/lib/supabase/browser-client"
 import { uploadMessageImage } from "@/db/storage/message-images"
+
 export const useChatHandler = () => {
   const router = useRouter()
 

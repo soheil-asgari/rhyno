@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     // فراخوانی handleTTS با کلید OpenAI
     const response = await handleTTS({
       body: ttsBody,
+      request,
       user,
       supabase,
       openaiApiKey: profile.openai_api_key // ⚡ مهم!

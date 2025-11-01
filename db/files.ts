@@ -104,15 +104,14 @@ export const createFile = async (
   } else {
     fileRecord.name = baseName + "." + extension
   }
+
   const { data: createdFile, error } = await supabase
     .from("files")
     .insert([fileRecord])
     .select("*")
     .single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
   await createFileWorkspace({
     user_id: createdFile.user_id,
@@ -126,9 +125,20 @@ export const createFile = async (
     file_id: createdFile.name
   })
 
-  await updateFile(createdFile.id, {
-    file_path: filePath
-  })
+  await updateFile(createdFile.id, { file_path: filePath })
+
+  // گرفتن توکن کاربر از Supabase
+  const {
+    data: { session },
+    error: sessionError
+  } = await supabase.auth.getSession()
+
+  if (sessionError || !session) {
+    toast.error("Authentication error — please log in again.")
+    throw new Error("User not authenticated")
+  }
+
+  const token = session.access_token
 
   const formData = new FormData()
   formData.append("file_id", createdFile.id)
@@ -136,24 +146,29 @@ export const createFile = async (
 
   const response = await fetch("/api/retrieval/process", {
     method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
     body: formData
   })
 
   if (!response.ok) {
     const jsonText = await response.text()
-    const json = JSON.parse(jsonText)
+    let json
+    try {
+      json = JSON.parse(jsonText)
+    } catch {
+      json = { message: jsonText }
+    }
+
     console.error(
       `Error processing file:${createdFile.id}, status:${response.status}, response:${json.message}`
     )
-    toast.error("Failed to process file. Reason:" + json.message, {
+    toast.error("Failed to process file. Reason: " + json.message, {
       duration: 10000
     })
     await deleteFile(createdFile.id)
   }
 
-  const fetchedFile = await getFileById(createdFile.id)
-
-  return fetchedFile
+  return await getFileById(createdFile.id)
 }
 
 // // Handle docx files
@@ -170,9 +185,7 @@ export const createDocXFile = async (
     .select("*")
     .single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
   await createFileWorkspace({
     user_id: createdFile.user_id,
@@ -186,17 +199,26 @@ export const createDocXFile = async (
     file_id: createdFile.name
   })
 
-  await updateFile(createdFile.id, {
-    file_path: filePath
-  })
+  await updateFile(createdFile.id, { file_path: filePath })
+
+  // گرفتن توکن کاربر
+  const {
+    data: { session },
+    error: sessionError
+  } = await supabase.auth.getSession()
+
+  if (sessionError || !session) {
+    toast.error("Authentication error — please log in again.")
+    throw new Error("User not authenticated")
+  }
+
+  const token = session.access_token
 
   const response = await fetch("/api/retrieval/process/docx", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      text: text,
+      text,
       fileId: createdFile.id,
       embeddingsProvider,
       fileExtension: "docx"
@@ -205,19 +227,23 @@ export const createDocXFile = async (
 
   if (!response.ok) {
     const jsonText = await response.text()
-    const json = JSON.parse(jsonText)
+    let json
+    try {
+      json = JSON.parse(jsonText)
+    } catch {
+      json = { message: jsonText }
+    }
+
     console.error(
       `Error processing file:${createdFile.id}, status:${response.status}, response:${json.message}`
     )
-    toast.error("Failed to process file. Reason:" + json.message, {
+    toast.error("Failed to process file. Reason: " + json.message, {
       duration: 10000
     })
     await deleteFile(createdFile.id)
   }
 
-  const fetchedFile = await getFileById(createdFile.id)
-
-  return fetchedFile
+  return await getFileById(createdFile.id)
 }
 
 export const createFiles = async (

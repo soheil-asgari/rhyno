@@ -65,25 +65,41 @@ export const handleRetrieval = async (
   embeddingsProvider: "openai" | "local",
   sourceCount: number
 ) => {
+  const session = (await supabase.auth.getSession()).data.session
+  if (!session) {
+    throw new Error("User is not authenticated.")
+  }
+  const token = session.access_token
+  console.log("TOKEN BEING SENT TO RETRIEVE:", token)
+  const allFileIds = [
+    ...newMessageFiles.map(file => file.id),
+    ...chatFiles.map(file => file.id)
+  ]
   const response = await fetch("/api/retrieval/retrieve", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // ۳. هدر Authorization را اضافه کنید
+      Authorization: `Bearer ${token}`
+    },
     body: JSON.stringify({
       userInput,
-      fileIds: [...newMessageFiles, ...chatFiles].map(file => file.id),
-      embeddingsProvider,
+      fileIds: allFileIds,
       sourceCount
     })
   })
 
+  // ۴. مدیریت صحیح خطاها
   if (!response.ok) {
-    console.error("Error retrieving:", response)
+    const errorData = await response.json()
+    console.error("Error retrieving:", response.status, errorData)
+    throw new Error(
+      errorData.message || `Failed to retrieve data (${response.status})`
+    )
   }
 
-  const { results } = (await response.json()) as {
-    results: Tables<"file_items">[]
-  }
-
-  return results
+  const json = await response.json()
+  return json.results
 }
 
 export const createTempMessages = (
