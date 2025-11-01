@@ -203,7 +203,16 @@ export async function POST(request: Request) {
     // console.log(JSON.stringify(messages, null, 2))
     // console.log("-----------------------------")
 
-    // ✨ شروع بخش پرداخت و احراز هویت
+    const authHeader = request.headers.get("Authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("❌ Auth header missing or invalid")
+      return new NextResponse("Unauthorized: Missing Bearer token", {
+        status: 401
+      })
+    }
+    const token = authHeader.split(" ")[1]
+
+    // ✨ ۲. کلاینت Supabase را بسازید (کد شما برای ساخت کلاینت درست است)
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -211,11 +220,22 @@ export async function POST(request: Request) {
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
 
+    // ✨ ۳. کاربر را با استفاده از توکن دریافتی اعتبارسنجی کنید
     const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) return new NextResponse("Unauthorized", { status: 401 })
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser(token) // 👈 **تغییر کلیدی اینجاست**
+
+    if (authError || !user) {
+      console.error("❌ Supabase auth.getUser failed:", authError?.message)
+      return new NextResponse("Unauthorized: Invalid token", { status: 401 })
+    }
+
+    // ✅ اگر کد به اینجا برسد، یعنی کاربر با موفقیت شناسایی شده است
     const userId = user.id
+    console.log(
+      `✅ User ${userId} successfully authenticated via Bearer token.`
+    )
 
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
