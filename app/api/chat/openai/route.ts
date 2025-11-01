@@ -205,14 +205,16 @@ export async function POST(request: Request) {
 
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.error("❌ Auth header missing or invalid")
       return new NextResponse("Unauthorized: Missing Bearer token", {
         status: 401
       })
     }
     const token = authHeader.split(" ")[1]
 
-    // ✨ ۲. کلاینت Supabase را بسازید (کد شما برای ساخت کلاینت درست است)
+    console.log(
+      `Checking env vars... JWT_SECRET starts with: ${process.env.SUPABASE_JWT_SECRET?.substring(0, 5)}`
+    )
+
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -220,29 +222,24 @@ export async function POST(request: Request) {
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
 
-    // ✨ ۳. کاربر را با استفاده از توکن دریافتی اعتبارسنجی کنید
+    // و به روش استاندارد کاربر را می‌گیریم
     const {
       data: { user },
       error: authError
-    } = await supabase.auth.getUser(token) // 👈 **تغییر کلیدی اینجاست**
+    } = await supabase.auth.getUser(token) // 👈 این خطی است که 401 می‌دهد
 
     if (authError || !user) {
       console.error("❌ Supabase auth.getUser failed:", authError?.message)
-      console.error("❌ Received Authorization Header:", authHeader) // ✨ این خط جدید را اضافه کنید
       return new NextResponse("Unauthorized: Invalid token", { status: 401 })
     }
-    // ✅ اگر کد به اینجا برسد، یعنی کاربر با موفقیت شناسایی شده است
-    const userId = user.id
-    console.log(
-      `✅ User ${userId} successfully authenticated via Bearer token.`
-    )
 
+    const userId = user.id
+    console.log(`✅ User ${userId} successfully authenticated via Supabase.`)
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
       .select("balance")
-      .eq("user_id", userId)
+      .eq("user_id", userId) // ✅ از userId استخراج شده استفاده می‌کنیم
       .single()
-
     if (walletError && walletError.code === "PGRST116") {
       return NextResponse.json(
         { message: "موجودی شما کافی نیست." },
