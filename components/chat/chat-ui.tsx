@@ -99,7 +99,7 @@ export const ChatUI: FC<ChatUIProps> = ({ isRealtimeMode }) => {
       //   handleFocusChatInput()
       // }
     })
-  }, [params.chatid, selectedChat, chatMessages])
+  }, [params.chatid])
 
   const fetchMessages = async () => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)

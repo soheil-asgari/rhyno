@@ -324,6 +324,7 @@ export async function POST(request: Request) {
       // <--- چک کنید که پیامی برای ذخیره وجود داشته باشد
       try {
         console.log("DEBUG: Saving user message to DB...")
+        const userSequenceNumber = messages.length - 1
         const { error: insertUserMsgError } = await supabaseAdmin
           .from("messages")
           .insert({
@@ -332,7 +333,8 @@ export async function POST(request: Request) {
             role: "user",
             content: userMessageContent,
             model: chatSettings.model,
-            image_paths: userImagePaths // <-- ۳. آرایه عکس‌ها را اینجا پاس بده
+            image_paths: userImagePaths,
+            sequence_number: userSequenceNumber
           })
         if (insertUserMsgError) {
           console.error(
@@ -940,7 +942,8 @@ export async function POST(request: Request) {
                     model: selectedModel, // <--- از scope بالا
                     prompt_tokens: usage?.prompt_tokens || 0,
                     completion_tokens: usage?.completion_tokens || 0,
-                    image_paths: []
+                    image_paths: [],
+                    sequence_number: messages.length
                   })
                 if (insertAsstMsgError) {
                   console.error(
