@@ -297,15 +297,30 @@ export async function POST(request: Request) {
     // حالا این خط امن است
     const lastUserMessage = messages[messages.length - 1]
     let userMessageContent = lastUserMessage.content
+    let userImagePaths: string[] = []
 
     // (اگر پیام حاوی عکس است، فقط متن را جدا می‌کنیم)
-    if (Array.isArray(userMessageContent)) {
-      const textPart = userMessageContent.find(p => p.type === "text")
-      userMessageContent = textPart ? textPart.text : "[Image Content]"
+    if (typeof lastUserMessage.content === "string") {
+      // حالت ساده: فقط متن
+      userMessageContent = lastUserMessage.content
+    } else if (Array.isArray(lastUserMessage.content)) {
+      // حالت پیچیده: آرایه‌ای از متن و عکس
+
+      // قسمت متن را پیدا کن
+      const textPart = lastUserMessage.content.find(
+        (p: any) => p.type === "text"
+      )
+      userMessageContent = textPart ? textPart.text : ""
+
+      // قسمت‌های عکس را پیدا کن
+      userImagePaths = lastUserMessage.content
+        .filter((p: any) => p.type === "image_url" && p.image_url?.url)
+        .map((p: any) => p.image_url.url) // <-- و اینجا
     }
 
     // ۳. پیام کاربر را در دیتابیس ذخیره کنید
-    if (userMessageContent) {
+    if (userMessageContent || userImagePaths.length > 0) {
+      // <--- چک کنید که پیامی برای ذخیره وجود داشته باشد
       try {
         console.log("DEBUG: Saving user message to DB...")
         const { error: insertUserMsgError } = await supabaseAdmin
@@ -315,7 +330,8 @@ export async function POST(request: Request) {
             user_id: userId,
             role: "user",
             content: userMessageContent,
-            model: chatSettings.model
+            model: chatSettings.model,
+            image_paths: userImagePaths // <-- ۳. آرایه عکس‌ها را اینجا پاس بده
           })
         if (insertUserMsgError) {
           console.error(
@@ -922,7 +938,8 @@ export async function POST(request: Request) {
                     content: fullAssistantResponse.trim(),
                     model: selectedModel, // <--- از scope بالا
                     prompt_tokens: usage?.prompt_tokens || 0,
-                    completion_tokens: usage?.completion_tokens || 0
+                    completion_tokens: usage?.completion_tokens || 0,
+                    image_paths: []
                   })
                 if (insertAsstMsgError) {
                   console.error(
