@@ -842,53 +842,53 @@ export async function POST(request: Request) {
             )
 
             // --- 👇 منطق Fallback *بعد* از اتمام Stream ---
-            if (!usage) {
-              console.warn("⚠️ Usage data not found directly in stream chunks.")
+            // if (!usage) {
+            //   console.warn("⚠️ Usage data not found directly in stream chunks.")
 
-              try {
-                console.log(
-                  "🔄 Attempting non-stream call JUST for usage data..."
-                )
-                const usageResponsePayload: ChatCompletionCreateParams = {
-                  // payload شبیه به استریم ولی stream: false
-                  model: selectedModel,
-                  messages: finalMessages,
-                  temperature: temp,
-                  // ❌ خط max_tokens: 1 از اینجا حذف شد
-                  stream: false
-                }
+            //   try {
+            //     console.log(
+            //       "🔄 Attempting non-stream call JUST for usage data..."
+            //     )
+            //     const usageResponsePayload: ChatCompletionCreateParams = {
+            //       // payload شبیه به استریم ولی stream: false
+            //       model: selectedModel,
+            //       messages: finalMessages,
+            //       temperature: temp,
+            //       // ❌ خط max_tokens: 1 از اینجا حذف شد
+            //       stream: false
+            //     }
 
-                // ✅✅✅ منطق صحیح if/else ✅✅✅
-                if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-                  ;(usageResponsePayload as any).max_completion_tokens = 1
-                } else {
-                  // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
-                  usageResponsePayload.max_tokens = 1
-                }
-                // ✅✅✅ پایان اصلاحیه ✅✅✅
+            //     // ✅✅✅ منطق صحیح if/else ✅✅✅
+            //     if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+            //       ;(usageResponsePayload as any).max_completion_tokens = 1
+            //     } else {
+            //       // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
+            //       usageResponsePayload.max_tokens = 1
+            //     }
+            //     // ✅✅✅ پایان اصلاحیه ✅✅✅
 
-                if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-                  // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
-                  ;(usageResponsePayload as any).service_tier = "default"
-                }
+            //     if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+            //       // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
+            //       ;(usageResponsePayload as any).service_tier = "default"
+            //     }
 
-                const usageResponse =
-                  await openai.chat.completions.create(usageResponsePayload)
-                if (usageResponse.usage) {
-                  usage = usageResponse.usage
-                  console.log("📊 Usage obtained via fallback request:", usage)
-                } else {
-                  console.error(
-                    "❌ Fallback request did not return usage data."
-                  )
-                }
-              } catch (fallbackError: any) {
-                console.error(
-                  "❌ Error during fallback request for usage:",
-                  fallbackError
-                )
-              }
-            }
+            //     const usageResponse =
+            //       await openai.chat.completions.create(usageResponsePayload)
+            //     if (usageResponse.usage) {
+            //       usage = usageResponse.usage
+            //       console.log("📊 Usage obtained via fallback request:", usage)
+            //     } else {
+            //       console.error(
+            //         "❌ Fallback request did not return usage data."
+            //       )
+            //     }
+            //   } catch (fallbackError: any) {
+            //     console.error(
+            //       "❌ Error during fallback request for usage:",
+            //       fallbackError
+            //     )
+            //   }
+            // }
 
             // --- 👇 کسر هزینه *بعد* از اتمام Stream و تلاش برای گرفتن usage ---
             if (usage) {

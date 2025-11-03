@@ -170,11 +170,7 @@ export const createTempMessages = (
     chatMessages[lastMessageIndex].message.content = ""
     newMessages = [...chatMessages]
   } else {
-    newMessages = [
-      ...chatMessages,
-      tempUserChatMessage,
-      tempAssistantChatMessage
-    ]
+    newMessages = [...chatMessages, tempAssistantChatMessage]
   }
 
   setChatMessages(newMessages)
