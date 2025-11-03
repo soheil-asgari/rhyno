@@ -6,7 +6,7 @@ import { ServerRuntime } from "next"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 
 export const runtime: ServerRuntime = "nodejs"
 
@@ -77,11 +77,7 @@ export async function POST(request: Request) {
     console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
 
     const cookieStore = cookies() //
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     // گرفتن پروفایل کاربر با توکن (فرض بر این است که getServerProfile می‌تواند توکن بگیرد)
     const profile = await getServerProfile(userId, supabaseAdmin)

@@ -69,8 +69,8 @@ export async function sendCustomOtpAction(formData: FormData) {
   const otp = Math.floor(100000 + Math.random() * 900000).toString()
   await supabase.from("otp_codes").insert({
     phone,
-    code: otp,
-    expires_at: new Date(Date.now() + 5 * 60 * 1000) // ۵ دقیقه انقضا
+    hashed_otp: otp,
+    expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
   })
 
   // ۲. اینجا باید کد ارسال پیامک با پنل خودتان را قرار دهید

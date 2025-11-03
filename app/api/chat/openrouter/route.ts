@@ -6,7 +6,7 @@ import { ServerRuntime } from "next"
 import OpenAI from "openai"
 
 // ✨ ایمپورت‌های جدید برای پرداخت و احراز هویت
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { modelsWithRial } from "@/app/checkout/pricing"
 import { NextRequest, NextResponse } from "next/server"
@@ -112,11 +112,7 @@ export async function POST(request: Request) {
     console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
     // ✨ ۱. شروع بخش پرداخت و احراز هویت
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")

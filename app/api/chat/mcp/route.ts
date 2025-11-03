@@ -1,6 +1,6 @@
 // 📁 app/api/chat/mcp/route.ts
 
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 
 import OpenAI from "openai"
@@ -168,11 +168,7 @@ export async function POST(request: Request) {
     }
     console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     const { data: wallet } = await supabase
       .from("wallets")

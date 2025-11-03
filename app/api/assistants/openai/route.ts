@@ -3,7 +3,7 @@ import { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { NextRequest, NextResponse } from "next/server"
 // ✨ ۱. ایمپورت‌های مورد نیاز برای احراز هویت
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { createClient } from "@supabase/supabase-js"
 import jwt from "jsonwebtoken"
@@ -76,12 +76,7 @@ export async function GET(request: Request) {
 
     // ✨ ۴. ساخت کلاینت Supabase
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
-
+    const supabase = createSSRClient(cookieStore)
     // ✨ ۵. گرفتن کاربر با استفاده از توکن
 
     console.log(`✅ GET: User ${userId} authenticated.`)

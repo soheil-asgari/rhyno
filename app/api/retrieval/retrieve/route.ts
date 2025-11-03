@@ -2,7 +2,7 @@ import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
 import { createClient } from "@supabase/supabase-js"
 import OpenAI from "openai"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -84,11 +84,7 @@ export async function POST(request: Request) {
     console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
 
     const cookieStore = cookies() // این را برای کلاینت عمومی لازم داریم
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     if (!user) {
       return new Response("Unauthorized", { status: 401 })

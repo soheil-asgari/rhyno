@@ -2,7 +2,7 @@ import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatAPIPayload } from "@/types"
 import OpenAI from "openai"
 import { ServerRuntime } from "next"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { createClient } from "@supabase/supabase-js"
 import jwt from "jsonwebtoken"
@@ -74,11 +74,7 @@ export async function POST(request: Request) {
     console.log(`[Agent] ✅ Full user object retrieved for: ${user.email}`)
 
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     // ۲. پروفایل
     const profile = await getServerProfile(userId, supabaseAdmin)

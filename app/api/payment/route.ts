@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -8,13 +8,23 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const authority = searchParams.get("Authority")
   const status = searchParams.get("Status")
+  if (!authority) {
+    const url = new URL("/payment/status", request.url)
+    url.searchParams.set("status", "failed")
+    url.searchParams.set("message", "کد تراکنش (Authority) در URL یافت نشد.")
+    return NextResponse.redirect(url)
+  }
+
+  if (!status) {
+    const url = new URL("/payment/status", request.url)
+    url.searchParams.set("status", "failed")
+    url.searchParams.set("message", "وضعیت تراکنش (Status) در URL یافت نشد.")
+    return NextResponse.redirect(url)
+  }
+  // ✅✅✅ پایان راه‌حل ✅✅✅
 
   const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-  )
+  const supabase = createSSRClient(cookieStore)
 
   const { data: transaction, error: txError } = await supabase
     .from("transactions")

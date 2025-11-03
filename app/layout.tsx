@@ -5,7 +5,7 @@ import { Providers } from "@/components/utility/providers"
 import TranslationsProvider from "@/components/utility/translations-provider"
 import initTranslations from "@/lib/i18n"
 import { Database } from "@/supabase/types"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { Metadata, Viewport } from "next"
 import { Inter, Vazirmatn } from "next/font/google"
 import { cookies } from "next/headers"
@@ -14,6 +14,7 @@ import dynamic from "next/dynamic"
 import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+
 const ClientToaster = dynamic(
   () => import("@/components/utility/client-toaster"),
   { ssr: false }
@@ -88,18 +89,7 @@ export default async function RootLayout({
   // ... (کد supabase و session ... همان قبلی)
   const { locale } = params
   const cookieStore = cookies()
-
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        }
-      }
-    }
-  )
+  const supabase = createSSRClient(cookieStore)
 
   const [sessionResponse, translationResponse] = await Promise.all([
     supabase.auth.getSession(),

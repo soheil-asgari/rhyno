@@ -6,6 +6,7 @@ import { NextResponse } from "next/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 
 // ... (توابع کمکی toE164, generateStrongPassword, normalizePhone را از actions.ts خود اینجا کپی کنید) ...
 
@@ -46,8 +47,8 @@ function generateStrongPassword(length = 16): string {
 export async function POST(request: Request) {
   const { phone, otp } = await request.json() // 👈 ورودی: JSON
   const phoneE164 = toE164(phone)
-
-  const supabase = createClient(cookies())
+  const cookieStore = cookies()
+  const supabase = createSSRClient(cookieStore)
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

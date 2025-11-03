@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import type { Database } from "@/supabase/types"
@@ -20,20 +20,7 @@ const messageSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: cookiesToSet => {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
-        }
-      }
-    }
-  )
+  const supabase = createSSRClient(cookieStore)
 
   try {
     const {

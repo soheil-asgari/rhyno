@@ -1,6 +1,6 @@
 // File: app/api/chat/dalle/status/route.ts (نسخه نهایی با Supabase)
 
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
@@ -16,11 +16,7 @@ export async function GET(request: Request) {
 
   try {
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     const { data: jobData, error } = await supabase
       .from("dalle_jobs")

@@ -12,7 +12,7 @@ import { FileItemChunk } from "@/types"
 
 import OpenAI from "openai"
 import { cookies } from "next/headers"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 import { ServerRuntime } from "next"
 import { createClient } from "@supabase/supabase-js"
@@ -90,11 +90,7 @@ export async function POST(request: Request) {
     // (چک کردن موجودی کیف پول را اینجا اضافه کنید...)
     // (شما باید منطق چک کردن کیف پول را مانند فایل دیگر، اینجا هم اضافه کنید)
     const cookieStore = cookies() // این را برای کلاینت عمومی لازم داریم
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     const profile = await getServerProfile(userId, supabaseAdmin)
 

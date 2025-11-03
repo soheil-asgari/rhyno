@@ -1,6 +1,6 @@
 // /app/api/webhooks/openai-realtime/route.ts
 import { NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 
 // ثابت‌های قیمت مدل‌های Realtime (قیمت بر 1 توکن)
@@ -32,11 +32,7 @@ export async function POST(request: NextRequest) {
 
     // دریافت کاربر واقعی از session/JWT
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
 
     const {
       data: { user }

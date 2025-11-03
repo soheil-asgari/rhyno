@@ -1,7 +1,7 @@
 // Imports at the top of the file
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { modelsWithRial } from "@/app/checkout/pricing"
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextResponse, NextRequest } from "next/server"
 import OpenAI from "openai"
@@ -41,11 +41,7 @@ export async function POST(request: Request) {
 
     // ... (Authentication and OpenAI Client setup remains unchanged)
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized: Missing Bearer token", {

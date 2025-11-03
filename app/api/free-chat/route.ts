@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     const response = await openai.chat.completions.create({
       model: "openai/gpt-oss-20b:free",
       messages: messages,
+      // prompt: "you are rhyno free",
       stream: true
     })
 

@@ -108,7 +108,7 @@ export default async function SignupPage({
 
     // بررسی تکراری نبودن شماره
     const { data: existingUser } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id")
       .eq("phone", phone)
       .single()
@@ -123,8 +123,8 @@ export default async function SignupPage({
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
     await supabase.from("otp_codes").insert({
       phone,
-      code: otp,
-      expires_at: new Date(Date.now() + 5 * 60 * 1000)
+      hashed_otp: otp, // ✅ اصلاح شد: نام فیلد با دیتابیس مطابقت دارد
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() // ✅ اصلاح شد: به string تبدیل شد
     })
 
     const message = "کد برای شما ارسال شد ✅"
