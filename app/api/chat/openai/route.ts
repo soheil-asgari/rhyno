@@ -303,6 +303,7 @@ export async function POST(request: Request) {
     if (typeof lastUserMessage.content === "string") {
       // حالت ساده: فقط متن
       userMessageContent = lastUserMessage.content
+      userImagePaths = []
     } else if (Array.isArray(lastUserMessage.content)) {
       // حالت پیچیده: آرایه‌ای از متن و عکس
 
