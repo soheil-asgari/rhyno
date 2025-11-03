@@ -674,7 +674,7 @@ export async function POST(request: Request) {
             // console.log(
             //   `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
             // )
-            await supabase.rpc("deduct_credits_and_log_usage", {
+            await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
               p_user_id: userId,
               p_model_name: selectedModel,
               p_prompt_tokens: usage.input_tokens, // <-- تغییر به input_tokens
@@ -756,7 +756,7 @@ export async function POST(request: Request) {
                 // console.log(
                 //   `💰 هزینه: ${userCostUSD} | کاربر: ${userId} | موجودی اولیه: ${wallet.balance}`
                 // )
-                await supabase.rpc("deduct_credits_and_log_usage", {
+                await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,
                   p_model_name: selectedModel,
                   p_prompt_tokens: usage.prompt_tokens,
@@ -902,7 +902,7 @@ export async function POST(request: Request) {
               const userCostUSD = calculateUserCostUSD(selectedModel, usage)
               if (userCostUSD > 0 && wallet) {
                 // ... (کد کسر هزینه شما مثل قبل با استفاده از usage) ...
-                await supabase.rpc("deduct_credits_and_log_usage", {
+                await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
                   p_user_id: userId,
                   p_model_name: selectedModel,
                   p_prompt_tokens: usage.prompt_tokens,
@@ -1010,7 +1010,7 @@ export async function POST(request: Request) {
           )
         if (userCostUSD > 0) {
           console.log("⏳ Trying to deduct credits now...")
-          await supabase.rpc("deduct_credits_and_log_usage", {
+          await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
             p_user_id: userId,
             p_model_name: selectedModel,
             p_prompt_tokens: usage.prompt_tokens,
