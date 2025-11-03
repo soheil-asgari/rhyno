@@ -9,15 +9,14 @@ import type {
 import { NextResponse } from "next/server"
 import { MODEL_PROMPTS } from "@/lib/build-prompt"
 
-// ✨ ایمپورت‌های جدید برای پرداخت و احراز هویت
-import { createServerClient } from "@supabase/ssr"
+import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { OPENAI_LLM_LIST } from "@/lib/models/llm/openai-llm-list"
 import { handleTTS } from "@/app/api/chat/handlers/tts"
 import { modelsWithRial } from "@/app/checkout/pricing"
 import { handleSTT } from "@/app/api/chat/handlers/stt"
 import jwt from "jsonwebtoken"
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -248,7 +247,7 @@ export async function POST(request: Request) {
     }
 
     // از createClient معمولی با کلید SERVICE_ROLE استفاده می‌کنیم
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
@@ -271,11 +270,8 @@ export async function POST(request: Request) {
     console.log(`✅ Full user object retrieved for: ${user.email}`)
 
     const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
+    const supabase = createSSRClient(cookieStore)
+
     console.log(`✅ User ${userId} successfully authenticated via Supabase.`)
     if (!chat_id) {
       console.error("⛔️ FATAL: chat_id is missing from request body!")
