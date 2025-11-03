@@ -232,8 +232,10 @@ export const handleHostedChat = async (
   payload: ChatPayload,
   profile: Tables<"profiles">,
   modelData: LLM,
+  chatId: string,
   tempAssistantChatMessage: ChatMessage,
   isRegeneration: boolean,
+
   newAbortController: AbortController,
   newMessageImages: MessageImage[],
   chatImages: MessageImage[],
@@ -247,7 +249,9 @@ export const handleHostedChat = async (
       ? "azure"
       : modelData.provider
 
-  let draftMessages = await buildFinalMessages(payload, profile, chatImages)
+  const allImages = [...chatImages, ...newMessageImages]
+
+  let draftMessages = await buildFinalMessages(payload, profile, allImages)
 
   let formattedMessages: any[] = []
   if (provider === "google") {
@@ -265,7 +269,8 @@ export const handleHostedChat = async (
   const requestBody = {
     chatSettings: payload.chatSettings,
     messages: formattedMessages,
-    customModelId: provider === "custom" ? modelData.hostedId : ""
+    customModelId: provider === "custom" ? modelData.hostedId : "",
+    chat_id: chatId
   }
   const token = await getAuthToken()
   const response = await fetchChatResponse(

@@ -266,9 +266,41 @@ export const useSelectFileHandler = () => {
         toast.error(`پردازش فایل docx ناموفق بود: ${error.message}`)
         setNewMessageFiles(prev => prev.filter(f => f.id !== "loading"))
       }
+    } else if (simplifiedFileType === "pdf") {
+      try {
+        // ۱. تابع خودتان را برای استخراج متن PDF فراخوانی کنید
+        const pdfText = await extractPdfText(file)
+
+        // ۲. حالا فایل را با متن استخراج شده ایجاد کنید
+        // (این کد از reader.onloadend شما کپی شده و باید اینجا باشد)
+        const createdFile = await createFile(
+          file,
+          {
+            user_id: profile.user_id,
+            description: pdfText, // <-- ✨ متن PDF اینجا پاس داده می‌شود
+            file_path: "",
+            name: file.name,
+            size: file.size,
+            tokens: 0,
+            type: simplifiedFileType
+          },
+          selectedWorkspace.id,
+          chatSettings.embeddingsProvider
+        )
+        setFiles(prev => [...prev, createdFile])
+        setNewMessageFiles(prev =>
+          prev.map(item =>
+            item.id === "loading" ? { ...createdFile, file: file } : item
+          )
+        )
+      } catch (error: any) {
+        toast.error(`پردازش فایل PDF ناموفق بود: ${error.message}`)
+        setNewMessageFiles(prev => prev.filter(f => f.id !== "loading"))
+      }
+
+      // ✅✅✅ بلوک else قبلی حالا فقط برای فایل‌های متنی است ✅✅✅
     } else {
       // این بخش برای TEXT/CSV/JSON است که باید خوانده شود
-      // ❌ توجه: دیگر شرط 'file.type.includes("pdf")' در اینجا وجود ندارد
       reader.readAsText(file)
     }
   }

@@ -311,7 +311,8 @@ export const useChatHandler = () => {
               payload,
               profile!,
               modelData!,
-              tempAssistantChatMessage,
+              currentChat.id, // ✅ <-- باید در جایگاه ۴ باشد
+              tempAssistantChatMessage, // <-- حالا در جایگاه ۵ است
               isRegeneration,
               newAbortController,
               newMessageImages,

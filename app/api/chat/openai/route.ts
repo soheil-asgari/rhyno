@@ -200,7 +200,8 @@ export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
     const requestBody = await request.json()
-    const { chatSettings, messages, enableWebSearch, input } = requestBody
+    const { chatSettings, messages, enableWebSearch, input, chat_id } =
+      requestBody
     // console.log("--- RECEIVED MESSAGES ARRAY ---")
     // console.log(JSON.stringify(messages, null, 2))
     // console.log("-----------------------------")
@@ -276,6 +277,58 @@ export async function POST(request: Request) {
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
     console.log(`✅ User ${userId} successfully authenticated via Supabase.`)
+    if (!chat_id) {
+      console.error("⛔️ FATAL: chat_id is missing from request body!")
+      return new NextResponse("Missing chat_id from body", { status: 400 })
+    }
+
+    // ✅✅✅ چک را به اینجا منتقل کنید ✅✅✅
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.error("⛔️ FATAL: 'messages' array is missing or empty!")
+      return NextResponse.json(
+        { message: "Missing 'messages' array for non-TTS request." },
+        { status: 400 }
+      )
+    }
+    // ✅✅✅ پایان انتقال ✅✅✅
+
+    console.log(`DEBUG: Processing request for chat_id: ${chat_id}`)
+
+    // حالا این خط امن است
+    const lastUserMessage = messages[messages.length - 1]
+    let userMessageContent = lastUserMessage.content
+
+    // (اگر پیام حاوی عکس است، فقط متن را جدا می‌کنیم)
+    if (Array.isArray(userMessageContent)) {
+      const textPart = userMessageContent.find(p => p.type === "text")
+      userMessageContent = textPart ? textPart.text : "[Image Content]"
+    }
+
+    // ۳. پیام کاربر را در دیتابیس ذخیره کنید
+    if (userMessageContent) {
+      try {
+        console.log("DEBUG: Saving user message to DB...")
+        const { error: insertUserMsgError } = await supabaseAdmin
+          .from("messages")
+          .insert({
+            chat_id: chat_id,
+            user_id: userId,
+            role: "user",
+            content: userMessageContent,
+            model: chatSettings.model
+          })
+        if (insertUserMsgError) {
+          console.error(
+            "❌ ERROR saving user message:",
+            insertUserMsgError.message
+          )
+        } else {
+          console.log("✅ User message saved to DB.")
+        }
+      } catch (e: any) {
+        console.error("❌ EXCEPTION saving user message:", e.message)
+      }
+    }
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
       .select("balance")
@@ -422,12 +475,7 @@ export async function POST(request: Request) {
       }
       return NextResponse.json(session)
     }
-    if (!messages) {
-      return NextResponse.json(
-        { message: "Missing 'messages' array for non-TTS request." },
-        { status: 400 }
-      )
-    }
+
     function extractTextFromContent(content: any): string {
       if (!content && content !== 0) return ""
       if (typeof content === "string") return content
@@ -463,9 +511,6 @@ export async function POST(request: Request) {
     }
 
     // سپس
-    const lastUserMessage = extractTextFromContent(
-      messages[messages.length - 1]?.content
-    )
 
     if (selectedModel === "gpt-4o-transcribe") {
       // console.log("🎙️ درخواست STT به مسیر اشتباهی ارسال شده است.")
@@ -753,7 +798,7 @@ export async function POST(request: Request) {
       const stream = await openai.chat.completions.create(payload)
       const encoder = new TextEncoder()
       let usage: ChatCompletionUsage | undefined // متغیر usage بیرون حلقه تعریف شود
-
+      let fullAssistantResponse = ""
       const readableStream = new ReadableStream({
         async start(controller) {
           console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
@@ -770,6 +815,7 @@ export async function POST(request: Request) {
               const delta = chunk.choices[0]?.delta?.content || ""
               if (delta) {
                 // ارسال تکه متن به کلاینت
+                fullAssistantResponse += delta
                 console.log(`➡️ [STREAM-SENDING] Delta: "${delta}"`)
                 controller.enqueue(encoder.encode(delta))
               }
@@ -783,12 +829,7 @@ export async function POST(request: Request) {
             // --- 👇 منطق Fallback *بعد* از اتمام Stream ---
             if (!usage) {
               console.warn("⚠️ Usage data not found directly in stream chunks.")
-              // اینجا می‌توانید تصمیم بگیرید:
-              // 1. یک درخواست غیر-استریم فقط برای گرفتن usage بفرستید (بدون ارسال به کلاینت)
-              // 2. هزینه را بر اساس تخمین محاسبه کنید
-              // 3. فعلاً هیچ کاری نکنید و فقط لاگ بزنید
 
-              // مثال برای گزینه ۱ (ارسال درخواست فقط برای usage):
               try {
                 console.log(
                   "🔄 Attempting non-stream call JUST for usage data..."
@@ -869,7 +910,37 @@ export async function POST(request: Request) {
             )
           } finally {
             console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
-            controller.close() // بستن Stream برای کلاینت
+            if (fullAssistantResponse.trim().length > 0) {
+              try {
+                console.log("DEBUG: Saving assistant message to DB...")
+                const { error: insertAsstMsgError } = await supabaseAdmin
+                  .from("messages")
+                  .insert({
+                    chat_id: chat_id, // <--- از scope بالا
+                    user_id: userId, // <--- از scope بالا
+                    role: "assistant",
+                    content: fullAssistantResponse.trim(),
+                    model: selectedModel, // <--- از scope بالا
+                    prompt_tokens: usage?.prompt_tokens || 0,
+                    completion_tokens: usage?.completion_tokens || 0
+                  })
+                if (insertAsstMsgError) {
+                  console.error(
+                    "❌ ERROR saving assistant message:",
+                    insertAsstMsgError.message
+                  )
+                } else {
+                  console.log("✅ Assistant message saved to DB.")
+                }
+              } catch (e: any) {
+                console.error(
+                  "❌ EXCEPTION saving assistant message:",
+                  e.message
+                )
+              }
+            } else {
+              console.warn("⚠️ Assistant response was empty, not saving to DB.")
+            }
           }
         }
       })
