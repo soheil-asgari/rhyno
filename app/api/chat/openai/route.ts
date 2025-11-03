@@ -348,7 +348,7 @@ export async function POST(request: Request) {
         console.error("❌ EXCEPTION saving user message:", e.message)
       }
     }
-    const { data: wallet, error: walletError } = await supabase
+    const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("balance")
       .eq("user_id", userId) // ✅ از userId استخراج شده استفاده می‌کنیم
