@@ -315,35 +315,35 @@ export async function POST(request: Request) {
         .map((p: any) => p.image_url.url) // <-- و اینجا
     }
 
-    // ۳. پیام کاربر را در دیتابیس ذخیره کنید
-    if (userMessageContent || userImagePaths.length > 0) {
-      // <--- چک کنید که پیامی برای ذخیره وجود داشته باشد
-      try {
-        console.log("DEBUG: Saving user message to DB...")
-        const userSequenceNumber = messages.length - 1
-        const { error: insertUserMsgError } = await supabaseAdmin
-          .from("messages")
-          .insert({
-            chat_id: chat_id,
-            user_id: userId,
-            role: "user",
-            content: userMessageContent,
-            model: chatSettings.model,
-            image_paths: userImagePaths,
-            sequence_number: userSequenceNumber
-          })
-        if (insertUserMsgError) {
-          console.error(
-            "❌ ERROR saving user message:",
-            insertUserMsgError.message
-          )
-        } else {
-          console.log("✅ User message saved to DB.")
-        }
-      } catch (e: any) {
-        console.error("❌ EXCEPTION saving user message:", e.message)
-      }
-    }
+    // // ۳. پیام کاربر را در دیتابیس ذخیره کنید
+    // if (userMessageContent || userImagePaths.length > 0) {
+    //   // <--- چک کنید که پیامی برای ذخیره وجود داشته باشد
+    //   try {
+    //     console.log("DEBUG: Saving user message to DB...")
+    //     const userSequenceNumber = messages.length - 1
+    //     const { error: insertUserMsgError } = await supabaseAdmin
+    //       .from("messages")
+    //       .insert({
+    //         chat_id: chat_id,
+    //         user_id: userId,
+    //         role: "user",
+    //         content: userMessageContent,
+    //         model: chatSettings.model,
+    //         image_paths: userImagePaths,
+    //         sequence_number: userSequenceNumber
+    //       })
+    //     if (insertUserMsgError) {
+    //       console.error(
+    //         "❌ ERROR saving user message:",
+    //         insertUserMsgError.message
+    //       )
+    //     } else {
+    //       console.log("✅ User message saved to DB.")
+    //     }
+    //   } catch (e: any) {
+    //     console.error("❌ EXCEPTION saving user message:", e.message)
+    //   }
+    // }
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("balance")
@@ -807,7 +807,7 @@ export async function POST(request: Request) {
         payload.max_tokens = maxTokens
       }
       if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-        ;(payload as any).service_tier = "priority" // یا "default" بر اساس نیاز
+        ;(payload as any).service_tier = "default" // یا "default" بر اساس نیاز
       }
 
       const stream = await openai.chat.completions.create(payload)
@@ -841,54 +841,55 @@ export async function POST(request: Request) {
               "🏁 [STREAM-DEBUG] Stream loop finished. Final check for usage data..."
             )
 
-            // --- 👇 منطق Fallback *بعد* از اتمام Stream ---
-            // if (!usage) {
-            //   console.warn("⚠️ Usage data not found directly in stream chunks.")
+            controller.close()
 
-            //   try {
-            //     console.log(
-            //       "🔄 Attempting non-stream call JUST for usage data..."
-            //     )
-            //     const usageResponsePayload: ChatCompletionCreateParams = {
-            //       // payload شبیه به استریم ولی stream: false
-            //       model: selectedModel,
-            //       messages: finalMessages,
-            //       temperature: temp,
-            //       // ❌ خط max_tokens: 1 از اینجا حذف شد
-            //       stream: false
-            //     }
+            if (!usage) {
+              console.warn("⚠️ Usage data not found directly in stream chunks.")
 
-            //     // ✅✅✅ منطق صحیح if/else ✅✅✅
-            //     if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-            //       ;(usageResponsePayload as any).max_completion_tokens = 1
-            //     } else {
-            //       // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
-            //       usageResponsePayload.max_tokens = 1
-            //     }
-            //     // ✅✅✅ پایان اصلاحیه ✅✅✅
+              try {
+                console.log(
+                  "🔄 Attempting non-stream call JUST for usage data..."
+                )
+                const usageResponsePayload: ChatCompletionCreateParams = {
+                  // payload شبیه به استریم ولی stream: false
+                  model: selectedModel,
+                  messages: finalMessages,
+                  temperature: temp,
+                  // ❌ خط max_tokens: 1 از اینجا حذف شد
+                  stream: false
+                }
 
-            //     if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-            //       // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
-            //       ;(usageResponsePayload as any).service_tier = "default"
-            //     }
+                // ✅✅✅ منطق صحیح if/else ✅✅✅
+                if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+                  ;(usageResponsePayload as any).max_completion_tokens = 1
+                } else {
+                  // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
+                  usageResponsePayload.max_tokens = 1
+                }
+                // ✅✅✅ پایان اصلاحیه ✅✅✅
 
-            //     const usageResponse =
-            //       await openai.chat.completions.create(usageResponsePayload)
-            //     if (usageResponse.usage) {
-            //       usage = usageResponse.usage
-            //       console.log("📊 Usage obtained via fallback request:", usage)
-            //     } else {
-            //       console.error(
-            //         "❌ Fallback request did not return usage data."
-            //       )
-            //     }
-            //   } catch (fallbackError: any) {
-            //     console.error(
-            //       "❌ Error during fallback request for usage:",
-            //       fallbackError
-            //     )
-            //   }
-            // }
+                if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+                  // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
+                  ;(usageResponsePayload as any).service_tier = "default"
+                }
+
+                const usageResponse =
+                  await openai.chat.completions.create(usageResponsePayload)
+                if (usageResponse.usage) {
+                  usage = usageResponse.usage
+                  console.log("📊 Usage obtained via fallback request:", usage)
+                } else {
+                  console.error(
+                    "❌ Fallback request did not return usage data."
+                  )
+                }
+              } catch (fallbackError: any) {
+                console.error(
+                  "❌ Error during fallback request for usage:",
+                  fallbackError
+                )
+              }
+            }
 
             // --- 👇 کسر هزینه *بعد* از اتمام Stream و تلاش برای گرفتن usage ---
             if (usage) {

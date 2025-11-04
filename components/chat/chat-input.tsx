@@ -15,12 +15,13 @@ import {
   IconSend
 } from "@tabler/icons-react"
 import dynamic from "next/dynamic"
+// --- 👇 ایمپورت‌های مورد نیاز اضافه شدند ---
 import { FC, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Input } from "../ui/input"
 import { TextareaAutosize } from "../ui/textarea-autosize"
 import { useChatHandler } from "./chat-hooks/use-chat-handler"
-import { usePromptAndCommand } from "./chat-hooks/use-prompt-and-command"
+// --- ⛔️ ایمپورت usePromptAndCommand حذف شد ---
 import { useSelectFileHandler } from "./chat-hooks/use-select-file-handler"
 
 const ChatCommandInput = dynamic(() =>
@@ -50,7 +51,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     setIsMobile(mobile)
   }, [])
   const {
-    userInput,
+    userInput, // 👈 ۱. ما 'userInput' (گلوبال) را فقط برای خواندن اولیه لازم داریم
     chatMessages,
     isGenerating,
     selectedPreset,
@@ -65,7 +66,22 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     newMessageFiles
   } = useContext(ChatbotUIContext)
 
-  const { handleInputChange } = usePromptAndCommand()
+  // --- 👇 راهکار نهایی با State محلی ---
+
+  // ۲. یک state محلی فقط برای این کامپوننت. تایپ کردن در این state فوری خواهد بود.
+  const [localInput, setLocalInput] = useState(userInput)
+
+  // ۳. این useEffect فقط زمانی اجرا می‌شود که state گلوبال (userInput) تغییر کند.
+  // ما از این برای همگام‌سازی "پاک شدن" ورودی بعد از ارسال پیام استفاده می‌کنیم.
+  useEffect(() => {
+    // اگر state گلوبال خالی شد (یعنی پیام ارسال شد)، state محلی را هم خالی کن.
+    if (userInput === "") {
+      setLocalInput("")
+    }
+  }, [userInput]) //
+
+  // --- 👆 پایان راهکار نهایی ---
+
   const {
     chatInputRef,
     handleSendMessage,
@@ -74,6 +90,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     setChatMessages
   } = useChatHandler()
   console.log("ChatInput render - chatSettings.model:", chatSettings?.model)
+
   // ✨ تابع جدید و هوشمند برای مدیریت دو سناریوی صوتی
   const handleVoiceSubmit = async (audioBlob: Blob) => {
     const selectedModel = chatSettings?.model
@@ -81,6 +98,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
     // سناریو ۲: اگر مدل "رونویسی" انتخاب شده بود
     if (selectedModel === "gpt-4o-transcribe") {
+      // ... (منطق رونویسی شما - بدون تغییر)
       const audioUrl = URL.createObjectURL(audioBlob)
 
       const userAudioMessage: Tables<"messages"> = {
@@ -144,6 +162,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       const result = await response.json()
 
       if (response.ok && result.text) {
+        // تابع handleSendMessage خودش state گلوبال را پاک می‌کند
+        // و useEffect ما در بالا، state محلی را پاک خواهد کرد.
         handleSendMessage(result.text, chatMessages, false)
       } else {
         toast.error(result.message || "خطا در رونویسی صدا")
@@ -182,13 +202,18 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       ) {
         event.preventDefault()
         setIsPromptPickerOpen(false)
-        if (userInput) handleSendMessage(userInput, chatMessages, false)
+        // --- 👇 اصلاح: از state محلی برای ارسال استفاده کن ---
+        if (localInput) {
+          handleSendMessage(localInput, chatMessages, false)
+          // پاک کردن state محلی دیگر اینجا لازم نیست،
+          // چون handleSendMessage باعث اجرای useEffect ما می‌شود.
+        }
       }
     },
     [
       isMobile, // <--- isMobile را به اینجا هم اضافه کنید
       isTyping,
-      userInput,
+      localInput, // 👈 اصلاح شده: به localInput (محلی) وابسته شود
       chatMessages,
       isRecording,
       handleSendMessage,
@@ -274,8 +299,11 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           textareaRef={chatInputRef}
           className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full min-w-0 resize-none rounded-md border-none bg-transparent py-3 pl-14 pr-24 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="پیام خود را تایپ یا ضبط کنید..."
-          onValueChange={handleInputChange}
-          value={userInput}
+          // --- 👇 تغییر اصلی اینجاست ---
+          onValueChange={setLocalInput} // 👈 ۴. اتصال مستقیم به state محلی (فوری)
+          value={localInput} // 👈 ۵. اتصال مستقیم به state محلی
+          // --- 👆 پایان تغییرات ---
+
           minRows={1}
           maxRows={18}
           onKeyDown={handleKeyDown}
@@ -316,13 +344,15 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             <IconSend
               className={cn(
                 "bg-primary text-secondary rounded p-1",
-                !userInput || isRecording
+                // --- 👇 اصلاح: از state محلی برای بررسی فعال بودن دکمه استفاده کنید ---
+                !localInput || isRecording
                   ? "cursor-not-allowed opacity-50"
                   : "cursor-pointer"
               )}
               onClick={() => {
-                if (!userInput || isRecording) return
-                handleSendMessage(userInput, chatMessages, false)
+                // --- 👇 اصلاح: از state محلی برای ارسال استفاده کن ---
+                if (!localInput || isRecording) return
+                handleSendMessage(localInput, chatMessages, false)
               }}
               size={28}
             />

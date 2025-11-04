@@ -200,6 +200,8 @@ export const useChatHandler = () => {
     try {
       if (isRegeneration) {
         setChatMessages(chatMessages)
+      } else {
+        setChatMessages(prev => [...prev, tempUserChatMessage])
       }
 
       setUserInput("")
