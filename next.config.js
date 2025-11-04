@@ -58,6 +58,28 @@ const nextConfig = {
     }
     return config;
   },
+  async headers() {
+    return [
+      {
+        // اعمال این تنظیمات برای تمام API route ها
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*", // به همه دامنه‌ها اجازه بده (برای تست)
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PUT, DELETE, OPTIONS", // متدهای مجاز
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization", // هدرهای مجاز
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = withBundleAnalyzer(withPWA(nextConfig));
