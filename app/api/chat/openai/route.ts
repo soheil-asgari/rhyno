@@ -183,6 +183,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "gpt-5": 12000,
   "gpt-5-mini": 12000,
   "gpt-3.5-turbo": 4096,
+  "gpt-5-nano": 5000,
   "gpt-3.5-turbo-16k": 16384
   // سایر مدل‌ها را اضافه کن
 }
@@ -199,12 +200,18 @@ export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
     const requestBody = await request.json()
-    const { chatSettings, messages, enableWebSearch, input, chat_id } =
-      requestBody
+    const {
+      chatSettings,
+      messages,
+      enableWebSearch,
+      input,
+      chat_id,
+      is_user_message_saved
+    } = requestBody
     // console.log("--- RECEIVED MESSAGES ARRAY ---")
     // console.log(JSON.stringify(messages, null, 2))
     // console.log("-----------------------------")
-
+    const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized: Missing Bearer token", {
@@ -273,16 +280,38 @@ export async function POST(request: Request) {
     const supabase = createSSRClient(cookieStore)
 
     console.log(`✅ User ${userId} successfully authenticated via Supabase.`)
-    if (!chat_id) {
-      console.error("⛔️ FATAL: chat_id is missing from request body!")
-      return new NextResponse("Missing chat_id from body", { status: 400 })
-    }
+    // ✅ اصلاح شده: اگر چت آیدی وجود نداشت، چک کن که آیا مدل ریل‌تایم است یا نه
+    const modelFromSettings = chatSettings?.model || ""
 
-    // ✅✅✅ چک را به اینجا منتقل کنید ✅✅✅
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      console.error("⛔️ FATAL: 'messages' array is missing or empty!")
+    // فقط اگر مدل، متنی عادی بود، وجود messages را چک کن
+    if (
+      (!messages || !Array.isArray(messages) || messages.length === 0) &&
+      !modelFromSettings.includes("realtime") &&
+      !modelFromSettings.includes("tts")
+    ) {
+      console.error(
+        "⛔️ FATAL: 'messages' array is missing for this model type!"
+      )
       return NextResponse.json(
-        { message: "Missing 'messages' array for non-TTS request." },
+        {
+          message: "Missing 'messages' array for non-TTS/non-Realtime request."
+        },
+        { status: 400 }
+      )
+    }
+    // // ✅✅✅ چک را به اینجا منتقل کنید ✅✅✅
+    if (
+      !modelFromSettings.includes("realtime") && // 👈 این شرط اضافه شد
+      !modelFromSettings.includes("tts") && // 👈 این شرط اضافه شد
+      (!messages || !Array.isArray(messages) || messages.length === 0)
+    ) {
+      console.error(
+        "⛔️ FATAL: 'messages' array is missing for this model type!"
+      )
+      return NextResponse.json(
+        {
+          message: "Missing 'messages' array for non-TTS/non-Realtime request."
+        },
         { status: 400 }
       )
     }
@@ -290,60 +319,72 @@ export async function POST(request: Request) {
 
     console.log(`DEBUG: Processing request for chat_id: ${chat_id}`)
 
-    // حالا این خط امن است
-    const lastUserMessage = messages[messages.length - 1]
-    let userMessageContent = lastUserMessage.content
-    let userImagePaths: string[] = []
+    // متغیرها را بیرون از بلاک تعریف کنید
+    let lastUserMessage
+    let userMessageContent = "" // مقداردهی اولیه
+    let userImagePaths: string[] = [] // مقداردهی اولیه
 
-    // (اگر پیام حاوی عکس است، فقط متن را جدا می‌کنیم)
-    if (typeof lastUserMessage.content === "string") {
-      // حالت ساده: فقط متن
+    // ✅✅✅ این شرط حیاتی را اضافه کنید ✅✅✅
+    if (
+      !modelFromSettings.includes("realtime") &&
+      !modelFromSettings.includes("tts")
+    ) {
+      // --- شروع بلاک منتقل شده ---
+      // حالا این خط امن است چون می‌دانیم messages وجود دارد
+      lastUserMessage = messages[messages.length - 1]
       userMessageContent = lastUserMessage.content
-      userImagePaths = []
-    } else if (Array.isArray(lastUserMessage.content)) {
-      // حالت پیچیده: آرایه‌ای از متن و عکس
 
-      // قسمت متن را پیدا کن
-      const textPart = lastUserMessage.content.find(
-        (p: any) => p.type === "text"
-      )
-      userMessageContent = textPart ? textPart.text : ""
+      // (اگر پیام حاوی عکس است، فقط متن را جدا می‌کنیم)
+      if (typeof lastUserMessage.content === "string") {
+        // حالت ساده: فقط متن
+        userMessageContent = lastUserMessage.content
+        userImagePaths = []
+      } else if (Array.isArray(lastUserMessage.content)) {
+        // حالت پیچیده: آرایه‌ای از متن و عکس
+        const textPart = lastUserMessage.content.find(
+          (p: any) => p.type === "text"
+        )
+        userMessageContent = textPart ? textPart.text : ""
+        userImagePaths = lastUserMessage.content
+          .filter((p: any) => p.type === "image_url" && p.image_url?.url)
+          .map((p: any) => p.image_url.url)
+      }
 
-      // قسمت‌های عکس را پیدا کن
-      userImagePaths = lastUserMessage.content
-        .filter((p: any) => p.type === "image_url" && p.image_url?.url)
-        .map((p: any) => p.image_url.url) // <-- و اینجا
+      if (is_user_message_saved !== true) {
+        // ۳. پیام کاربر را در دیتابیس ذخیره کنید
+        if (userMessageContent || userImagePaths.length > 0) {
+          try {
+            console.log(
+              "DEBUG: Saving user message to DB (client did not save)..."
+            )
+            const userSequenceNumber = messages.length - 1
+            const { error: insertUserMsgError } = await supabaseAdmin
+              .from("messages")
+              .insert({
+                chat_id: chat_id,
+                user_id: userId,
+                role: "user",
+                content: userMessageContent,
+                model: chatSettings.model,
+                image_paths: userImagePaths,
+                sequence_number: userSequenceNumber
+              })
+            if (insertUserMsgError) {
+              console.error(
+                "❌ ERROR saving user message:",
+                insertUserMsgError.message
+              )
+            } else {
+              console.log("✅ User message saved to DB.")
+            }
+          } catch (e: any) {
+            console.error("❌ EXCEPTION saving user message:", e.message)
+          }
+        }
+      } else {
+        console.log("DEBUG: Skipping user message save (client already saved).")
+      }
     }
-
-    // // ۳. پیام کاربر را در دیتابیس ذخیره کنید
-    // if (userMessageContent || userImagePaths.length > 0) {
-    //   // <--- چک کنید که پیامی برای ذخیره وجود داشته باشد
-    //   try {
-    //     console.log("DEBUG: Saving user message to DB...")
-    //     const userSequenceNumber = messages.length - 1
-    //     const { error: insertUserMsgError } = await supabaseAdmin
-    //       .from("messages")
-    //       .insert({
-    //         chat_id: chat_id,
-    //         user_id: userId,
-    //         role: "user",
-    //         content: userMessageContent,
-    //         model: chatSettings.model,
-    //         image_paths: userImagePaths,
-    //         sequence_number: userSequenceNumber
-    //       })
-    //     if (insertUserMsgError) {
-    //       console.error(
-    //         "❌ ERROR saving user message:",
-    //         insertUserMsgError.message
-    //       )
-    //     } else {
-    //       console.log("✅ User message saved to DB.")
-    //     }
-    //   } catch (e: any) {
-    //     console.error("❌ EXCEPTION saving user message:", e.message)
-    //   }
-    // }
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("balance")
@@ -373,7 +414,6 @@ export async function POST(request: Request) {
       organization: profile.openai_organization_id
     })
 
-    const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
     if (selectedModel === OPENROUTER_GEMINI_MODEL_ID) {
       // console.log(
       //   `🔄 هدایت درخواست برای مدل ${selectedModel} به /api/chat/openrouter...`
@@ -860,12 +900,12 @@ export async function POST(request: Request) {
                 }
 
                 // ✅✅✅ منطق صحیح if/else ✅✅✅
-                if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-                  ;(usageResponsePayload as any).max_completion_tokens = 1
-                } else {
-                  // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
-                  usageResponsePayload.max_tokens = 1
-                }
+                // if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+                //   ; (usageResponsePayload as any).max_completion_tokens = 1
+                // } else {
+                //   // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
+                //   usageResponsePayload.max_tokens = 1
+                // }
                 // ✅✅✅ پایان اصلاحیه ✅✅✅
 
                 if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
@@ -926,38 +966,52 @@ export async function POST(request: Request) {
             )
           } finally {
             console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
-            if (fullAssistantResponse.trim().length > 0) {
-              try {
-                console.log("DEBUG: Saving assistant message to DB...")
-                const { error: insertAsstMsgError } = await supabaseAdmin
-                  .from("messages")
-                  .insert({
-                    chat_id: chat_id, // <--- از scope بالا
-                    user_id: userId, // <--- از scope بالا
-                    role: "assistant",
-                    content: fullAssistantResponse.trim(),
-                    model: selectedModel, // <--- از scope بالا
-                    prompt_tokens: usage?.prompt_tokens || 0,
-                    completion_tokens: usage?.completion_tokens || 0,
-                    image_paths: [],
-                    sequence_number: messages.length
-                  })
-                if (insertAsstMsgError) {
+
+            // ✅✅✅ راه حل نهایی: فقط زمانی ذخیره کن که کلاینت خودش ذخیره نکرده باشد
+            if (is_user_message_saved !== true) {
+              if (fullAssistantResponse.trim().length > 0) {
+                try {
+                  console.log(
+                    "DEBUG: Saving assistant message to DB (Mobile client)..."
+                  ) // لاگ را آپدیت کردم
+                  const { error: insertAsstMsgError } = await supabaseAdmin
+                    .from("messages")
+                    .insert({
+                      chat_id: chat_id,
+                      user_id: userId,
+                      role: "assistant",
+                      content: fullAssistantResponse.trim(),
+                      model: selectedModel,
+                      prompt_tokens: usage?.prompt_tokens || 0,
+                      completion_tokens: usage?.completion_tokens || 0,
+                      image_paths: [],
+                      sequence_number: messages.length
+                    })
+                  if (insertAsstMsgError) {
+                    console.error(
+                      "❌ ERROR saving assistant message:",
+                      insertAsstMsgError.message
+                    )
+                  } else {
+                    console.log(
+                      "✅ Assistant message saved to DB (Mobile client)."
+                    )
+                  }
+                } catch (e: any) {
                   console.error(
-                    "❌ ERROR saving assistant message:",
-                    insertAsstMsgError.message
+                    "❌ EXCEPTION saving assistant message:",
+                    e.message
                   )
-                } else {
-                  console.log("✅ Assistant message saved to DB.")
                 }
-              } catch (e: any) {
-                console.error(
-                  "❌ EXCEPTION saving assistant message:",
-                  e.message
+              } else {
+                console.warn(
+                  "⚠️ Assistant response was empty, not saving to DB."
                 )
               }
             } else {
-              console.warn("⚠️ Assistant response was empty, not saving to DB.")
+              console.log(
+                "DEBUG: Skipping assistant message save (Web client will save)."
+              )
             }
           }
         }
@@ -984,7 +1038,7 @@ export async function POST(request: Request) {
         payload.max_tokens = maxTokens
       }
       if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-        ;(payload as any).service_tier = "priority"
+        ;(payload as any).service_tier = "default"
       }
       console.log(
         "🚀 [PRIORITY-CHECK] Non-Stream Payload:",
@@ -1024,6 +1078,7 @@ export async function POST(request: Request) {
       })
     }
   } catch (error: any) {
+    // ⬅️ اکنون این 'catch' معتبر است
     console.error("!!! FULL BACKEND ERROR CATCH !!!:", error)
     const errorMessage = error.message || "یک خطای غیرمنتظره رخ داد"
     const status = error.status || 500

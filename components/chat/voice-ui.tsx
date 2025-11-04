@@ -146,19 +146,25 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
   const startRealtime = useCallback(
     async (model: string) => {
       setStatus("connecting")
-      try {
-        const token = await getUserAccessToken()
 
+      // ✨ متغیر sessionData باید در بالاترین سطح scope تابع تعریف شود
+      // تا هم در بلاک try و هم در dc.onmessage قابل دسترسی باشد
+      let sessionData: any = null
+
+      try {
+        // 1. اول توکن را بگیر
+        const token = await getUserAccessToken()
         if (!token) {
           throw new Error("User not authenticated. Missing access token.")
         }
 
-        // **👇 اصلاحیه شما:** اضافه کردن هدر Authorization
+        // 2. حالا با سرور خودت تماس بگیر تا session را بسازی
+        //    (این همان کدی است که شما به اشتباه پاک کرده بودید)
         const res = await fetch("/api/chat/openai", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}` // ✨ توکن کاربر را اضافه کنید
+            Authorization: `Bearer ${token}` // ✨ توکن اینجا استفاده می‌شود
           },
           body: JSON.stringify({ chatSettings: { model } })
         })
@@ -168,6 +174,10 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
           throw new Error(errorData.message || "Failed to get ephemeral key.")
         }
 
+        // 3. حالا sessionData را مقداردهی کن
+        sessionData = await res.json()
+
+        // 4. حالا که sessionData را داریم، WebRTC را راه‌اندازی کن
         const pc = new RTCPeerConnection()
         peerConnectionRef.current = pc
 
@@ -191,6 +201,7 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               console.error("🚨 Autoplay blocked:", err)
             })
         }
+
         const dc = pc.createDataChannel("oai-events")
         dataChannelRef.current = dc
         dc.onopen = () => {
@@ -199,122 +210,117 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
         const buffers = new Map<string, string>()
 
+        // 5. حالا onmessage را تعریف کن
+        //    (چون sessionData در scope بالاتر تعریف شده، اینجا قابل دسترسی است)
         dc.onmessage = async msg => {
           const data = JSON.parse(msg.data)
           console.log("📩 RAW event:", data)
 
           if (data.type === "response.function_call_arguments.delta") {
+            // ... (کد شما برای این بخش مشکلی نداشت)
             const id = data.tool_call_id || data.item_id
             if (!id) {
               console.warn("⚠️ No tool_call_id or item_id in delta:", data)
               return
             }
-
             console.log("🆔 Using buffer id:", id, " | delta:", data.delta)
-
             const prev = buffers.get(id) ?? ""
             buffers.set(id, prev + (data.delta ?? ""))
             console.log("✍️ Partial buffer for", id, ":", buffers.get(id))
           }
 
           if (data.type === "response.function_call_arguments.done") {
+            // ... (کد شما برای این بخش مشکلی نداشت)
             const id = data.tool_call_id || data.item_id
             if (!id) {
               console.warn("⚠️ No tool_call_id or item_id in done:", data)
               return
             }
-
             console.log("🆔 Finalizing buffer for id:", id)
-
             const buffer = buffers.get(id) ?? ""
             buffers.delete(id)
-
             console.log("✅ Final buffer (raw):", buffer)
-
             if (!buffer.startsWith("{") || !buffer.endsWith("}")) {
               console.warn("⚠️ Incomplete JSON, skipping:", buffer)
               return
             }
-
             try {
               const args = JSON.parse(buffer)
               const query = args.query
               console.log("🔎 Search requested:", query)
-
               if (!query) return
-
               console.log("🌐 Sending query to /api/chat/search ...")
               const searchRes = await fetch("/api/chat/search", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ query })
               })
-
               console.log("🌐 Got response, status:", searchRes.status)
-
               const data = await searchRes.json()
               console.log("📥 Search API raw response:", data)
-
               const textResult = data.output_text ?? "No result found."
               let payload
-
               if (data.tool_call_id) {
                 payload = {
                   type: "response.create",
-                  response: {
-                    conversation: "auto",
-                    instructions: textResult
-                  }
+                  response: { conversation: "auto", instructions: textResult }
                 }
               } else {
                 payload = {
                   type: "response.create",
-                  response: {
-                    conversation: "auto",
-                    instructions: textResult
-                  }
+                  response: { conversation: "auto", instructions: textResult }
                 }
               }
-
               console.log(
                 "📦 Payload to realtime:",
                 JSON.stringify(payload, null, 2)
               )
               dc.send(JSON.stringify(payload))
-
               console.log("✅ Sent results back to model")
             } catch (err) {
               console.error("❌ Error parsing JSON buffer:", buffer, err)
             }
           }
 
+          // 6. این بلاک "done" (ارسال usage) است
           if (data.type === "response.done" && data.response?.usage) {
-            const usage = data.response.usage
+            const usage = data.response.usage // <-- 'usage' اینجا تعریف می‌شود
             console.log(`🔎 اطلاعات توکن برای این پاسخ:`)
             console.log(`- ورودی: ${usage.input_tokens} توکن`)
             console.log(`- خروجی: ${usage.output_tokens} توکن`)
 
-            // ✨ کد جدید برای ارسال اطلاعات توکن به سرور
+            // ✨ 7. اینجا راه‌حل قبلی (گرفتن توکن تازه) را اعمال کن
             try {
-              const res = await fetch("/api/webhooks/openai-realtime/", {
+              const currentToken = await getUserAccessToken() // <-- توکن تازه
+              if (!currentToken) {
+                console.error(
+                  "❌ Could not get user token before sending usage data."
+                )
+                throw new Error("Missing user token for usage report.")
+              }
+
+              // نام متغیر را عوض کن که با res بالا تداخل نکند
+              const webhookRes = await fetch("/api/webhooks/openai-realtime/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${currentToken}` // <-- توکن تازه
+                },
                 body: JSON.stringify({
-                  // اینجا ID جلسه را هم ارسال می کنیم
-                  openaiSessionId: data.response.id,
+                  openaiSessionId: sessionData.id, // <-- sessionData حالا معتبر است
                   modelId: chatSettings.model,
-                  usage: usage
+                  usage: usage // <-- usage حالا معتبر است
                 })
               })
 
-              if (!res.ok) {
+              if (!webhookRes.ok) {
                 console.error("❌ Error sending usage data to temporary API.")
               }
             } catch (error) {
               console.error("❌ Network error sending usage data:", error)
             }
           }
-        }
+        } // پایان dc.onmessage
 
         pc.onconnectionstatechange = () => {
           console.log("⚡ Connection state:", pc.connectionState)
@@ -327,8 +333,8 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
         const ms = await navigator.mediaDevices.getUserMedia({
           audio: {
-            noiseSuppression: true, // فعال‌سازی نویزگیر
-            echoCancellation: true // فعال‌سازی حذف اکو (بسیار مفید برای مکالمه)
+            noiseSuppression: true,
+            echoCancellation: true
           }
         })
         console.log("🎤 Local stream obtained:", ms)
@@ -343,7 +349,8 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
 
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
-        const sessionData = await res.json()
+
+        // 8. حالا از sessionData استفاده کن
         const EPHEMERAL_KEY = sessionData.client_secret?.value
         const sdpResponse = await fetch(
           `https://api.openai.com/v1/realtime?model=${model}`,

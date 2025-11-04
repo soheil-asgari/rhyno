@@ -266,7 +266,8 @@ export const handleHostedChat = async (
     chatSettings: payload.chatSettings,
     messages: formattedMessages,
     customModelId: provider === "custom" ? modelData.hostedId : "",
-    chat_id: chatId
+    chat_id: chatId,
+    is_user_message_saved: true
   }
   const token = await getAuthToken()
   const response = await fetchChatResponse(
