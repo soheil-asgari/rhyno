@@ -966,53 +966,57 @@ export async function POST(request: Request) {
             )
           } finally {
             console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
-
-            // ✅✅✅ راه حل نهایی: فقط زمانی ذخیره کن که کلاینت خودش ذخیره نکرده باشد
-            if (is_user_message_saved !== true) {
-              if (fullAssistantResponse.trim().length > 0) {
-                try {
-                  console.log(
-                    "DEBUG: Saving assistant message to DB (Mobile client)..."
-                  ) // لاگ را آپدیت کردم
-                  const { error: insertAsstMsgError } = await supabaseAdmin
-                    .from("messages")
-                    .insert({
-                      chat_id: chat_id,
-                      user_id: userId,
-                      role: "assistant",
-                      content: fullAssistantResponse.trim(),
-                      model: selectedModel,
-                      prompt_tokens: usage?.prompt_tokens || 0,
-                      completion_tokens: usage?.completion_tokens || 0,
-                      image_paths: [],
-                      sequence_number: messages.length
-                    })
-                  if (insertAsstMsgError) {
-                    console.error(
-                      "❌ ERROR saving assistant message:",
-                      insertAsstMsgError.message
-                    )
-                  } else {
-                    console.log(
-                      "✅ Assistant message saved to DB (Mobile client)."
-                    )
-                  }
-                } catch (e: any) {
-                  console.error(
-                    "❌ EXCEPTION saving assistant message:",
-                    e.message
-                  )
-                }
-              } else {
-                console.warn(
-                  "⚠️ Assistant response was empty, not saving to DB."
-                )
-              }
-            } else {
+            if (is_user_message_saved === true) {
               console.log(
                 "DEBUG: Skipping assistant message save (Web client will save)."
               )
             }
+            // ✅✅✅ راه حل نهایی: فقط زمانی ذخیره کن که کلاینت خودش ذخیره نکرده باشد
+            //   if (is_user_message_saved !== true) {
+            //     if (fullAssistantResponse.trim().length > 0) {
+            //       try {
+            //         console.log(
+            //           "DEBUG: Saving assistant message to DB (Mobile client)..."
+            //         ) // لاگ را آپدیت کردم
+            //         const { error: insertAsstMsgError } = await supabaseAdmin
+            //           .from("messages")
+            //           .insert({
+            //             chat_id: chat_id,
+            //             user_id: userId,
+            //             role: "assistant",
+            //             content: fullAssistantResponse.trim(),
+            //             model: selectedModel,
+            //             prompt_tokens: usage?.prompt_tokens || 0,
+            //             completion_tokens: usage?.completion_tokens || 0,
+            //             image_paths: [],
+            //             sequence_number: messages.length
+            //           })
+            //         if (insertAsstMsgError) {
+            //           console.error(
+            //             "❌ ERROR saving assistant message:",
+            //             insertAsstMsgError.message
+            //           )
+            //         } else {
+            //           console.log(
+            //             "✅ Assistant message saved to DB (Mobile client)."
+            //           )
+            //         }
+            //       } catch (e: any) {
+            //         console.error(
+            //           "❌ EXCEPTION saving assistant message:",
+            //           e.message
+            //         )
+            //       }
+            //     } else {
+            //       console.warn(
+            //         "⚠️ Assistant response was empty, not saving to DB."
+            //       )
+            //     }
+            //   } else {
+            //     console.log(
+            //       "DEBUG: Skipping assistant message save (Web client will save)."
+            //     )
+            //   }
           }
         }
       })
