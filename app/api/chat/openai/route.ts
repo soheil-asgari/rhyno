@@ -498,7 +498,7 @@ export async function POST(request: Request) {
                 }
               }
             ],
-            input_audio_format: "pcm16"
+            input_audio_format: "g711_ulaw"
           })
         }
       )
