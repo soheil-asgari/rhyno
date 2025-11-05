@@ -95,6 +95,7 @@
     "i18next-resources-to-backend": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "langchain": "^0.0.213",
+    "livekit-server-sdk": "^2.14.0",
     "lodash-es": "^4.17.21",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.292.0",

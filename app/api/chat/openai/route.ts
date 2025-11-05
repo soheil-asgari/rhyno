@@ -497,8 +497,7 @@ export async function POST(request: Request) {
                   required: ["query"]
                 }
               }
-            ],
-            input_audio_format: "pcm16"
+            ]
           })
         }
       )
