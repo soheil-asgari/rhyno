@@ -162,36 +162,47 @@ const RealtimeVoicePage: FC = () => {
   // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // ✅ [لاگ ۱: دیدن همه‌ی پیام‌های خام]
+      console.log("[WebView] RAW MESSAGE RECEIVED:", event.data)
+
       try {
+        // اطمینان از اینکه داده‌ها یک رشته JSON هستند
+        if (typeof event.data !== "string") {
+          console.log("⚠️ [WebView] Message data is not a string, ignoring.")
+          return
+        }
+
         const data = JSON.parse(event.data)
+
+        // ✅ [لاگ ۲: دیدن پیام‌های پارس‌شده]
+        console.log("[WebView] Parsed data:", data)
+
         if (data.type === "SET_TOKEN" && data.token) {
-          console.log("✅ [WebView] Token received from React Native!")
+          console.log("✅✅✅ [WebView] SUCCESS! Token received and set!")
           setSupabaseToken(data.token)
+        } else {
+          console.log("⚠️ [WebView] Message was not a SET_TOKEN message.")
         }
       } catch (e) {
-        /* نادیده گرفتن */
+        console.error("❌ [WebView] Error parsing message:", e, event.data)
       }
     }
 
     window.addEventListener("message", handleMessage)
-    console.log("[WebView] Token listener is READY.")
+    console.log("✅ [WebView] Token listener is READY.")
 
-    // ✅ [اصلاح اصلی: افزودن تأخیر]
-    // ما پیام "آماده‌ام" را با کمی تأخیر ارسال می‌کنیم
-    // تا مطمئن شویم شنونده ما (در بالا) و شنونده اپ نیتیو (onMessage)
-    // هر دو کامل فعال شده‌اند.
     const timer = setTimeout(() => {
       if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
-        console.log("[WebView] Handshake: Sending WEBVIEW_READY...")
+        console.log("➡️ [WebView] Handshake: Sending WEBVIEW_READY...")
         ;(window as any).ReactNativeWebView.postMessage(
           JSON.stringify({ type: "WEBVIEW_READY" })
         )
       }
-    }, 100) // 100 میلی‌ثانیه تأخیر برای اطمینان
+    }, 100) // 100ms delay
 
     return () => {
       window.removeEventListener("message", handleMessage)
-      clearTimeout(timer) // پاک کردن تایمر در صورت آن‌مونت شدن
+      clearTimeout(timer)
     }
   }, [])
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
