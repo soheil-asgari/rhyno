@@ -1,19 +1,13 @@
-// 📍 app/api/chat/livekit-token/route.ts (اصلاح کامل معماری)
+// 📍 app/api/chat/livekit-token/route.ts (نسخه نهایی برای WebView)
 
 import { NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
-import { AccessToken } from "livekit-server-sdk"
-
-// !!! این مقادیر را از داشبورد LiveKit Cloud خود دریافت کنید !!!
-const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY!
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET!
-const LIVEKIT_URL = process.env.LIVEKIT_URL! // e.g., "wss://your-project.livekit.cloud"
 
 export async function POST(request: Request) {
-  console.log("🚀 [LiveKit Token Gen] دریافت درخواست از موبایل...")
+  console.log("🚀 [OpenAI Token] دریافت درخواست از وب...")
 
   try {
-    // ✅ مرحله ۱: بررسی توکن کاربر (Supabase JWT)
+    // ✅ مرحله ۱: بررسی توکن کاربر
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized", { status: 401 })
@@ -24,36 +18,41 @@ export async function POST(request: Request) {
     const userId = (decoded as any).sub
     if (!userId) throw new Error("Invalid Supabase JWT")
 
-    // ✅ مرحله ۲: ایجاد یک اتاق تصادفی یا ثابت
-    // شما می‌توانید نام اتاق را بر اساس چت کاربر یا userId تعیین کنید
-    const roomName = `user-ai-session-${userId}`
-    const participantName = `user-${userId}` // نام کاربری که در اتاق نمایش داده می‌شود
+    // ✅ مرحله ۲: ایجاد سشن Realtime از OpenAI
+    const openaiRes = await fetch(
+      "https://api.openai.com/v1/realtime/sessions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-realtime-preview",
+          voice: "alloy"
+        })
+      }
+    )
 
-    // ✅ مرحله ۳: ایجاد توکن دسترسی LiveKit
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity: participantName
-      // name: participantName // (اختیاری) نام نمایشی
-    })
+    if (!openaiRes.ok) {
+      const err = await openaiRes.text()
+      throw new Error(`OpenAI Realtime error: ${err}`)
+    }
 
-    // اجازه‌های لازم برای کلاینت
-    at.addGrant({
-      room: roomName,
-      roomJoin: true,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true // (اختیاری)
-    })
+    const session = await openaiRes.json()
 
-    // توکن JWT نهایی برای LiveKit
-    const token = await at.toJwt()
+    // 💡 بررسی صحت پاسخ OpenAI
+    if (!session.client_secret || !session.client_secret.value) {
+      console.error("❌ ساختار پاسخ OpenAI نامعتبر است:", session)
+      throw new Error("Invalid response structure from OpenAI Realtime API")
+    }
 
-    // ✅ مرحله ۴: بازگرداندن URL سرور LiveKit + توکن
+    // ✅ مرحله ۳: بازگرداندن توکن OpenAI (کلاینت سکرت)
     return NextResponse.json({
-      url: LIVEKIT_URL, // آدرس سرور LiveKit شما
-      token: token // توکنی که هم‌اکنون ساختید
+      token: session.client_secret.value
     })
   } catch (err: any) {
-    console.error("❌ [LiveKit Token Gen Error]", err)
+    console.error("❌ [OpenAI Token Error]", err)
     return NextResponse.json({ message: err.message }, { status: 500 })
   }
 }
