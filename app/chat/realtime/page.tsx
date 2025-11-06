@@ -173,25 +173,33 @@ const RealtimeVoicePage: FC = () => {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        // اطمینان از اینکه داده‌ها از اپ نیتیو می‌آیند
         const data = JSON.parse(event.data)
+        // ۲. به پیام SET_TOKEN گوش بده
         if (data.type === "SET_TOKEN" && data.token) {
           console.log("✅ [WebView] Token received from React Native!")
           setSupabaseToken(data.token)
         }
       } catch (e) {
-        // این یک پیام JSON نبود، نادیده بگیر
+        /* نادیده گرفتن */
       }
     }
 
     // گوش دادن به پیام‌ها
     window.addEventListener("message", handleMessage)
 
+    // ۱. به اپ نیتیو بگو "من آماده‌ام"
+    if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+      console.log("[WebView] Page loaded and ready. Requesting token...")
+      // یک JSON ارسال می‌کنیم که در اپ نیتیو راحت‌تر پارس شود
+      ;(window as any).ReactNativeWebView.postMessage(
+        JSON.stringify({ type: "WEBVIEW_READY" })
+      )
+    }
+
     return () => {
       window.removeEventListener("message", handleMessage)
     }
-  }, []) // فقط یک بار در زمان لود اجرا شود
-
+  }, [])
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
   const closeWebView = () => {
     if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
