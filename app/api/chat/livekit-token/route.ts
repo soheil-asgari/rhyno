@@ -1,69 +1,57 @@
-// 📍 فایل جدید: app/api/chat/livekit-token/route.ts
-
+// 📍 app/api/chat/livekit-token/route.ts
 import { NextResponse } from "next/server"
-import { AccessToken } from "livekit-server-sdk"
-import jwt from "jsonwebtoken" // برای خواندن توکن کاربر
-
-// (اگر از createAdminClient استفاده می‌کنید، آن را هم ایمپورت کنید)
-// import { createClient as createAdminClient } from "@supabase/supabase-js"
+import jwt from "jsonwebtoken"
 
 export async function POST(request: Request) {
-  console.log("🚀 [LiveKit Token] درخواست توکن از موبایل دریافت شد...")
+  console.log("🚀 [LiveKit Relay] دریافت درخواست از موبایل...")
 
   try {
-    // ۱. احراز هویت کاربر (دقیقاً همان کدی که در route.ts دیگرتان دارید)
+    // 🧩 ۱. احراز هویت Supabase
     const authHeader = request.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new NextResponse("Unauthorized: Missing Bearer token", {
-        status: 401
-      })
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
     const userToken = authHeader.split(" ")[1]
-    const decodedToken = jwt.verify(
+    const decoded = jwt.verify(
       userToken,
       process.env.SUPABASE_JWT_SECRET!
     ) as jwt.JwtPayload
+    const userId = decoded?.sub
+    if (!userId) throw new Error("Invalid Supabase JWT")
 
-    const userId = decodedToken.sub
-    if (!userId) {
-      throw new Error("Invalid token: No 'sub' (user ID) found.")
+    // ⚙️ ۲. تنظیم مدل و voice از سمت کلاینت
+    const body = await request.json().catch(() => ({}))
+    const model = body.model || "gpt-4o-realtime-preview"
+    const voice = body.voice || "alloy"
+
+    // 🎧 ۳. ایجاد session جدید از OpenAI Realtime
+    const openaiRes = await fetch(
+      "https://api.openai.com/v1/realtime/sessions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ model, voice })
+      }
+    )
+
+    if (!openaiRes.ok) {
+      const errText = await openaiRes.text()
+      throw new Error(`OpenAI Realtime error: ${errText}`)
     }
-    console.log(`✅ [LiveKit Token] کاربر ${userId} احراز هویت شد.`)
 
-    // ۲. خواندن کلیدهای LiveKit از .env
-    const apiKey = process.env.LIVEKIT_API_KEY
-    const apiSecret = process.env.LIVEKIT_API_SECRET
-    const host = process.env.LIVEKIT_HOST_URL
+    const session = await openaiRes.json()
 
-    if (!apiKey || !apiSecret || !host) {
-      console.error(
-        "❌ [LiveKit Token] متغیرهای .env سرور LiveKit تنظیم نشده‌اند."
-      )
-      throw new Error("LiveKit server configuration is missing.")
-    }
-
-    // ۳. ساخت توکن LiveKit
-    const roomName = `openai_call_${userId}_${Date.now()}`
-    const at = new AccessToken(apiKey, apiSecret, { identity: userId })
-
-    at.addGrant({
-      room: roomName,
-      roomJoin: true,
-      canPublish: true,
-      canSubscribe: true
-    })
-
-    const livekitToken = await at.toJwt()
-
-    // ۴. ارسال توکن به موبایل
+    // 🚀 ۴. پاسخ نهایی به موبایل
     return NextResponse.json({
-      token: livekitToken,
-      url: host,
-      roomName: roomName
+      url: session.livekit.url,
+      token: session.client_secret.value
     })
-  } catch (error: any) {
-    console.error("❌ [LiveKit Token] خطا در ساخت توکن:", error)
-    return NextResponse.json({ message: error.message }, { status: 500 })
+  } catch (err: any) {
+    console.error("❌ [LiveKit Relay Error]", err)
+    return NextResponse.json({ message: err.message }, { status: 500 })
   }
 }
