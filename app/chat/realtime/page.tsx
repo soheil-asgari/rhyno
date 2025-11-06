@@ -124,18 +124,18 @@ const useAudioVisualizer = (stream: MediaStream | null) => {
 // ------------------------------------------------------------------
 // تابع کمکی توکن (خواندن از localStorage)
 // ------------------------------------------------------------------
-const getSupabaseToken = (): string | null => {
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("supabase-access-token")
-    console.log(
-      token
-        ? "✅ Token found in localStorage."
-        : "❌ Token not found in localStorage."
-    )
-    return token
-  }
-  return null
-}
+// const getSupabaseToken = (): string | null => {
+//     if (typeof window !== "undefined") {
+//         const token = localStorage.getItem("supabase-access-token")
+//         console.log(
+//             token
+//                 ? "✅ Token found in localStorage."
+//                 : "❌ Token not found in localStorage."
+//         )
+//         return token
+//     }
+//     return null
+// }
 
 // ------------------------------------------------------------------
 // کامپوننت اصلی صفحه
@@ -144,7 +144,12 @@ const RealtimeVoicePage: FC = () => {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">(
     "idle"
   )
-  const [model, setModel] = useState<string>("gpt-4o-realtime-preview") // مدل پیش‌فرض
+  const [model, setModel] = useState<string>("gpt-4o-realtime-preview")
+
+  // ✅ [اصلاح اصلی ۱]
+  // یک state برای نگهداری توکن اضافه می‌کنیم
+  const [supabaseToken, setSupabaseToken] = useState<string | null>(null)
+
   const dataChannelRef = useRef<RTCDataChannel | null>(null)
   const [userStream, setUserStream] = useState<MediaStream | null>(null)
   const [modelStream, setModelStream] = useState<MediaStream | null>(null)
@@ -154,8 +159,7 @@ const RealtimeVoicePage: FC = () => {
   const modelVolume = useAudioVisualizer(modelStream)
   const combinedVolume = Math.max(userVolume, modelVolume)
 
-  // ✅ [اصلاح `next/navigation`]
-  // خواندن مدل از URL در useEffect
+  // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const searchParams = new URLSearchParams(window.location.search)
@@ -166,6 +170,27 @@ const RealtimeVoicePage: FC = () => {
       }
     }
   }, [])
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        // اطمینان از اینکه داده‌ها از اپ نیتیو می‌آیند
+        const data = JSON.parse(event.data)
+        if (data.type === "SET_TOKEN" && data.token) {
+          console.log("✅ [WebView] Token received from React Native!")
+          setSupabaseToken(data.token)
+        }
+      } catch (e) {
+        // این یک پیام JSON نبود، نادیده بگیر
+      }
+    }
+
+    // گوش دادن به پیام‌ها
+    window.addEventListener("message", handleMessage)
+
+    return () => {
+      window.removeEventListener("message", handleMessage)
+    }
+  }, []) // فقط یک بار در زمان لود اجرا شود
 
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
   const closeWebView = () => {
@@ -216,31 +241,25 @@ const RealtimeVoicePage: FC = () => {
 
   const startRealtime = useCallback(async () => {
     setStatus("connecting")
-
     let sessionData: any = null
 
     try {
-      // ۱. توکن را از localStorage (که توسط اپ نیتیو تزریق شده) می‌خوانیم
-      let token = getSupabaseToken()
-      if (!token) {
-        console.warn("Token not found, retrying in 1s...")
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        token = getSupabaseToken()
-        if (!token) {
-          throw new Error(
-            "User not authenticated. Missing access token in localStorage."
-          )
-        }
+      // ✅ [اصلاح اصلی ۳]
+      // ۱. توکن را از state بخوان، نه localStorage
+      if (!supabaseToken) {
+        console.error("❌ Token not yet received from native app.")
+        throw new Error(
+          "User not authenticated. Token has not been received from the native app."
+        )
       }
 
       // ۲. با سرور اصلی (route.ts) تماس می‌گیریم
       console.log(`🚀 Calling /api/chat for model: ${model}`)
       const res = await fetch("/api/chat", {
-        // ❗️❗️ آدرس API اصلی شما
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` // توکن را اینجا استفاده می‌کنیم
+          Authorization: `Bearer ${supabaseToken}` // <-- استفاده از توکن در state
         },
         body: JSON.stringify({ chatSettings: { model: model }, messages: [] })
       })
@@ -411,7 +430,6 @@ const RealtimeVoicePage: FC = () => {
       }
       await pc.setRemoteDescription(answer)
       setStatus("connected")
-      console.log("✅ Realtime session started")
     } catch (error) {
       console.error(
         `❌ Could not start voice chat: ${
@@ -421,18 +439,21 @@ const RealtimeVoicePage: FC = () => {
       toast.error(
         `خطا در شروع چت صوتی: ${error instanceof Error ? error.message : "خطای ناشناخته"}`
       )
-      stopRealtime() // در صورت خطا، بسته شود
-    }
-  }, [stopRealtime, model]) // 'model' به وابستگی‌ها اضافه شد
-
-  const handleIconClick = () => {
-    if (status === "idle") {
-      startRealtime()
-    } else {
       stopRealtime()
     }
-  }
+  }, [stopRealtime, model, supabaseToken]) // <-- ✅ supabaseToken به وابستگی‌ها اضافه شد
 
+  const handleIconClick = () => {
+    if (status === "idle" && supabaseToken) {
+      // <-- ✅ چک کن که توکن وجود داشته باشد
+      startRealtime()
+    } else if (status !== "idle") {
+      stopRealtime()
+    } else {
+      console.warn("User clicked, but token is not ready yet.")
+      toast.error("در حال همگام‌سازی با اپلیکیشن... لطفاً لحظه‌ای صبر کنید.")
+    }
+  }
   // UI را در یک div تمام‌صفحه سیاه قرار می‌دهیم تا با اپ نیتیو یکسان باشد
   return (
     <div className="font-vazir fixed inset-0 bg-black text-white">
@@ -468,7 +489,10 @@ const RealtimeVoicePage: FC = () => {
             className={cn(
               "relative flex size-20 cursor-pointer items-center justify-center rounded-full transition-all duration-500",
               "bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
-              "shadow-lg shadow-blue-500/30"
+              "shadow-lg shadow-blue-500/30",
+              // ✅ [اصلاح اصلی ۴]
+              // دکمه را تا زمان دریافت توکن غیرفعال نشان بده
+              !supabaseToken && "cursor-not-allowed opacity-50"
             )}
           >
             {status === "connecting" ? (
@@ -513,7 +537,8 @@ const RealtimeVoicePage: FC = () => {
             )}
           </div>
           <p className="mt-3 text-sm text-white">
-            {status === "idle" && "برای شروع صحبت کلیک کنید"}
+            {status === "idle" && !supabaseToken && "در حال همگام‌سازی..."}
+            {status === "idle" && supabaseToken && "برای شروع صحبت کلیک کنید"}
             {status === "connecting" && "در حال اتصال..."}
           </p>
         </div>
