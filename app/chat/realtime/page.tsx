@@ -163,19 +163,40 @@ const RealtimeVoicePage: FC = () => {
   useEffect(() => {
     // ۱. شنونده پیام را فعال کن
     const handleMessage = (event: MessageEvent) => {
-      try {
-        // پیام‌ها از RN به صورت رشته می‌آیند
-        if (typeof event.data !== "string") return
+      console.log("[WebView] RAW MESSAGE RECEIVED:", event.data)
 
-        const data = JSON.parse(event.data)
-        console.log("[WebView] Parsed data:", data)
+      let data
 
-        if (data.type === "SET_TOKEN" && data.token) {
-          console.log("✅✅✅ [WebView] SUCCESS! Token received and set!")
-          setSupabaseToken(data.token)
+      // ۱. چک کردن اگر داده یک رشته JSON باشد (پیام از React Native)
+      if (typeof event.data === "string") {
+        try {
+          data = JSON.parse(event.data)
+        } catch (e) {
+          console.log(
+            "⚠️ [WebView] Received a string that is not JSON, ignoring."
+          )
+          return
         }
-      } catch (e) {
-        console.error("❌ [WebView] Error parsing message:", e, event.data)
+      }
+      // ۲. چک کردن اگر داده یک آبجکت باشد (پیام از DevTools یا افزونه‌ها)
+      else if (typeof event.data === "object" && event.data !== null) {
+        data = event.data
+      }
+      // ۳. نادیده گرفتن بقیه موارد
+      else {
+        console.log("⚠️ [WebView] Received message of unknown type, ignoring.")
+        return
+      }
+
+      // ۴. حالا که 'data' یک آبجکت است، آن را بررسی می‌کنیم
+      if (data.type === "SET_TOKEN" && data.token) {
+        console.log("✅✅✅ [WebView] SUCCESS! Token received and set!")
+        setSupabaseToken(data.token)
+      } else {
+        // این لاگ پیام‌های devtools را نشان می‌دهد بدون اینکه خطا ایجاد کند
+        console.log(
+          "ℹ️ [WebView] Received other valid message (e.g., devtools)."
+        )
       }
     }
 
@@ -185,7 +206,6 @@ const RealtimeVoicePage: FC = () => {
     // ۲. یک اینتروال برای درخواست توکن بساز
     const intervalId = setInterval(() => {
       // ۳. به محض دریافت توکن، اینتروال را متوقف کن
-      // (این کار به دلیل وجود supabaseToken در وابستگی‌های useEffect انجام می‌شود)
       if (supabaseToken) {
         console.log("[WebView] Token is set, clearing handshake interval.")
         clearInterval(intervalId)
@@ -194,7 +214,7 @@ const RealtimeVoicePage: FC = () => {
 
       // ۴. تا زمانی که توکن نیامده، به درخواست ادامه بده
       if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
-        console.log("➡️ [WebView] Handshake: Sending WEBVIEW_READY...")
+        // console.log("➡️ [WebView] Handshake: Sending WEBVIEW_READY..."); // این لاگ را موقتاً غیرفعال می‌کنیم تا کنسول شلوغ نشود
         ;(window as any).ReactNativeWebView.postMessage(
           JSON.stringify({ type: "WEBVIEW_READY" })
         )
