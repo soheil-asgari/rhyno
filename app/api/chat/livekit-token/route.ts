@@ -1,4 +1,4 @@
-// 📍 app/api/chat/livekit-token/route.ts
+// 📍 app/api/chat/livekit-token/route.ts (اصلاح‌شده)
 
 import { NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   console.log("🚀 [LiveKit Relay] دریافت درخواست از موبایل...")
 
   try {
-    // ✅ مرحله ۱: بررسی توکن کاربر
+    // ✅ مرحله ۱: بررسی توکن کاربر (بدون تغییر)
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized", { status: 401 })
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const userId = (decoded as any).sub
     if (!userId) throw new Error("Invalid Supabase JWT")
 
-    // ✅ مرحله ۲: ایجاد سشن Realtime از OpenAI
+    // ✅ مرحله ۲: ایجاد سشن Realtime از OpenAI (بدون تغییر)
     const openaiRes = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
       {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model: "gpt-4o-realtime-preview",
-          voice: "alloy" // اختیاری
+          voice: "alloy"
         })
       }
     )
@@ -41,10 +41,20 @@ export async function POST(request: Request) {
 
     const session = await openaiRes.json()
 
-    // ✅ مرحله ۳: بازگرداندن LiveKit URL ثابت + توکن Realtime از OpenAI
-    // توجه: URL ثابت است و از session.livekit.url حذف شده
+    // 💡 [اصلاح] بررسی صحت پاسخ OpenAI
+    if (
+      !session.livekit ||
+      !session.livekit.url ||
+      !session.client_secret ||
+      !session.client_secret.value
+    ) {
+      console.error("❌ ساختار پاسخ OpenAI نامعتبر است:", session)
+      throw new Error("Invalid response structure from OpenAI Realtime API")
+    }
+
+    // ✅ مرحله ۳: [اصلاح اصلی] بازگرداندن LiveKit URL *پویا* + توکن Realtime
     return NextResponse.json({
-      url: "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
+      url: session.livekit.url, // <-- از اینجا بخوانید
       token: session.client_secret.value
     })
   } catch (err: any) {
