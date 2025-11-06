@@ -161,78 +161,41 @@ const RealtimeVoicePage: FC = () => {
 
   // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
-    // ۱. شنونده پیام را فعال کن
-    const handleMessage = (event: MessageEvent) => {
-      console.log("[WebView] RAW MESSAGE RECEIVED:", event.data)
-
-      let data
-
-      // ۱. چک کردن اگر داده یک رشته JSON باشد (پیام از React Native)
-      if (typeof event.data === "string") {
-        try {
-          data = JSON.parse(event.data)
-        } catch (e) {
-          console.log(
-            "⚠️ [WebView] Received a string that is not JSON, ignoring."
-          )
-          return
-        }
-      }
-      // ۲. چک کردن اگر داده یک آبجکت باشد (پیام از DevTools یا افزونه‌ها)
-      else if (typeof event.data === "object" && event.data !== null) {
-        data = event.data
-      }
-      // ۳. نادیده گرفتن بقیه موارد
-      else {
-        console.log("⚠️ [WebView] Received message of unknown type, ignoring.")
-        return
-      }
-
-      // ۴. حالا که 'data' یک آبجکت است، آن را بررسی می‌کنیم
-      if (data.type === "SET_TOKEN" && data.token) {
-        console.log("✅✅✅ [WebView] SUCCESS! Token received and set!")
-        setSupabaseToken(data.token)
-      } else {
-        // این لاگ پیام‌های devtools را نشان می‌دهد بدون اینکه خطا ایجاد کند
-        console.log(
-          "ℹ️ [WebView] Received other valid message (e.g., devtools)."
-        )
-      }
-    }
-
-    window.addEventListener("message", handleMessage)
-    console.log("✅ [WebView] Token listener is READY.")
-
-    // ۲. یک اینتروال برای درخواست توکن بساز
+    // ۱. یک اینتروال برای چک کردن متغیر سراسری بساز
     const intervalId = setInterval(() => {
-      // ۳. به محض دریافت توکن، اینتروال را متوقف کن
-      if (supabaseToken) {
-        console.log("[WebView] Token is set, clearing handshake interval.")
-        clearInterval(intervalId)
-        return
-      }
+      // ۲. چک کن آیا متغیر توسط React Native تزریق شده است؟
+      if (
+        typeof window !== "undefined" &&
+        (window as any).SUPABASE_ACCESS_TOKEN
+      ) {
+        const token = (window as any).SUPABASE_ACCESS_TOKEN
+        console.log("✅✅✅ [WebView] SUCCESS! Token found on window object!")
+        setSupabaseToken(token)
 
-      // ۴. تا زمانی که توکن نیامده، به درخواست ادامه بده
-      if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
-        // console.log("➡️ [WebView] Handshake: Sending WEBVIEW_READY..."); // این لاگ را موقتاً غیرفعال می‌کنیم تا کنسول شلوغ نشود
-        ;(window as any).ReactNativeWebView.postMessage(
-          JSON.stringify({ type: "WEBVIEW_READY" })
+        // ۳. متغیر را پاک کن (اختیاری اما امن)
+        delete (window as any).SUPABASE_ACCESS_TOKEN
+
+        // ۴. اینتروال را متوقف کن
+        clearInterval(intervalId)
+      } else {
+        // ۵. تا زمانی که توکن پیدا نشده، لاگ بزن
+        console.log(
+          "⌛️ [WebView] Polling: window.SUPABASE_ACCESS_TOKEN not found yet..."
         )
       }
-    }, 500) // هر 500 میلی‌ثانیه درخواست کن
+    }, 250) // هر 250 میلی‌ثانیه چک کن
 
     return () => {
-      window.removeEventListener("message", handleMessage)
       clearInterval(intervalId) // پاک کردن اینتروال در زمان unmount
     }
-  }, [supabaseToken])
+  }, [])
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
   const closeWebView = () => {
     if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
-      console.log("➡️ Sending 'close-webview' message to native app...")
-      ;(window as any).ReactNativeWebView.postMessage("close-webview")
-    } else {
-      console.log("Not in WebView, cannot send 'close-webview' message.")
+      // ✅ [اصلاح] ما هنوز برای بستن به postMessage نیاز داریم
+      ;(window as any).ReactNativeWebView.postMessage(
+        JSON.stringify({ type: "close-webview" })
+      )
     }
   }
 
