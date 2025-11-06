@@ -161,27 +161,18 @@ const RealtimeVoicePage: FC = () => {
 
   // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
+    // ۱. شنونده پیام را فعال کن
     const handleMessage = (event: MessageEvent) => {
-      // ✅ [لاگ ۱: دیدن همه‌ی پیام‌های خام]
-      console.log("[WebView] RAW MESSAGE RECEIVED:", event.data)
-
       try {
-        // اطمینان از اینکه داده‌ها یک رشته JSON هستند
-        if (typeof event.data !== "string") {
-          console.log("⚠️ [WebView] Message data is not a string, ignoring.")
-          return
-        }
+        // پیام‌ها از RN به صورت رشته می‌آیند
+        if (typeof event.data !== "string") return
 
         const data = JSON.parse(event.data)
-
-        // ✅ [لاگ ۲: دیدن پیام‌های پارس‌شده]
         console.log("[WebView] Parsed data:", data)
 
         if (data.type === "SET_TOKEN" && data.token) {
           console.log("✅✅✅ [WebView] SUCCESS! Token received and set!")
           setSupabaseToken(data.token)
-        } else {
-          console.log("⚠️ [WebView] Message was not a SET_TOKEN message.")
         }
       } catch (e) {
         console.error("❌ [WebView] Error parsing message:", e, event.data)
@@ -191,20 +182,30 @@ const RealtimeVoicePage: FC = () => {
     window.addEventListener("message", handleMessage)
     console.log("✅ [WebView] Token listener is READY.")
 
-    const timer = setTimeout(() => {
+    // ۲. یک اینتروال برای درخواست توکن بساز
+    const intervalId = setInterval(() => {
+      // ۳. به محض دریافت توکن، اینتروال را متوقف کن
+      // (این کار به دلیل وجود supabaseToken در وابستگی‌های useEffect انجام می‌شود)
+      if (supabaseToken) {
+        console.log("[WebView] Token is set, clearing handshake interval.")
+        clearInterval(intervalId)
+        return
+      }
+
+      // ۴. تا زمانی که توکن نیامده، به درخواست ادامه بده
       if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
         console.log("➡️ [WebView] Handshake: Sending WEBVIEW_READY...")
         ;(window as any).ReactNativeWebView.postMessage(
           JSON.stringify({ type: "WEBVIEW_READY" })
         )
       }
-    }, 100) // 100ms delay
+    }, 500) // هر 500 میلی‌ثانیه درخواست کن
 
     return () => {
       window.removeEventListener("message", handleMessage)
-      clearTimeout(timer)
+      clearInterval(intervalId) // پاک کردن اینتروال در زمان unmount
     }
-  }, [])
+  }, [supabaseToken])
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
   const closeWebView = () => {
     if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
