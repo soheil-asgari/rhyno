@@ -252,15 +252,33 @@ const RealtimeVoicePage: FC = () => {
       }
 
       // ۳. حالا sessionData را مقداردهی کن
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error("❌ Error from /api/chat:", errorData)
+        throw new Error(errorData.message || "Failed to get ephemeral key.")
+      }
+
+      // ۳. حالا sessionData را مقداردهی کن
       sessionData = await res.json()
-      console.log("✅ Session data received from /api/chat:", sessionData)
+
+      // ❗️❗️❗️ [لاگ ۱: پاسخ کامل API را ببینیم] ❗️❗️❗️
+      console.log(
+        "✅ Session data received from /api/chat:",
+        JSON.stringify(sessionData, null, 2)
+      )
 
       // ❗️ بر اساس route.ts شما، توکن در اینجا قرار دارد
       const EPHEMERAL_KEY = sessionData.client_secret?.value
+
+      // ❗️❗️❗️ [لاگ ۲: ببینیم توکن پیدا شد یا نه] ❗️❗️❗️
+      console.log(
+        "🔑 Extracted EPHEMERAL_KEY:",
+        EPHEMERAL_KEY ? "Found" : "NOT FOUND"
+      )
+
       if (!EPHEMERAL_KEY) {
         throw new Error("Invalid session data: client_secret.value is missing.")
       }
-
       // ۴. راه‌اندازی WebRTC
       const pc = new RTCPeerConnection()
       peerConnectionRef.current = pc
