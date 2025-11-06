@@ -161,20 +161,9 @@ const RealtimeVoicePage: FC = () => {
 
   // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search)
-      const modelFromUrl = searchParams.get("model")
-      if (modelFromUrl) {
-        console.log("Model specified in URL:", modelFromUrl)
-        setModel(modelFromUrl)
-      }
-    }
-  }, [])
-  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data)
-        // ۲. به پیام SET_TOKEN گوش بده
         if (data.type === "SET_TOKEN" && data.token) {
           console.log("✅ [WebView] Token received from React Native!")
           setSupabaseToken(data.token)
@@ -184,20 +173,25 @@ const RealtimeVoicePage: FC = () => {
       }
     }
 
-    // گوش دادن به پیام‌ها
     window.addEventListener("message", handleMessage)
+    console.log("[WebView] Token listener is READY.")
 
-    // ۱. به اپ نیتیو بگو "من آماده‌ام"
-    if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
-      console.log("[WebView] Page loaded and ready. Requesting token...")
-      // یک JSON ارسال می‌کنیم که در اپ نیتیو راحت‌تر پارس شود
-      ;(window as any).ReactNativeWebView.postMessage(
-        JSON.stringify({ type: "WEBVIEW_READY" })
-      )
-    }
+    // ✅ [اصلاح اصلی: افزودن تأخیر]
+    // ما پیام "آماده‌ام" را با کمی تأخیر ارسال می‌کنیم
+    // تا مطمئن شویم شنونده ما (در بالا) و شنونده اپ نیتیو (onMessage)
+    // هر دو کامل فعال شده‌اند.
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+        console.log("[WebView] Handshake: Sending WEBVIEW_READY...")
+        ;(window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "WEBVIEW_READY" })
+        )
+      }
+    }, 100) // 100 میلی‌ثانیه تأخیر برای اطمینان
 
     return () => {
       window.removeEventListener("message", handleMessage)
+      clearTimeout(timer) // پاک کردن تایمر در صورت آن‌مونت شدن
     }
   }, [])
   // تابع بستن و اطلاع‌رسانی به اپ نیتیو
