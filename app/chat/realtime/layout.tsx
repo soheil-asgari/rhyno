@@ -1,21 +1,13 @@
 import React from "react"
 
-// این یک layout حداقلی است که جایگزین layout اصلی برنامه می‌شود
-// و از خطای "invalid uuid" جلوگیری می‌کند.
+// این یک layout حداقلی است که جایگزین layout اصلی (که باعث خطای uuid می‌شد) می‌شود.
+// این فایل نباید تگ‌های <html> یا <body> را رندر کند.
+// این فایل فقط فرزندان (یعنی page.tsx) را برمی‌گرداند.
 export default function RealtimeChatLayout({
   children
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <html lang="fa" dir="rtl">
-      <body>
-        {/*
-          ما فقط فرزند (page.tsx) را رندر می‌کنیم
-          و هیچ‌کدام از کامپوننت‌های layout اصلی (مثل سایدبار و ...) را نمی‌خواهیم
-        */}
-        {children}
-      </body>
-    </html>
-  )
+  // ما فقط فرزند را برمی‌گردانیم تا در layout ریشه (root layout) اصلی برنامه رندر شود.
+  return <>{children}</>
 }
