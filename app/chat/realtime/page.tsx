@@ -5,6 +5,19 @@ import { cn } from "@/lib/utils" // (cn) شما از قبل در پروژه وج
 import { toast, Toaster } from "sonner" // برای نمایش خطاها
 import { motion, AnimatePresence } from "framer-motion"
 
+const remoteLog = (message: string) => {
+  // لاگ در کنسول محلی (اگر inspect شانسی برای باز شدن داشت)
+  console.log(message)
+
+  // ارسال لاگ به سرور Vercel
+  fetch("/api/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // ما پیام را با [VoiceUI] شروع می‌کنیم تا در لاگ‌های Vercel مشخص باشد
+    body: JSON.stringify({ message: `[VoiceUI] ${message}` })
+  }).catch(err => console.error("Remote log failed:", err)) // خطا در ارسال لاگ را نادیده می‌گیریم
+}
+
 const CircularAudioVisualizer: FC<{ volume: number }> = ({ volume }) => {
   // حجم صدا را به یک مقدار لگاریتمی تبدیل می‌کنیم تا نوسان زیباتر باشد
   const scale = Math.log(1 + volume * 2) * 0.5 + 1
@@ -154,6 +167,40 @@ const RealtimeVoicePage: FC = () => {
   const userVolume = useAudioVisualizer(userStream)
   const modelVolume = useAudioVisualizer(modelStream)
   const combinedVolume = Math.max(userVolume, modelVolume)
+  useEffect(() => {
+    remoteLog("Page component mounted. Adding global error listener.")
+
+    const handleError = (event: ErrorEvent) => {
+      // این بخش هرگونه کرش جاوا اسکریپت در صفحه را لاگ می‌کند
+      remoteLog(
+        `!!! GLOBAL CRASH !!! Message: ${event.message}, File: ${event.filename}, Line: ${event.lineno}`
+      )
+    }
+
+    window.addEventListener("error", handleError)
+
+    return () => {
+      window.removeEventListener("error", handleError)
+    }
+  }, [])
+
+  useEffect(() => {
+    remoteLog("Token polling effect started.")
+    const intervalId = setInterval(() => {
+      const token = (window as any).SUPABASE_ACCESS_TOKEN
+      remoteLog(
+        `Polling... window token is: ${token ? token.substring(0, 10) + "..." : "null"}`
+      )
+
+      if (typeof window !== "undefined" && token) {
+        remoteLog("SUCCESS! Token found on window object!")
+        setSupabaseToken(token)
+        delete (window as any).SUPABASE_ACCESS_TOKEN
+        clearInterval(intervalId)
+      }
+    }, 250)
+    return () => clearInterval(intervalId)
+  }, [])
 
   // خواندن مدل از URL (بدون تغییر)
   useEffect(() => {
@@ -239,48 +286,37 @@ const RealtimeVoicePage: FC = () => {
   }, [userStream, modelStream])
 
   const startRealtime = useCallback(async () => {
+    remoteLog("--- startRealtime function triggered ---")
     setStatus("connecting")
     let sessionData: any = null
 
     try {
-      // ✅ [اصلاح نهایی]
-      // ۱. توکن را مستقیماً از آبجکت window بخوان تا race condition رخ ندهد
-      const tokenFromWindow = (window as any).SUPABASE_ACCESS_TOKEN
-
-      if (!tokenFromWindow) {
-        console.error("❌ Token not found on window object.")
-        toast.error("خطای احراز هویت: توکن از اپلیکیشن دریافت نشد.") // <-- نمایش خطا به کاربر
-        throw new Error(
-          "User not authenticated. Token was not found on window object."
-        )
+      remoteLog("Reading token from window (using state)...")
+      // ❗️❗️❗️ ما همچنان از state می‌خوانیم چون polling باید اول تمام شده باشد
+      if (!supabaseToken) {
+        remoteLog("FATAL: Token not found in state (supabaseToken is null).")
+        throw new Error("Token not found in React state.")
       }
 
-      // ۲. با سرور اصلی (route.ts) تماس می‌گیریم
-      console.log(`🚀 Calling /api/chat for model: ${model}`)
+      remoteLog(`Token found in state. Calling /api/chat...`)
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenFromWindow}` // <-- ✅ استفاده از توکن خوانده شده
+          Authorization: `Bearer ${supabaseToken}` // ✅ استفاده از توکن state
         },
         body: JSON.stringify({ chatSettings: { model: model }, messages: [] })
       })
 
+      remoteLog(`API call response status: ${res.status}`)
       if (!res.ok) {
         const errorData = await res.json()
-        console.error("❌ Error from /api/chat:", errorData)
+        remoteLog(`API call failed: ${errorData.message}`)
         throw new Error(errorData.message || "Failed to get ephemeral key.")
       }
 
-      // ۳. حالا sessionData را مقداردهی کن
-      if (!res.ok) {
-        const errorData = await res.json()
-        console.error("❌ Error from /api/chat:", errorData)
-        throw new Error(errorData.message || "Failed to get ephemeral key.")
-      }
-
-      // ۳. حالا sessionData را مقداردهی کن
       sessionData = await res.json()
+      remoteLog("Session data received from /api/chat.")
 
       // ❗️❗️❗️ [لاگ ۱: پاسخ کامل API را ببینیم] ❗️❗️❗️
       console.log(
@@ -298,9 +334,10 @@ const RealtimeVoicePage: FC = () => {
       )
 
       if (!EPHEMERAL_KEY) {
+        remoteLog("FATAL: client_secret not found in session data.")
         throw new Error("Invalid session data: client_secret.value is missing.")
       }
-      // ۴. راه‌اندازی WebRTC
+      remoteLog("Ephemeral key extracted. Setting up WebRTC...")
       const pc = new RTCPeerConnection()
       peerConnectionRef.current = pc
 
@@ -432,28 +469,23 @@ const RealtimeVoicePage: FC = () => {
       }
       await pc.setRemoteDescription(answer)
       setStatus("connected")
-    } catch (error) {
-      console.error(
-        `❌ Could not start voice chat: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      )
-      toast.error(
-        `خطا در شروع چت صوتی: ${error instanceof Error ? error.message : "خطای ناشناخته"}`
-      )
+    } catch (error: any) {
+      remoteLog(`!!! CATCH block error in startRealtime !!!: ${error.message}`)
+      toast.error(`خطا: ${error.message}`)
       stopRealtime()
     }
-  }, [stopRealtime, model])
+  }, [stopRealtime, model, supabaseToken])
 
   const handleIconClick = () => {
     if (status === "idle" && supabaseToken) {
-      // <-- ✅ چک کن که توکن وجود داشته باشد
+      remoteLog("Icon clicked to start.") // <-- لاگ کلیک
       startRealtime()
     } else if (status !== "idle") {
+      remoteLog("Icon clicked to stop.") // <-- لاگ کلیک
       stopRealtime()
     } else {
-      console.warn("User clicked, but token is not ready yet.")
-      toast.error("در حال همگام‌سازی با اپلیکیشن... لطفاً لحظه‌ای صبر کنید.")
+      remoteLog("Icon clicked, but token is not ready yet.") // <-- لاگ کلیک
+      toast.error("در حال همگام‌سازی... لطفاً لحظه‌ای صبر کنید.")
     }
   }
   // UI را در یک div تمام‌صفحه سیاه قرار می‌دهیم تا با اپ نیتیو یکسان باشد
