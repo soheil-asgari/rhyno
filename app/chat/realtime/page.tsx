@@ -381,7 +381,7 @@ const RealtimeVoicePage: FC = () => {
       dc.onmessage = async msg => {
         const data = JSON.parse(msg.data)
         remoteLog("raw data is logging :")
-        remoteLog(data)
+        remoteLog(JSON.stringify(data, null, 2))
         if (data.type === "response.function_call_arguments.delta") {
           const id = data.tool_call_id || data.item_id
           if (!id) return
