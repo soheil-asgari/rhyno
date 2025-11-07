@@ -1,10 +1,12 @@
-import { createClient as createSSRClient } from "@/lib/supabase/server"
+// مسیر فایل: src/app/api/chat/create/route.ts
+
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import type { Database } from "@/supabase/types"
 
-// این بخش مشخصات پرونده جدید را چک می‌کند
+// ... (اسکیما Zod شما - بدون تغییر)
 const createChatSchema = z.object({
   workspace_id: z.string().uuid(),
   assistant_id: z.string().uuid().nullable(),
@@ -19,17 +21,81 @@ const createChatSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const cookieStore = cookies()
-  const supabase = createSSRClient(cookieStore)
+  let supabase
+  let user = null
 
   try {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
+    const authHeader = request.headers.get("Authorization")
+    const token = authHeader?.split("Bearer ")[1]
+
+    if (token) {
+      // --- شروع اصلاحیه (شاخه موبایل) ---
+      // مطابقت دقیق با امضای *قدیمی* (deprecated)
+      supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return undefined
+            },
+            set(name: string, value: string, options: CookieOptions) {
+              // کاری انجام نده
+            },
+            remove(name: string, options: CookieOptions) {
+              // کاری انجام نده
+            }
+            // getAll() حذف شد تا با امضای قدیمی مطابقت داشته باشد
+          },
+          global: {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        }
+      )
+      const { data: userData } = await supabase.auth.getUser(token)
+      user = userData.user
+      // --- پایان اصلاحیه (شاخه موبایل) ---
+    } else {
+      // --- شروع اصلاحیه (شاخه وب) ---
+      // مطابقت دقیق با امضای *قدیمی* (deprecated)
+      const cookieStore = cookies()
+      supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value
+            },
+            set(name: string, value: string, options: CookieOptions) {
+              try {
+                cookieStore.set({ name, value, ...options })
+              } catch (error) {
+                /* ignore */
+              }
+            },
+            remove(name: string, options: CookieOptions) {
+              try {
+                cookieStore.set({ name, value: "", ...options })
+              } catch (error) {
+                /* ignore */
+              }
+            }
+            // getAll() حذف شد تا با امضای قدیمی مطابقت داشته باشد
+          }
+        }
+      )
+      const { data: userData } = await supabase.auth.getUser()
+      user = userData.user
+      // --- پایان اصلاحیه (شاخه وب) ---
+    }
+
+    // 3. بررسی نهایی احراز هویت
     if (!user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
+    // 4. ادامه منطق شما (بدون تغییر)
     const body = await request.json()
     const validation = createChatSchema.safeParse(body)
 
@@ -40,7 +106,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // نگهبان، مهر رسمی خودش (user.id) را روی پرونده می‌زند
     const chatData = {
       ...validation.data,
       user_id: user.id
