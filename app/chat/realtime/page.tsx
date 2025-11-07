@@ -342,26 +342,31 @@ const RealtimeVoicePage: FC = () => {
       peerConnectionRef.current = pc
 
       pc.ontrack = e => {
-        console.log("🔊 Remote audio track received:", e.streams)
+        remoteLog("🔊 Remote audio track received!") // <-- لاگ اصلاح شد
         setModelStream(e.streams[0])
 
-        // حذف <audio> قبلی اگر وجود داشت
-        document
-          .querySelectorAll("audio#model_audio")
-          .forEach(el => el.remove())
-
+        // ... (حذف <audio> قبلی)
         const audioEl = document.createElement("audio")
-        audioEl.id = "model_audio" // یک آیدی برای مدیریت بهتر
+        audioEl.id = "model_audio"
         audioEl.srcObject = e.streams[0]
         audioEl.autoplay = true
-        audioEl.setAttribute("playsinline", "true") // برای iOS
+        audioEl.setAttribute("playsinline", "true")
         document.body.appendChild(audioEl)
+
+        remoteLog("Attempting to autoplay model audio...") // <-- لاگ مهم
 
         audioEl
           .play()
-          .then(() => console.log("🔊 Model audio playing..."))
+          .then(() => {
+            // اگر صدا با موفقیت پخش شود
+            remoteLog("🔊 SUCCESS: Model audio playing.")
+          })
           .catch(err => {
+            // اگر پخش خودکار شکست بخورد
             console.error("🚨 Autoplay blocked:", err)
+            remoteLog(
+              `🚨 ERROR: Autoplay blocked: ${err instanceof Error ? err.message : String(err)}`
+            ) // <-- لاگ حیاتی
             toast.error("مرورگر اجازه پخش خودکار صدا را نداد.")
           })
       }
