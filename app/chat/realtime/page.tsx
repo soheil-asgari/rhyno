@@ -4,7 +4,6 @@ import React, { FC, useState, useRef, useCallback, useEffect } from "react"
 import { cn } from "@/lib/utils" // (cn) شما از قبل در پروژه وجود دارد
 import { toast, Toaster } from "sonner" // برای نمایش خطاها
 import { motion, AnimatePresence } from "framer-motion"
-import { supabase } from "@/lib/supabase/client" // کلاینت سوپابیس شما
 
 // ------------------------------------------------------------------
 // کامپوننت ویژوالایزر صوتی (بازسازی شده برای وب با Tailwind)
