@@ -284,7 +284,7 @@ const RealtimeVoicePage: FC = () => {
       )
 
       // ❗️ بر اساس route.ts شما، توکن در اینجا قرار دارد
-      const EPHEMERAL_KEY = sessionData.client_secret?.value
+      const EPHEMERAL_KEY = sessionData.client_secret
 
       // ❗️❗️❗️ [لاگ ۲: ببینیم توکن پیدا شد یا نه] ❗️❗️❗️
       console.log(
