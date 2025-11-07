@@ -299,7 +299,7 @@ const RealtimeVoicePage: FC = () => {
       }
 
       remoteLog(`Token found in state. Calling /api/chat...`)
-      const res = await fetch("/api/chat", {
+      const res = await fetch("https://www.rhynoai.ir/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
