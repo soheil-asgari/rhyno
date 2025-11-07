@@ -380,7 +380,8 @@ const RealtimeVoicePage: FC = () => {
       // ۵. تعریف onmessage (منطق فانکشن کال شما)
       dc.onmessage = async msg => {
         const data = JSON.parse(msg.data)
-
+        remoteLog("raw data is logging :")
+        remoteLog(data)
         if (data.type === "response.function_call_arguments.delta") {
           const id = data.tool_call_id || data.item_id
           if (!id) return
@@ -434,19 +435,30 @@ const RealtimeVoicePage: FC = () => {
       }
 
       // ۷. دریافت میکروفون کاربر
-      const ms = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          noiseSuppression: true,
-          echoCancellation: true
-        }
-      })
-      console.log("🎤 Local stream obtained:", ms)
-      setUserStream(ms)
+      try {
+        remoteLog("Attempting to get user microphone (getUserMedia)...")
+        const ms = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            noiseSuppression: true,
+            echoCancellation: true
+          }
+        })
+        remoteLog("✅ SUCCESS: User microphone stream obtained.")
+        setUserStream(ms)
 
-      ms.getAudioTracks().forEach(track => {
-        console.log("🎤 Sending audio track:", track.label)
-        pc.addTrack(track, ms)
-      })
+        ms.getAudioTracks().forEach(track => {
+          remoteLog(`🎤 Sending audio track: ${track.label}`)
+          pc.addTrack(track, ms)
+        })
+      } catch (micError: any) {
+        // ❗️❗️❗️ این لاگ به احتمال زیاد در شبیه‌ساز ظاهر می‌شود ❗️❗️❗️
+        remoteLog(
+          `🚨 FATAL MIC ERROR: getUserMedia failed: ${micError.message}`
+        )
+        toast.error(`خطای میکروفون: ${micError.message}`)
+        stopRealtime() // اگر میکروفون را نگیریم، متوقف شو
+        return // از تابع خارج شو
+      }
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
