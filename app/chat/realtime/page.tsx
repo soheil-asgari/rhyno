@@ -5,9 +5,6 @@ import { cn } from "@/lib/utils" // (cn) شما از قبل در پروژه وج
 import { toast, Toaster } from "sonner" // برای نمایش خطاها
 import { motion, AnimatePresence } from "framer-motion"
 
-// ------------------------------------------------------------------
-// کامپوننت ویژوالایزر صوتی (بازسازی شده برای وب با Tailwind)
-// ------------------------------------------------------------------
 const CircularAudioVisualizer: FC<{ volume: number }> = ({ volume }) => {
   // حجم صدا را به یک مقدار لگاریتمی تبدیل می‌کنیم تا نوسان زیباتر باشد
   const scale = Math.log(1 + volume * 2) * 0.5 + 1
