@@ -163,6 +163,12 @@ const RealtimeVoicePage: FC = () => {
   useEffect(() => {
     // ۱. یک اینتروال برای چک کردن متغیر سراسری بساز
     const intervalId = setInterval(() => {
+      // ✅✅✅ لاگ اشکال‌زدایی اضافه شد ✅✅✅
+      console.log(
+        "DEBUG: Polling for token... Current window token:",
+        (window as any).SUPABASE_ACCESS_TOKEN
+      )
+
       // ۲. چک کن آیا متغیر توسط React Native تزریق شده است؟
       if (
         typeof window !== "undefined" &&
