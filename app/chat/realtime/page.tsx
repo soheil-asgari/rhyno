@@ -298,8 +298,8 @@ const RealtimeVoicePage: FC = () => {
         throw new Error("Token not found in React state.")
       }
 
-      remoteLog(`Token found in state. Calling /api/chat...`)
-      const res = await fetch("https://www.rhynoai.ir/api/chat", {
+      remoteLog(`Token found in state. Calling /api/chat/openai...`)
+      const res = await fetch("https://www.rhynoai.ir/api/chat/openai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
