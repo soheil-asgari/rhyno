@@ -247,12 +247,15 @@ const RealtimeVoicePage: FC = () => {
     let sessionData: any = null
 
     try {
-      // ✅ [اصلاح اصلی ۳]
-      // ۱. توکن را از state بخوان، نه localStorage
-      if (!supabaseToken) {
-        console.error("❌ Token not yet received from native app.")
+      // ✅ [اصلاح نهایی]
+      // ۱. توکن را مستقیماً از آبجکت window بخوان تا race condition رخ ندهد
+      const tokenFromWindow = (window as any).SUPABASE_ACCESS_TOKEN
+
+      if (!tokenFromWindow) {
+        console.error("❌ Token not found on window object.")
+        toast.error("خطای احراز هویت: توکن از اپلیکیشن دریافت نشد.") // <-- نمایش خطا به کاربر
         throw new Error(
-          "User not authenticated. Token has not been received from the native app."
+          "User not authenticated. Token was not found on window object."
         )
       }
 
@@ -262,7 +265,7 @@ const RealtimeVoicePage: FC = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseToken}` // <-- استفاده از توکن در state
+          Authorization: `Bearer ${tokenFromWindow}` // <-- ✅ استفاده از توکن خوانده شده
         },
         body: JSON.stringify({ chatSettings: { model: model }, messages: [] })
       })
@@ -444,7 +447,7 @@ const RealtimeVoicePage: FC = () => {
       )
       stopRealtime()
     }
-  }, [stopRealtime, model, supabaseToken]) // <-- ✅ supabaseToken به وابستگی‌ها اضافه شد
+  }, [stopRealtime, model])
 
   const handleIconClick = () => {
     if (status === "idle" && supabaseToken) {
