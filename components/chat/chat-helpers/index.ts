@@ -504,6 +504,11 @@ export const handleCreateMessages = async (
     /[\u200B-\u200D\uFEFF]/g,
     ""
   )
+  const userTimestamp = new Date().toISOString()
+  const assistantTimestamp = new Date(
+    new Date(userTimestamp).getTime() + 1000
+  ).toISOString()
+  // --- 👆👆👆 ---.
 
   const finalUserMessage: TablesInsert<"messages"> = {
     chat_id: currentChat.id,
@@ -514,7 +519,8 @@ export const handleCreateMessages = async (
     role: "user",
     sequence_number: chatMessages.length,
     image_paths: [],
-    file_url: null
+    file_url: null,
+    created_at: userTimestamp
   }
 
   const finalAssistantMessage: TablesInsert<"messages"> = {
@@ -526,7 +532,8 @@ export const handleCreateMessages = async (
     role: "assistant",
     sequence_number: chatMessages.length + 1,
     image_paths: [],
-    file_url: assistantFileUrl
+    file_url: assistantFileUrl,
+    created_at: assistantTimestamp
   }
 
   let finalChatMessages: ChatMessage[] = []

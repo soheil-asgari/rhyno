@@ -43,6 +43,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
   const [isTyping, setIsTyping] = useState<boolean>(false)
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState(false)
+
   useEffect(() => {
     // این کد در زمان بارگذاری کامپوننت، نوع دستگاه را تشخیص می‌دهد
     const userAgent =
@@ -51,7 +52,9 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     setIsMobile(mobile)
   }, [])
   const {
-    userInput, // 👈 ۱. ما 'userInput' (گلوبال) را فقط برای خواندن اولیه لازم داریم
+    userInput,
+    setUserInput, // 👈 ۱. ما 'userInput' (گلوبال) را فقط برای خواندن اولیه لازم داریم
+    selectedChat,
     chatMessages,
     isGenerating,
     selectedPreset,
@@ -66,21 +69,23 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
     newMessageFiles
   } = useContext(ChatbotUIContext)
 
-  // --- 👇 راهکار نهایی با State محلی ---
-
-  // ۲. یک state محلی فقط برای این کامپوننت. تایپ کردن در این state فوری خواهد بود.
   const [localInput, setLocalInput] = useState(userInput)
 
-  // ۳. این useEffect فقط زمانی اجرا می‌شود که state گلوبال (userInput) تغییر کند.
-  // ما از این برای همگام‌سازی "پاک شدن" ورودی بعد از ارسال پیام استفاده می‌کنیم.
   useEffect(() => {
-    // اگر state گلوبال خالی شد (یعنی پیام ارسال شد)، state محلی را هم خالی کن.
-    if (userInput === "") {
-      setLocalInput("")
+    // هر تغییری در state گلوبال باید state محلی را آپدیت کند
+    // (این هم شامل پاک شدن بعد از ارسال، و هم بازیابی متن در صورت خطاست)
+    if (userInput !== localInput) {
+      setLocalInput(userInput)
     }
-  }, [userInput]) //
+  }, [userInput])
 
-  // --- 👆 پایان راهکار نهایی ---
+  useEffect(() => {
+    if (!selectedChat) {
+      setLocalInput("")
+      // ما استیت گلوبال را هم برای اطمینان پاک می‌کنیم
+      setUserInput("")
+    }
+  }, [selectedChat, setUserInput])
 
   const {
     chatInputRef,
@@ -202,11 +207,11 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       ) {
         event.preventDefault()
         setIsPromptPickerOpen(false)
-        // --- 👇 اصلاح: از state محلی برای ارسال استفاده کن ---
         if (localInput) {
+          // 👇 --- ۳. قبل از ارسال، state گلوبال را آپدیت کن ---
+          setUserInput(localInput)
           handleSendMessage(localInput, chatMessages, false)
-          // پاک کردن state محلی دیگر اینجا لازم نیست،
-          // چون handleSendMessage باعث اجرای useEffect ما می‌شود.
+          setLocalInput("")
         }
       }
     },
@@ -217,7 +222,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
       chatMessages,
       isRecording,
       handleSendMessage,
-      setIsPromptPickerOpen
+      setIsPromptPickerOpen,
+      setUserInput
     ]
   )
 
@@ -294,24 +300,23 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             accept={filesToAccept + ",audio/*"}
           />
         </>
-
-        <TextareaAutosize
-          textareaRef={chatInputRef}
-          className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full min-w-0 resize-none rounded-md border-none bg-transparent py-3 pl-14 pr-24 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="پیام خود را تایپ یا ضبط کنید..."
-          // --- 👇 تغییر اصلی اینجاست ---
-          onValueChange={setLocalInput} // 👈 ۴. اتصال مستقیم به state محلی (فوری)
-          value={localInput} // 👈 ۵. اتصال مستقیم به state محلی
-          // --- 👆 پایان تغییرات ---
-
-          minRows={1}
-          maxRows={18}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onCompositionStart={() => setIsTyping(true)}
-          onCompositionEnd={() => setIsTyping(false)}
-        />
-
+        <form autoComplete="off" className="flex w-full">
+          <TextareaAutosize
+            textareaRef={chatInputRef}
+            className="font-vazir ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full min-w-0 resize-none rounded-md border-none bg-transparent py-3 pl-14 pr-24 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="پیام خود را تایپ یا ضبط کنید..."
+            // --- 👇 تغییر اصلی اینجاست ---
+            onValueChange={setLocalInput}
+            value={localInput}
+            autoComplete="new-password"
+            minRows={1}
+            maxRows={18}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCompositionStart={() => setIsTyping(true)}
+            onCompositionEnd={() => setIsTyping(false)}
+          />
+        </form>
         <div className="absolute bottom-2.5 right-12">
           {isTranscribing ? (
             <IconLoader2
@@ -344,15 +349,19 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
             <IconSend
               className={cn(
                 "bg-primary text-secondary rounded p-1",
-                // --- 👇 اصلاح: از state محلی برای بررسی فعال بودن دکمه استفاده کنید ---
+
+                // --- 👇 --- ۵. دکمه ارسال را به userInput گلوبال وابسته کنید ---
                 !localInput || isRecording
                   ? "cursor-not-allowed opacity-50"
                   : "cursor-pointer"
               )}
               onClick={() => {
-                // --- 👇 اصلاح: از state محلی برای ارسال استفاده کن ---
                 if (!localInput || isRecording) return
+                // 👇 --- ۵. قبل از ارسال، state گلوبال را آپدیت کن ---
+                setUserInput(localInput)
                 handleSendMessage(localInput, chatMessages, false)
+                setLocalInput("")
+                // --- 👆 پایان تغییر ۵ ---
               }}
               size={28}
             />

@@ -8,7 +8,7 @@ import { deleteMessagesIncludingAndAfter } from "@/db/messages"
 import { buildFinalMessages } from "@/lib/build-prompt"
 import { Tables } from "@/supabase/types"
 import { ChatMessage, ChatPayload, LLMID, ModelProvider } from "@/types"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useContext, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { LLM_LIST } from "../../../lib/models/llm/llm-list"
@@ -27,6 +27,7 @@ import { uploadMessageImage } from "@/db/storage/message-images"
 
 export const useChatHandler = () => {
   const router = useRouter()
+  const pathname = usePathname()
 
   const {
     userInput,
@@ -81,8 +82,9 @@ export const useChatHandler = () => {
   }, [isPromptPickerOpen, isFilePickerOpen, isToolPickerOpen])
 
   const handleNewChat = async () => {
+    console.log("[Handler] 4. (handleNewChat): CALLED.") // ✅ لاگ ۴
     if (!selectedWorkspace) return
-
+    console.log('[Handler] 5. (handleNewChat): Calling setUserInput("")')
     setUserInput("")
     setChatMessages([])
     setSelectedChat(null)
@@ -157,8 +159,11 @@ export const useChatHandler = () => {
           | "local"
       })
     }
-
-    return router.push(`/${selectedWorkspace.id}/chat`)
+    const targetUrl = `/${selectedWorkspace.id}/chat`
+    if (pathname !== targetUrl) {
+      router.push(targetUrl)
+    }
+    // return router.push(`/${selectedWorkspace.id}/chat`)
   }
 
   const handleFocusChatInput = () => {
@@ -258,7 +263,7 @@ export const useChatHandler = () => {
       ) {
         setToolInUse("retrieval")
         retrievedFileItems = await handleRetrieval(
-          userInput,
+          messageContent,
           newMessageFiles,
           chatFiles,
           chatSettings!.embeddingsProvider,

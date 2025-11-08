@@ -18,11 +18,13 @@ interface TextareaAutosizeProps {
   onPaste?: (event: React.ClipboardEvent) => void
   onCompositionStart?: (event: React.CompositionEvent) => void
   onCompositionEnd?: (event: React.CompositionEvent) => void
+  autoComplete?: string
 }
 
 export const TextareaAutosize: FC<TextareaAutosizeProps> = ({
   value,
   onValueChange,
+  autoComplete,
   textareaRef,
   className,
   dir, // ✅ اضافه شده
@@ -53,6 +55,7 @@ export const TextareaAutosize: FC<TextareaAutosizeProps> = ({
       onPaste={onPaste}
       onCompositionStart={onCompositionStart}
       onCompositionEnd={onCompositionEnd}
+      autoComplete={autoComplete}
     />
   )
 }

@@ -17,6 +17,7 @@ import { modelsWithRial } from "@/app/checkout/pricing"
 import { handleSTT } from "@/app/api/chat/handlers/stt"
 import jwt from "jsonwebtoken"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { get_encoding, Tiktoken } from "tiktoken"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -219,7 +220,7 @@ export async function POST(request: Request) {
       })
     }
     const token = authHeader.split(" ")[1]
-
+    const encoding: Tiktoken = get_encoding("cl100k_base")
     let userId: string
 
     // ۱. اعتبارسنجی دستی توکن با JWT_SECRET
@@ -854,18 +855,36 @@ export async function POST(request: Request) {
       const encoder = new TextEncoder()
       let usage: ChatCompletionUsage | undefined // متغیر usage بیرون حلقه تعریف شود
       let fullAssistantResponse = ""
+      let calculated_prompt_tokens = 0
+      try {
+        // ما باید محتوای تمام پیام‌ها را بشماریم
+        for (const message of finalMessages) {
+          // از تابع کمکی که خودتان نوشته بودید استفاده می‌کنیم
+          const content = extractTextFromContent(message.content)
+          calculated_prompt_tokens += encoding.encode(content).length
+        }
+        console.log(
+          `📊 [TIKTOKEN] Calculated Prompt Tokens: ${calculated_prompt_tokens}`
+        )
+      } catch (e: any) {
+        console.error(
+          "❌ [TIKTOKEN] Error calculating prompt tokens:",
+          e.message
+        )
+        // اگر محاسبه شکست خورد، به عنوان صفر ادامه می‌دهیم تا برنامه متوقف نشود
+      }
       const readableStream = new ReadableStream({
         async start(controller) {
           console.log(`🚀 [STREAM-DEBUG] Stream started for user: ${userId}`)
 
           try {
-            // --- 👇 شروع حلقه Stream ---
+            // --- 1. حلقه Stream (کد اصلی و صحیح شما) ---
             for await (const chunk of stream) {
-              // تلاش برای خواندن usage از هر chunk (ممکن است null باشد)
-              if (chunk.usage) {
-                usage = chunk.usage
-                console.log("📊 [STREAM-DEBUG] Potential Usage data:", usage)
-              }
+              // این لاگ را می‌توانید حذف کنید، چون می‌دانیم 'usage' اینجا نیست
+              // if (chunk.usage) {
+              //   usage = chunk.usage
+              //   console.log("📊 [STREAM-DEBUG] Potential Usage data:", usage)
+              // }
 
               const delta = chunk.choices[0]?.delta?.content || ""
               if (delta) {
@@ -877,86 +896,7 @@ export async function POST(request: Request) {
             }
             // --- 👆 پایان حلقه Stream ---
 
-            console.log(
-              "🏁 [STREAM-DEBUG] Stream loop finished. Final check for usage data..."
-            )
-
-            controller.close()
-
-            if (!usage) {
-              console.warn("⚠️ Usage data not found directly in stream chunks.")
-
-              try {
-                console.log(
-                  "🔄 Attempting non-stream call JUST for usage data..."
-                )
-                const usageResponsePayload: ChatCompletionCreateParams = {
-                  // payload شبیه به استریم ولی stream: false
-                  model: selectedModel,
-                  messages: finalMessages,
-                  temperature: temp,
-                  // ❌ خط max_tokens: 1 از اینجا حذف شد
-                  stream: false
-                }
-
-                // ✅✅✅ منطق صحیح if/else ✅✅✅
-                // if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-                //   ; (usageResponsePayload as any).max_completion_tokens = 1
-                // } else {
-                //   // اگر مدل به max_completion_tokens نیاز ندارد، از max_tokens استفاده کن
-                //   usageResponsePayload.max_tokens = 1
-                // }
-                // ✅✅✅ پایان اصلاحیه ✅✅✅
-
-                if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-                  // شما اینجا "default" نوشته بودید، شاید باید "priority" باشد؟
-                  ;(usageResponsePayload as any).service_tier = "default"
-                }
-
-                const usageResponse =
-                  await openai.chat.completions.create(usageResponsePayload)
-                if (usageResponse.usage) {
-                  usage = usageResponse.usage
-                  console.log("📊 Usage obtained via fallback request:", usage)
-                } else {
-                  console.error(
-                    "❌ Fallback request did not return usage data."
-                  )
-                }
-              } catch (fallbackError: any) {
-                console.error(
-                  "❌ Error during fallback request for usage:",
-                  fallbackError
-                )
-              }
-            }
-
-            // --- 👇 کسر هزینه *بعد* از اتمام Stream و تلاش برای گرفتن usage ---
-            if (usage) {
-              console.log(
-                "✅ [STREAM-FINAL] Usage data available. Proceeding with deduction."
-              )
-              const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-              if (userCostUSD > 0 && wallet) {
-                // ... (کد کسر هزینه شما مثل قبل با استفاده از usage) ...
-                await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
-                  p_user_id: userId,
-                  p_model_name: selectedModel,
-                  p_prompt_tokens: usage.prompt_tokens,
-                  p_completion_tokens: usage.completion_tokens,
-                  p_cost: userCostUSD
-                })
-                // ... (لاگ موفقیت‌آمیز کسر هزینه) ...
-                console.log(
-                  `✅ Cost deducted: ${userCostUSD} for user ${userId}`
-                )
-              }
-            } else {
-              console.error(
-                "❌ CRITICAL: Could not determine usage data after stream and fallback."
-              )
-              // اینجا باید تصمیم بگیرید چه کنید، مثلاً خطا لاگ کنید یا هزینه پیش‌فرض کم کنید
-            }
+            console.log("🏁 [STREAM-DEBUG] Stream loop finished.")
           } catch (err: any) {
             console.error("❌ ERROR DURING STREAM PROCESSING:", err)
             controller.enqueue(
@@ -966,60 +906,153 @@ export async function POST(request: Request) {
             )
           } finally {
             console.log("🚪 [STREAM-DEBUG] Closing stream controller.")
-            if (is_user_message_saved === true) {
+            // ۱. استریم را به کلاینت می‌بندیم
+            controller.close()
+
+            // ۲. توکن‌های خروجی (Completion) را می‌شماریم
+            let calculated_completion_tokens = 0
+            try {
+              if (fullAssistantResponse.trim().length > 0) {
+                calculated_completion_tokens = encoding.encode(
+                  fullAssistantResponse.trim()
+                ).length
+                console.log(
+                  `📊 [TIKTOKEN] Calculated Completion Tokens: ${calculated_completion_tokens}`
+                )
+              }
+            } catch (e: any) {
+              console.error(
+                "❌ [TIKTOKEN] Error calculating completion tokens:",
+                e.message
+              )
+            }
+
+            // ۳. آبجکت 'usage' را خودمان می‌سازیم
+            // (از 'calculated_prompt_tokens' که بیرون استریم حساب کردیم استفاده می‌کنیم)
+            const usage = {
+              prompt_tokens: calculated_prompt_tokens,
+              completion_tokens: calculated_completion_tokens,
+              total_tokens:
+                calculated_prompt_tokens + calculated_completion_tokens
+            }
+
+            // ۴. کسر هزینه (حالا همیشه 'usage' را داریم)
+            if (usage.prompt_tokens > 0 || usage.completion_tokens > 0) {
+              console.log(
+                "✅ [TIKTOKEN-FINAL] Usage data available. Proceeding with deduction."
+              )
+              const userCostUSD = calculateUserCostUSD(selectedModel, usage)
+              if (userCostUSD > 0 && wallet) {
+                // ... (کد کسر هزینه شما با supabaseAdmin.rpc) ...
+                await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
+                  p_user_id: userId,
+                  p_model_name: selectedModel,
+                  p_prompt_tokens: usage.prompt_tokens,
+                  p_completion_tokens: usage.completion_tokens,
+                  p_cost: userCostUSD
+                })
+                console.log(
+                  `✅ Cost deducted: ${userCostUSD} for user ${userId}`
+                )
+              }
+            } else {
+              console.warn("⚠️ Usage was zero. Skipping deduction.")
+            }
+
+            // ۵. ذخیره پیام دستیار (کد قبلی شما)
+            if (is_user_message_saved !== true) {
+              // فقط برای موبایل
+              if (fullAssistantResponse.trim().length > 0) {
+                try {
+                  console.log(
+                    "DEBUG: Saving assistant message to DB (Mobile client)..."
+                  )
+                  const { error: insertAsstMsgError } = await supabaseAdmin
+                    .from("messages")
+                    .insert({
+                      chat_id: chat_id,
+                      user_id: userId,
+                      role: "assistant",
+                      content: fullAssistantResponse.trim(),
+                      model: selectedModel,
+                      prompt_tokens: usage?.prompt_tokens || 0,
+                      completion_tokens: usage?.completion_tokens || 0,
+                      image_paths: [],
+                      sequence_number: messages.length
+                    })
+                  if (insertAsstMsgError) {
+                    console.error(
+                      "❌ ERROR saving assistant message:",
+                      insertAsstMsgError.message
+                    )
+                  } else {
+                    console.log(
+                      "✅ Assistant message saved to DB (Mobile client)."
+                    )
+                  }
+                } catch (e: any) {
+                  console.error(
+                    "❌ EXCEPTION saving assistant message:",
+                    e.message
+                  )
+                }
+              }
+            } else {
               console.log(
                 "DEBUG: Skipping assistant message save (Web client will save)."
               )
             }
-            // ✅✅✅ راه حل نهایی: فقط زمانی ذخیره کن که کلاینت خودش ذخیره نکرده باشد
-            //   if (is_user_message_saved !== true) {
-            //     if (fullAssistantResponse.trim().length > 0) {
-            //       try {
-            //         console.log(
-            //           "DEBUG: Saving assistant message to DB (Mobile client)..."
-            //         ) // لاگ را آپدیت کردم
-            //         const { error: insertAsstMsgError } = await supabaseAdmin
-            //           .from("messages")
-            //           .insert({
-            //             chat_id: chat_id,
-            //             user_id: userId,
-            //             role: "assistant",
-            //             content: fullAssistantResponse.trim(),
-            //             model: selectedModel,
-            //             prompt_tokens: usage?.prompt_tokens || 0,
-            //             completion_tokens: usage?.completion_tokens || 0,
-            //             image_paths: [],
-            //             sequence_number: messages.length
-            //           })
-            //         if (insertAsstMsgError) {
-            //           console.error(
-            //             "❌ ERROR saving assistant message:",
-            //             insertAsstMsgError.message
-            //           )
-            //         } else {
-            //           console.log(
-            //             "✅ Assistant message saved to DB (Mobile client)."
-            //           )
-            //         }
-            //       } catch (e: any) {
-            //         console.error(
-            //           "❌ EXCEPTION saving assistant message:",
-            //           e.message
-            //         )
-            //       }
-            //     } else {
-            //       console.warn(
-            //         "⚠️ Assistant response was empty, not saving to DB."
-            //       )
-            //     }
-            //   } else {
-            //     console.log(
-            //       "DEBUG: Skipping assistant message save (Web client will save)."
-            //     )
-            //   }
           }
         }
       })
+
+      // ✅✅✅ راه حل نهایی: فقط زمانی ذخیره کن که کلاینت خودش ذخیره نکرده باشد
+      //   if (is_user_message_saved !== true) {
+      //     if (fullAssistantResponse.trim().length > 0) {
+      //       try {
+      //         console.log(
+      //           "DEBUG: Saving assistant message to DB (Mobile client)..."
+      //         ) // لاگ را آپدیت کردم
+      //         const { error: insertAsstMsgError } = await supabaseAdmin
+      //           .from("messages")
+      //           .insert({
+      //             chat_id: chat_id,
+      //             user_id: userId,
+      //             role: "assistant",
+      //             content: fullAssistantResponse.trim(),
+      //             model: selectedModel,
+      //             prompt_tokens: usage?.prompt_tokens || 0,
+      //             completion_tokens: usage?.completion_tokens || 0,
+      //             image_paths: [],
+      //             sequence_number: messages.length
+      //           })
+      //         if (insertAsstMsgError) {
+      //           console.error(
+      //             "❌ ERROR saving assistant message:",
+      //             insertAsstMsgError.message
+      //           )
+      //         } else {
+      //           console.log(
+      //             "✅ Assistant message saved to DB (Mobile client)."
+      //           )
+      //         }
+      //       } catch (e: any) {
+      //         console.error(
+      //           "❌ EXCEPTION saving assistant message:",
+      //           e.message
+      //         )
+      //       }
+      //     } else {
+      //       console.warn(
+      //         "⚠️ Assistant response was empty, not saving to DB."
+      //       )
+      //     }
+      //   } else {
+      //     console.log(
+      //       "DEBUG: Skipping assistant message save (Web client will save)."
+      //     )
+      //   }
+
       // بازگرداندن Stream به کلاینت
       // بازگرداندن Stream به کلاینت
       return new Response(readableStream, {
