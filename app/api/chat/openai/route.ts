@@ -464,7 +464,7 @@ export async function POST(request: Request) {
         request, // 👈 اینو اضافه کن
         body: ttsBody,
         user,
-        supabase
+        supabase: supabaseAdmin
       })
     }
 
