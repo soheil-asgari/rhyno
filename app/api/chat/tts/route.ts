@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
       input: textToSpeak,
       voice: chatSettings.voice || "coral",
       speed: chatSettings.speed || 1.0,
-      model: "gpt-4o-mini-tts"
+      model: "gpt-4o-mini-tts",
+      chat_id: chatSettings.chat_id || "default_chat_id" // ⚡ اضافه شد
     }
 
     // فراخوانی handleTTS با کلید OpenAI

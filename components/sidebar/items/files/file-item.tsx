@@ -42,7 +42,7 @@ export const FileItem: FC<FileItemProps> = ({ file }) => {
 
             <div>{formatFileSize(file.size)}</div>
 
-            <div>{file.tokens.toLocaleString()} tokens</div>
+            <div>{(file.tokens ?? 0).toLocaleString()} tokens</div>
           </div>
 
           <div className="space-y-1">

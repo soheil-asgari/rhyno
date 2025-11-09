@@ -187,7 +187,8 @@ export async function buildFinalMessages(
     sequence_number: processedChatMessages.length,
     updated_at: "",
     file_url: null,
-    user_id: ""
+    user_id: "",
+    audio_url: ""
   }
 
   finalMessages.unshift(tempSystemMessage)
