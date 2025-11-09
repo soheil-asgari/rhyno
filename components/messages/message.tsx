@@ -911,7 +911,8 @@ export const Message: FC<MessageProps> = ({
               role: "user",
               content: lastUserMessage.message.content
             }
-          ]
+          ],
+          chat_id: message.chat_id
         })
       })
       if (!response.ok) throw new Error("Failed to regenerate audio.")

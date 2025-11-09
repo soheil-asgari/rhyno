@@ -129,7 +129,8 @@ export const createTempMessages = (
       role: "user",
       sequence_number: chatMessages.length,
       updated_at: "",
-      user_id: ""
+      user_id: "",
+      audio_url: ""
     },
     fileItems: []
   }
@@ -147,7 +148,8 @@ export const createTempMessages = (
       role: "assistant",
       sequence_number: chatMessages.length + 1,
       updated_at: "",
-      user_id: ""
+      user_id: "",
+      audio_url: ""
     },
     fileItems: []
   }

@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 import jwt from "jsonwebtoken"
+import { encode } from "gpt-tokenizer" // ⬅️ 1. این ایمپورت حیاتی را اضافه کنید
 
 export const runtime: ServerRuntime = "nodejs"
 
@@ -25,6 +26,14 @@ type ChatCompletionUsage = {
   completion_tokens: number
   total_tokens: number
 }
+
+// ⬅️ 2. مدل‌هایی که از وب سرچ OpenRouter استفاده می‌کنند
+const MODELS_WITH_WEB_SEARCH = new Set([
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-codex",
+  "google/gemini-1.5-flash" // (مثال - مدل خودتان را اضافه کنید)
+])
 
 function calculateUserCostUSD(
   modelId: string,
@@ -47,10 +56,13 @@ function calculateUserCostUSD(
 export async function POST(request: Request) {
   console.log("🔄 درخواست به API OpenRouter دریافت شد! 🔄")
   try {
-    const { chatSettings, messages } = (await request.json()) as {
-      chatSettings: ChatSettings
-      messages: any[]
-    }
+    // ⬅️ 3. دریافت `enableWebSearch` از بدنه درخواست
+    const { chatSettings, messages, enableWebSearch } =
+      (await request.json()) as {
+        chatSettings: ChatSettings
+        messages: any[]
+        enableWebSearch?: boolean // این را اضافه کنید
+      }
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized: Missing Bearer token", {
@@ -114,7 +126,7 @@ export async function POST(request: Request) {
     const cookieStore = cookies()
     const supabase = createSSRClient(cookieStore)
 
-    const { data: wallet, error: walletError } = await supabase
+    const { data: wallet, error: walletError } = await supabaseAdmin // ⬅️ از Admin استفاده کنید
       .from("wallets")
       .select("balance")
       .eq("user_id", userId)
@@ -143,8 +155,30 @@ export async function POST(request: Request) {
     ]
 
     const model = chatSettings.model
+    const isImageModel = modelsWithImageOutput.includes(model)
 
-    // ۲. بدنه درخواست را به صورت داینامیک بسازید
+    // ⬅️ 4. محاسبه توکن‌های پرامپت *قبل* از استریم (برای محاسبه هزینه)
+    let calculated_prompt_tokens = 0
+    try {
+      for (const message of messages) {
+        // محتوای پیام می‌تواند رشته یا آرایه‌ای از آبجکت‌ها باشد
+        const content =
+          typeof message.content === "string"
+            ? message.content
+            : JSON.stringify(message.content)
+        calculated_prompt_tokens += encode(content).length
+      }
+      console.log(
+        `[OpenRouter] 📊 Calculated Prompt Tokens: ${calculated_prompt_tokens}`
+      )
+    } catch (e: any) {
+      console.error(
+        "[OpenRouter] ❌ Error calculating prompt tokens:",
+        e.message
+      )
+    }
+
+    // ⬅️ 5. ساخت داینامیک بدنه درخواست
     const requestPayload: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming =
       {
         model: model as any,
@@ -152,8 +186,16 @@ export async function POST(request: Request) {
         stream: true
       }
 
+    // ⬅️ 6. اضافه کردن ابزار وب سرچ در صورت نیاز
+    const doWebSearch = !!enableWebSearch && MODELS_WITH_WEB_SEARCH.has(model)
+    if (doWebSearch) {
+      console.log(`[OpenRouter] 🔎 Enabling Web Search for model: ${model}`)
+      // @ts-ignore - OpenRouter این را می‌پذیرد
+      requestPayload.tools = [{ type: "web_search" }]
+    }
+
     // ۳. پارامتر 'modalities' را فقط در صورت نیاز اضافه کنید
-    if (modelsWithImageOutput.includes(model)) {
+    if (isImageModel) {
       // @ts-ignore - چون modalities در تایپ استاندارد OpenAI نیست
       requestPayload.modalities = ["image", "text"]
     }
@@ -163,11 +205,13 @@ export async function POST(request: Request) {
       await openrouter.chat.completions.create(requestPayload)
 
     const encoder = new TextEncoder()
+
+    // ⬅️ 7. بازنویسی کامل منطق ReadableStream
     const readableStream = new ReadableStream({
       async start(controller) {
         let fullText = ""
         let imageBase64 = ""
-        // ✨ متغیری برای ذخیره اطلاعات مصرف
+        // ✨ متغیری برای ذخیره اطلاعات مصرف (اگر API ارسال کرد)
         let usage: ChatCompletionUsage | undefined
 
         try {
@@ -176,64 +220,119 @@ export async function POST(request: Request) {
             const textDelta = chunk.choices[0]?.delta?.content || ""
             if (textDelta) {
               fullText += textDelta
+              // --- ⚡️ این بخش حیاتی است ⚡️ ---
+              // اگر مدل تصویری نیست، متن را *فورا* ارسال کن
+              if (!isImageModel) {
+                controller.enqueue(encoder.encode(textDelta))
+              }
+              // ---------------------------------
             }
 
-            // دریافت تصویر
-            const imageDelta = (chunk.choices[0]?.delta as any)?.images
-            if (imageDelta && imageDelta.length > 0) {
-              const imageUrl = imageDelta[0]?.image_url?.url
-              if (imageUrl && imageUrl.startsWith("data:image")) {
-                imageBase64 += imageUrl.split(",")[1] || ""
+            // دریافت تصویر (فقط برای مدل تصویری)
+            if (isImageModel) {
+              const imageDelta = (chunk.choices[0]?.delta as any)?.images
+              if (imageDelta && imageDelta.length > 0) {
+                const imageUrl = imageDelta[0]?.image_url?.url
+                if (imageUrl && imageUrl.startsWith("data:image")) {
+                  imageBase64 += imageUrl.split(",")[1] || ""
+                }
               }
             }
 
-            // ✨ دریافت اطلاعات مصرف از آخرین chunk
+            // ✨ دریافت اطلاعات مصرف از آخرین chunk (اگر OpenRouter بفرستد)
             if (chunk.usage) {
               usage = chunk.usage
             }
           }
 
-          // ترکیب پاسخ نهایی برای ارسال به کلاینت
-          const finalResponse = `${fullText}%%RHINO_IMAGE_SEPARATOR%%${imageBase64}`
-          controller.enqueue(encoder.encode(finalResponse))
-
-          // ✨ ۲. محاسبه و کسر هزینه پس از اتمام استریم
-          if (usage) {
-            const modelId = chatSettings.model
-            const userCostUSD = calculateUserCostUSD(modelId, usage)
-
-            console.log(`[OpenRouter] 📊 Usage:`, usage)
-            console.log(
-              `[OpenRouter] 💰 Cost: ${userCostUSD} USD for user ${userId}`
-            )
-
-            if (userCostUSD > 0) {
-              await supabase.rpc("deduct_credits_and_log_usage", {
-                p_user_id: userId,
-                p_model_name: modelId,
-                p_prompt_tokens: usage.prompt_tokens,
-                p_completion_tokens: usage.completion_tokens,
-                p_cost: userCostUSD
-              })
-              console.log(
-                `[OpenRouter] ✅ Credits deducted successfully for user ${userId}.`
-              )
-            }
-          } else {
-            console.warn(
-              `⚠️ [OpenRouter] No usage data received from stream for model: ${chatSettings.model}`
-            )
+          // اگر مدل تصویری بود، پاسخ بافر شده را *در انتها* ارسال کن
+          if (isImageModel) {
+            const finalResponse = `${fullText}%%RHINO_IMAGE_SEPARATOR%%${imageBase64}`
+            controller.enqueue(encoder.encode(finalResponse))
           }
         } catch (error) {
           console.error("[OpenRouter] Error during stream processing:", error)
           controller.error(error)
         } finally {
-          controller.close()
+          controller.close() // بستن استریم به سمت کلاینت
+
+          // --- 8. منطق محاسبه هزینه در بلاک finally ---
+          let finalUsage: ChatCompletionUsage
+
+          if (usage) {
+            // حالت ایده‌آل: OpenRouter اطلاعات مصرف را فرستاده
+            console.log("[OpenRouter] 📊 Usage data received from stream.")
+            finalUsage = usage
+          } else {
+            // حالت Fallback: ما خودمان توکن‌ها را محاسبه می‌کنیم
+            console.warn(
+              `[OpenRouter] ⚠️ No usage data from stream. Calculating manually.`
+            )
+            let calculated_completion_tokens = 0
+            try {
+              if (fullText.trim().length > 0) {
+                calculated_completion_tokens = encode(fullText.trim()).length
+              }
+            } catch (e: any) {
+              console.error(
+                "[OpenRouter] ❌ Error calculating completion tokens:",
+                e.message
+              )
+            }
+
+            finalUsage = {
+              prompt_tokens: calculated_prompt_tokens,
+              completion_tokens: calculated_completion_tokens,
+              total_tokens:
+                calculated_prompt_tokens + calculated_completion_tokens
+            }
+          }
+
+          // کسر هزینه نهایی
+          if (
+            finalUsage.prompt_tokens > 0 ||
+            finalUsage.completion_tokens > 0
+          ) {
+            const modelId = chatSettings.model
+            const userCostUSD = calculateUserCostUSD(modelId, finalUsage)
+
+            console.log(`[OpenRouter] 📊 Final Usage:`, finalUsage)
+            console.log(
+              `[OpenRouter] 💰 Cost: ${userCostUSD} USD for user ${userId}`
+            )
+
+            if (userCostUSD > 0 && wallet.balance > userCostUSD) {
+              await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
+                // ⬅️ از Admin استفاده کنید
+                p_user_id: userId,
+                p_model_name: modelId,
+                p_prompt_tokens: finalUsage.prompt_tokens,
+                p_completion_tokens: finalUsage.completion_tokens,
+                p_cost: userCostUSD
+              })
+              console.log(
+                `[OpenRouter] ✅ Credits deducted successfully for user ${userId}.`
+              )
+            } else if (userCostUSD > 0) {
+              console.error(
+                `[OpenRouter] ❌ Failed to deduct. Cost: ${userCostUSD}, Balance: ${wallet.balance}`
+              )
+            }
+          } else {
+            console.log("[OpenRouter] ⚠️ Usage was zero. Skipping deduction.")
+          }
         }
       }
     })
 
-    return new Response(readableStream)
+    // ⬅️ 9. هدرهای ضروری برای استریم
+    return new Response(readableStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no"
+      }
+    })
   } catch (error: any) {
     console.error("OpenRouter API Error:", error)
     const errorMessage = error.message || "An unknown error occurred"

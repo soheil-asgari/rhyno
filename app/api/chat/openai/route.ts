@@ -22,7 +22,24 @@ import { encode } from "gpt-tokenizer"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
+
+// --- ⬇️ تغییر ۱: مدل‌های OpenRouter را اینجا تعریف می‌کنیم ---
 const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image"
+
+/**
+ * مدل‌هایی که باید به کنترل‌کننده اختصاصی OpenRouter هدایت شوند.
+ * این کنترل‌کننده (/api/chat/openrouter) مسئول تماس با API OpenRouter
+ * و استریم کردن پاسخ است.
+ */
+const OPENROUTER_MODELS = new Set([
+  OPENROUTER_GEMINI_MODEL_ID,
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-codex"
+])
+// --- ⬆️ پایان تغییر ۱ ---
+
 function isImageRequest(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase()
 
@@ -169,9 +186,14 @@ const MODELS_WITH_OPENAI_WEB_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-5",
-  "gpt-5-mini"
+  "gpt-5-mini",
+  "gpt-5-codex"
 ])
-const MODELS_THAT_SHOULD_NOT_STREAM = new Set(["gpt-5", "gpt-5-mini"])
+const MODELS_THAT_SHOULD_NOT_STREAM = new Set([
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-codex"
+])
 const MODELS_WITH_AUTO_SEARCH = new Set([
   "gpt-4o",
   "gpt-4o-mini",
@@ -189,7 +211,12 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "gpt-3.5-turbo-16k": 16384
   // سایر مدل‌ها را اضافه کن
 }
-const MODELS_WITH_PRIORITY_TIER = new Set(["gpt-5", "gpt-5-mini", "gpt-5-nano"])
+const MODELS_WITH_PRIORITY_TIER = new Set([
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-codex"
+])
 
 function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
   const requestedTokens = cs.maxTokens ?? cs.max_tokens ?? 4096
@@ -416,27 +443,32 @@ export async function POST(request: Request) {
       organization: profile.openai_organization_id
     })
 
-    if (selectedModel === OPENROUTER_GEMINI_MODEL_ID) {
-      // console.log(
-      //   `🔄 هدایت درخواست برای مدل ${selectedModel} به /api/chat/openrouter...`
-      // )
+    // --- ⬇️ تغییر ۲: منطق هدایت (Redirect) بروزرسانی شد ---
+    // تمام مدل‌های موجود در OPENROUTER_MODELS را به کنترل‌کننده OpenRouter هدایت کن
+    if (OPENROUTER_MODELS.has(selectedModel)) {
+      console.log(
+        `🔄 [ROUTER] Redirecting request for model ${selectedModel} to /api/chat/openrouter...`
+      )
       const openrouterUrl = new URL("/api/chat/openrouter", request.url)
       const openrouterResponse = await fetch(openrouterUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // 👇✅ *** این خط را اضافه کنید ***
-          // توکن موبایل را هم به API بعدی پاس بده
+          // توکن موبایل و کوکی وب‌سایت را برای احراز هویت به مسیر بعدی پاس بده
           Authorization: request.headers.get("Authorization") || "",
-          Cookie: request.headers.get("Cookie") || "" // (این را برای وب‌سایت نگه دارید)
+          Cookie: request.headers.get("Cookie") || ""
         },
         body: JSON.stringify(requestBody)
       })
+
+      // پاسخ (استریم یا غیر استریم) را مستقیماً به کاربر برگردان
       return new Response(openrouterResponse.body, {
         status: openrouterResponse.status,
         headers: openrouterResponse.headers
       })
     }
+    // --- ⬆️ پایان تغییر ۲ ---
+
     if (selectedModel === "gpt-4o-mini-tts") {
       // console.log("🔊 درخواست TTS شناسایی شد.")
 
@@ -457,7 +489,8 @@ export async function POST(request: Request) {
         input: ttsInput,
         voice: chatSettings.voice || "coral",
         speed: chatSettings.speed || 1.0,
-        model: selectedModel
+        model: selectedModel,
+        chat_id: chat_id
       }
 
       return await handleTTS({
@@ -671,7 +704,8 @@ export async function POST(request: Request) {
     // ✨ منطق Web Search
     if (useOpenAIWebSearch) {
       // بخش ۱: مدیریت مدل‌های غیر استریم وب‌سرچ (کد اصلی شما)
-      if (["gpt-5", "gpt-5-mini", "gpt-5-mini"].includes(selectedModel)) {
+      if (["gpt-5", "gpt-5-mini", "gpt-5-codex"].includes(selectedModel)) {
+        // ✅ اصلاح شد
         // console.log(
         //   "🚀 [WEB-SEARCH] Entering NON-streaming web search block for model:",
         //   selectedModel
@@ -1065,58 +1099,100 @@ export async function POST(request: Request) {
         }
       })
     } else {
-      const payload: ChatCompletionCreateParams = {
-        model: selectedModel,
-        messages: finalMessages,
-        stream: false,
-        temperature: temp
-      }
-      if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
-        ;(payload as any).max_completion_tokens = maxTokens
-      } else {
-        payload.max_tokens = maxTokens
-      }
-      if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
-        ;(payload as any).service_tier = "default"
-      }
-      console.log(
-        "🚀 [PRIORITY-CHECK] Non-Stream Payload:",
-        JSON.stringify(payload, null, 2)
-      )
-      const response = await openai.chat.completions.create(payload)
-      const content = response.choices[0].message.content ?? ""
-      const usage = response.usage
-      console.log("💡 Checking wallet and usage...")
-      if (usage) {
-        console.log("💡 Usage exists:", usage)
-        const userCostUSD = calculateUserCostUSD(selectedModel, usage)
-        console.log(
-          `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
+      const isNewOpenAIModel = [
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-5-codex"
+      ].includes(selectedModel)
+      const userInputText = finalMessages
+        .map(m =>
+          typeof m.content === "string"
+            ? m.content
+            : extractTextFromContent(m.content)
         )
-        if (!wallet || wallet.balance < userCostUSD)
-          return NextResponse.json(
-            { message: "موجودی شما کافی نیست." },
-            { status: 402 }
-          )
-        if (userCostUSD > 0) {
-          console.log("⏳ Trying to deduct credits now...")
-          await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
-            p_user_id: userId,
-            p_model_name: selectedModel,
-            p_prompt_tokens: usage.prompt_tokens,
-            p_completion_tokens: usage.completion_tokens,
-            p_cost: userCostUSD
+        .join("\n")
+      if (isNewOpenAIModel) {
+        // ✅ مدل جدید: از v1/responses استفاده می‌کنیم
+        const response = await openai.responses.create({
+          model: selectedModel,
+          input: userInputText,
+          temperature: temp,
+          max_output_tokens: maxTokens,
+          ...(MODELS_WITH_PRIORITY_TIER.has(selectedModel)
+            ? { service_tier: "default" }
+            : {})
+        })
+        console.log(
+          "🚀 [PRIORITY-CHECK] Non-Stream Response Payload (v1/responses):",
+          JSON.stringify(response, null, 2)
+        )
+        const content = response.output_text ?? ""
+        return new Response(content, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        })
+      } else {
+        // ✅ مدل قدیمی: از chat.completions.create استفاده می‌کنیم
+        try {
+          const payload: ChatCompletionCreateParams = {
+            model: selectedModel,
+            messages: finalMessages,
+            stream: false,
+            temperature: temp
+          }
+          if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
+            ;(payload as any).max_completion_tokens = maxTokens
+          } else {
+            payload.max_tokens = maxTokens
+          }
+          if (MODELS_WITH_PRIORITY_TIER.has(selectedModel)) {
+            ;(payload as any).service_tier = "default"
+          }
+          const response = await openai.chat.completions.create(payload)
+          const content = response.choices[0].message.content ?? ""
+          const usage = response.usage
+          console.log("💡 Checking wallet and usage...")
+          if (usage) {
+            console.log("💡 Usage exists:", usage)
+            const userCostUSD = calculateUserCostUSD(selectedModel, usage)
+            console.log(
+              `💰 Model: ${selectedModel}, UserID: ${userId}, CostUSD: ${userCostUSD}, Wallet balance before deduction: ${wallet?.balance}`
+            )
+            if (!wallet || wallet.balance < userCostUSD)
+              return NextResponse.json(
+                { message: "موجودی شما کافی نیست." },
+                { status: 402 }
+              )
+            if (userCostUSD > 0) {
+              console.log("⏳ Trying to deduct credits now...")
+              await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
+                p_user_id: userId,
+                p_model_name: selectedModel,
+                p_prompt_tokens: usage.prompt_tokens,
+                p_completion_tokens: usage.completion_tokens,
+                p_cost: userCostUSD
+              })
+              console.log(
+                `✅ Credits deducted for UserID: ${userId}, CostUSD: ${userCostUSD}`
+              )
+            }
+          }
+          return new Response(content, {
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
           })
-          console.log(
-            `✅ Credits deducted for UserID: ${userId}, CostUSD: ${userCostUSD}`
-          )
+        } catch (error: any) {
+          // ⬅️ جابجایی 1: بلاک CATCH به اینجا منتقل شد (داخل ELSE)
+          // ⬅️ اکنون این 'catch' معتبر است
+          console.error("!!! FULL BACKEND ERROR CATCH !!!:", error)
+          const errorMessage = error.message || "یک خطای غیرمنتظره رخ داد"
+          const status = error.status || 500
+          return NextResponse.json({ message: errorMessage }, { status })
         }
-      }
-      return new Response(content, {
-        headers: { "Content-Type": "text/plain; charset=utf-8" }
-      })
-    }
+      } // (خط 1082 در کد اصلی) - این آکولاد، ELSE مدل قدیمی را می‌بندد
+    } // (خط 1090 در کد اصلی) - این آکولاد، ELSE غیر استریم را می‌بندد
   } catch (error: any) {
+    // (خط 1093 در کد اصلی) - این CATCH اصلی است
+    // (خط 1092 در کد اصلی) ⬅️ جابجایی 2: آکولاد اضافه در اینجا حذف شد
     // ⬅️ اکنون این 'catch' معتبر است
     console.error("!!! FULL BACKEND ERROR CATCH !!!:", error)
     const errorMessage = error.message || "یک خطای غیرمنتظره رخ داد"

@@ -61,18 +61,18 @@ const MODEL_CATEGORIES: Record<
       desc: "نسخه ریل‌تایم کوچک"
     }
   ],
-  "🎤 صوتی": [
-    {
-      id: "gpt-4o-mini-tts",
-      name: "🎤 Rhyno TTS",
-      desc: "تبدیل متن به گفتار طبیعی"
-    },
-    {
-      id: "gpt-4o-transcribe",
-      name: "🎙️ Rhyno Transcribe",
-      desc: "تبدیل گفتار به متن با دقت بالا"
-    }
-  ],
+  // "🎤 صوتی": [
+  //   {
+  //     id: "gpt-4o-mini-tts",
+  //     name: "🎤 Rhyno TTS",
+  //     desc: "تبدیل متن به گفتار طبیعی"
+  //   },
+  //   {
+  //     id: "gpt-4o-transcribe",
+  //     name: "🎙️ Rhyno Transcribe",
+  //     desc: "تبدیل گفتار به متن با دقت بالا"
+  //   }
+  // ],
   // "🖥️ اتوماسیون / تعامل با کامپیوتر": [
   //   {
   //     id: "google/gemini-2.5-pro",
@@ -81,7 +81,7 @@ const MODEL_CATEGORIES: Record<
   //   }
   // ],
   "🎨 تصویری": [
-    { id: "dall-e-3", name: "🎨 Rhyno Image V1", desc: "تولید تصویر از متن" },
+    // { id: "dall-e-3", name: "🎨 Rhyno Image V1", desc: "تولید تصویر از متن" },
     {
       id: "google/gemini-2.5-flash-image",
       name: "🎨 Rhyno Image V2",

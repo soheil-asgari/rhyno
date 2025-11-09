@@ -118,7 +118,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
         image_paths: [],
         model: "user-audio",
         role: "user",
-        sequence_number: chatMessages.length
+        sequence_number: chatMessages.length,
+        audio_url: ""
       }
       setChatMessages(prev => [
         ...prev,
@@ -146,7 +147,8 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           model: selectedModel,
           role: "assistant",
           sequence_number: chatMessages.length + 1,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          audio_url: ""
         }
         setChatMessages(prev => [
           ...prev,
