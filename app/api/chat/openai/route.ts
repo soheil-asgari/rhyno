@@ -17,7 +17,8 @@ import { modelsWithRial } from "@/app/checkout/pricing"
 import { handleSTT } from "@/app/api/chat/handlers/stt"
 import jwt from "jsonwebtoken"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { get_encoding, Tiktoken } from "tiktoken"
+// ✅ این خط را اضافه کنید
+import { encode } from "gpt-tokenizer"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -220,7 +221,7 @@ export async function POST(request: Request) {
       })
     }
     const token = authHeader.split(" ")[1]
-    const encoding: Tiktoken = get_encoding("cl100k_base")
+    // const tokenCount = tokens.length;
     let userId: string
 
     // ۱. اعتبارسنجی دستی توکن با JWT_SECRET
@@ -861,7 +862,7 @@ export async function POST(request: Request) {
         for (const message of finalMessages) {
           // از تابع کمکی که خودتان نوشته بودید استفاده می‌کنیم
           const content = extractTextFromContent(message.content)
-          calculated_prompt_tokens += encoding.encode(content).length
+          calculated_prompt_tokens += encode(content).length
         }
         console.log(
           `📊 [TIKTOKEN] Calculated Prompt Tokens: ${calculated_prompt_tokens}`
@@ -913,7 +914,8 @@ export async function POST(request: Request) {
             let calculated_completion_tokens = 0
             try {
               if (fullAssistantResponse.trim().length > 0) {
-                calculated_completion_tokens = encoding.encode(
+                calculated_completion_tokens = encode(
+                  // ✅✅✅ اصلاح شد
                   fullAssistantResponse.trim()
                 ).length
                 console.log(

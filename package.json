@@ -6,7 +6,7 @@
     "copy-worker": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs', 'public/pdf.worker.min.js')\"",
     "dev": "npm run copy-worker && next dev",
     "chat": "supabase start && npm run db-types && npm run dev",
-    "postbuild": "copyfiles -f node_modules/tiktoken/tiktoken_bg.wasm .next/server && next-sitemap",
+    "postbuild": "next-sitemap",
     "restart": "supabase stop && npm run chat",
     "update": "git pull origin main && npm run db-migrate && npm run db-types",
     "prepare": "husky install",
