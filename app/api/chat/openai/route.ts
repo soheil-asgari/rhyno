@@ -225,63 +225,21 @@ function pickMaxTokens(cs: ExtendedChatSettings, modelId: string): number {
   // مقدار نهایی نباید از سقف مدل بیشتر شود
   return Math.min(requestedTokens, modelLimit)
 }
-
+function normalizeQuickInput(input: string): string {
+  return (
+    input
+      .trim()
+      .toLowerCase()
+      // حذف تمام علائم نگارشی رایج (فارسی و انگلیسی)
+      .replace(/[.,،؟?!]/g, "")
+  )
+  // می‌توانید موارد بیشتری اضافه کنید
+  // مثلاً: .replace(/ي/g, "ی").replace(/ك/g, "ک")
+}
 export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
     const requestBody = await request.json()
-    const { messages: quickCheckMessages } = requestBody
-    let quickUserMessageContent = ""
-    if (Array.isArray(quickCheckMessages) && quickCheckMessages.length > 0) {
-      const lastMessage = quickCheckMessages[quickCheckMessages.length - 1]
-
-      if (typeof lastMessage.content === "string") {
-        quickUserMessageContent = lastMessage.content
-      } else if (Array.isArray(lastMessage.content)) {
-        const textPart = lastMessage.content.find((p: any) => p.type === "text")
-        quickUserMessageContent = textPart ? textPart.text : ""
-      }
-    }
-
-    function normalizeQuickInput(input: string): string {
-      return (
-        input
-          .trim()
-          .toLowerCase()
-          // حذف تمام علائم نگارشی رایج (فارسی و انگلیسی)
-          .replace(/[.,،؟?!]/g, "")
-      )
-      // می‌توانید موارد بیشتری اضافه کنید
-      // مثلاً: .replace(/ي/g, "ی").replace(/ك/g, "ک")
-    }
-
-    if (quickUserMessageContent) {
-      // ورودی را با تابع جدید نرمال‌سازی می‌کنیم
-      const normalizedInput = normalizeQuickInput(quickUserMessageContent)
-
-      const response = quickResponses[normalizedInput]
-
-      if (response) {
-        console.log(
-          `⚡️ [LEVEL 0] Sending instant reply for: "${normalizedInput}"`
-        )
-        const encoder = new TextEncoder()
-        const stream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(encoder.encode(response)) // ✅ از متغیر response استفاده می‌کنیم
-            controller.close()
-          }
-        })
-        // 🔥🔥🔥 بازگشت فوری قبل از هرگونه احراز هویت 🔥🔥🔥
-        return new Response(stream, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no"
-          }
-        })
-      }
-    }
     const {
       chatSettings,
       messages,
@@ -466,7 +424,43 @@ export async function POST(request: Request) {
       } else {
         console.log("DEBUG: Skipping user message save (client already saved).")
       }
-    }
+
+      if (userMessageContent) {
+        const normalizedInput = normalizeQuickInput(userMessageContent)
+        const response = quickResponses[normalizedInput]
+        if (response) {
+          console.log(
+            `⚡️ [LEVEL 0] Sending instant reply for: "${normalizedInput}"`
+          )
+          try {
+            await supabaseAdmin.from("messages").insert({
+              chat_id: chat_id,
+              user_id: userId,
+              role: "assistant",
+              content: response,
+              model: "quick-response",
+              image_paths: [],
+              sequence_number: messages.length
+            })
+            console.log("✅ Quick response from assistant saved to DB.")
+          } catch (e: any) {
+            console.error("❌ EXCEPTION saving quick response:", e.message)
+          }
+
+          const encoder = new TextEncoder()
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode(response))
+              controller.close()
+            }
+          })
+
+          return new Response(stream, {
+            /* ... headers ... */
+          })
+        }
+      }
+    } // --- ✅✅✅ پایان بلوک Paste شده ---
 
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
