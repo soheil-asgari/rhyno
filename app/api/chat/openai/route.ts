@@ -249,7 +249,7 @@ export async function POST(request: Request) {
           .trim()
           .toLowerCase()
           // حذف تمام علائم نگارشی رایج (فارسی و انگلیسی)
-          .replace(/[.,؟?!]/g, "")
+          .replace(/[.,،؟?!]/g, "")
       )
       // می‌توانید موارد بیشتری اضافه کنید
       // مثلاً: .replace(/ي/g, "ی").replace(/ك/g, "ک")

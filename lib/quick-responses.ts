@@ -662,18 +662,12 @@ const normalize = (text: string): string =>
   text
     .toLowerCase()
     .trim()
-    .replace(/[!?.؟]/g, "")
-
+    // ✅✅✅ آپدیت شد: کاما فارسی (،) و کاما انگلیسی (,) اضافه شدند
+    .replace(/[!?.؟،,]/g, "")
 // ساخت جدول پاسخ‌ها با کنترل تکرار و تمیزی بیشتر
 for (const { triggers, response } of responseGroups) {
   for (const rawTrigger of triggers) {
     const trigger = normalize(rawTrigger)
-
-    // جلوگیری از داده‌های تکراری
-    if (quickResponses[trigger]) {
-      console.warn(`⚠️ Trigger تکراری یافت شد: "${trigger}"`)
-      continue
-    }
 
     quickResponses[trigger] = Array.isArray(response)
       ? response[Math.floor(Math.random() * response.length)]
