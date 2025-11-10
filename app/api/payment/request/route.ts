@@ -1,5 +1,5 @@
 import { createClient as createSSRClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers" // 1. headers را import کنید
 import { NextResponse } from "next/server"
 import type { Tables } from "@/supabase/types"
 
@@ -19,14 +19,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "مبلغ نامعتبر است" }, { status: 400 })
     }
 
+    // --- ✅✅✅ شروع بخش اصلاح‌شده احراز هویت ✅✅✅ ---
+
+    // 1. کلاینت سوپابیس را با کوکی‌ها می‌سازیم
     const cookieStore = cookies()
     const supabase = createSSRClient(cookieStore)
-    const {
+
+    // 2. ابتدا تلاش می‌کنیم کاربر را از کوکی‌ها بگیریم (برای وب)
+    let {
       data: { user }
     } = await supabase.auth.getUser()
+
+    // 3. اگر کاربری از کوکی پیدا نشد، هدر Authorization را بررسی می‌کنیم (برای موبایل)
+    if (!user) {
+      console.log("No user from cookies, checking auth header...") // (برای لاگ)
+      const authHeader = headers().get("Authorization")
+
+      if (authHeader) {
+        const token = authHeader.split(" ")[1] // جدا کردن 'Bearer'
+        if (token) {
+          // 4. کاربر را با استفاده از توکن دریافتی پیدا می‌کنیم
+          const {
+            data: { user: tokenUser },
+            error: tokenError
+          } = await supabase.auth.getUser(token)
+
+          if (tokenError) {
+            console.error("Token Auth Error:", tokenError.message)
+          } else if (tokenUser) {
+            console.log("User found via token.") // (برای لاگ)
+            user = tokenUser // کاربر پیدا شد
+          }
+        } else {
+          console.log("Auth header found but no token.") // (برای لاگ)
+        }
+      } else {
+        console.log("No auth header found.") // (برای لاگ)
+      }
+    } else {
+      console.log("User found via cookies.") // (برای لاگ)
+    }
+
+    // 5. بررسی نهایی - اگر هیچ کاربری پیدا نشد، خطای 401 می‌دهیم
     if (!user) {
       return NextResponse.json({ message: "کاربر یافت نشد" }, { status: 401 })
     }
+
+    // --- ✅✅✅ پایان بخش اصلاح‌شده احراز هویت ✅✅✅ ---
 
     if (discountCode) {
       const { data: codeData, error: codeError } = await supabase
@@ -49,24 +88,21 @@ export async function POST(request: Request) {
         )
       }
 
-      // ✅✅✅ **بخش جدید: بررسی سابقه استفاده کاربر از کد تخفیف** ✅✅✅
       const { data: usageData, error: usageError } = await supabase
         .from("transactions")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", user.id) // ✅ اکنون user.id معتبر است
         .eq("discount_code_id", codeData.id)
-        .eq("status", "completed") // فقط تراکنش‌های موفق را بررسی می‌کنیم
+        .eq("status", "completed")
         .limit(1)
         .single()
 
       if (usageData) {
-        // اگر رکوردی پیدا شد، یعنی کاربر قبلاً از این کد استفاده کرده است
         return NextResponse.json(
           { message: "شما قبلاً از این کد تخفیف استفاده کرده‌اید" },
           { status: 403 } // 403 Forbidden
         )
       }
-      // ✅✅✅ **پایان بخش جدید** ✅✅✅
 
       const discountPercentage = codeData.percentage
       const discountAmount = (originalAmountIRR * discountPercentage) / 100
@@ -79,12 +115,10 @@ export async function POST(request: Request) {
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .insert({
-        user_id: user.id,
+        user_id: user.id, // ✅ اکنون user.id معتبر است
         amount: originalAmountUSD,
         amount_irr: originalAmountIRR,
-        // paid_amount_irr: finalAmountIRR, // اگر این ستون را دارید، آن را هم اضافه کنید
         status: "pending",
-        // ✅ **ذخیره کردن شناسه‌ی کد تخفیف استفاده شده**
         discount_code_id: appliedDiscount ? appliedDiscount.id : null
       })
       .select()
@@ -94,7 +128,6 @@ export async function POST(request: Request) {
 
     const description = `شارژ حساب کاربری - تراکنش ${transaction.id}`
 
-    // ... (بقیه کد برای ارسال درخواست به زرین‌پال بدون تغییر باقی می‌ماند)
     const zarinpalResponse = await fetch(
       "https://api.zarinpal.com/pg/v4/payment/request.json",
       {
@@ -105,10 +138,10 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           merchant_id: ZARINPAL_MERCHANT_ID,
-          amount: finalAmountIRR, // مبلغ نهایی برای پرداخت ارسال می‌شود
+          amount: finalAmountIRR,
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payment/verify`,
           description: description,
-          metadata: { transaction_id: transaction.id, user_email: user.email }
+          metadata: { transaction_id: transaction.id, user_email: user.email } // ✅ اکنون user.email معتبر است
         })
       }
     )

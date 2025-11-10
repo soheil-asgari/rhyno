@@ -19,6 +19,7 @@ import jwt from "jsonwebtoken"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 // ✅ این خط را اضافه کنید
 import { encode } from "gpt-tokenizer"
+import { quickResponses } from "@/lib/quick-responses"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -229,6 +230,58 @@ export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
     const requestBody = await request.json()
+    const { messages: quickCheckMessages } = requestBody
+    let quickUserMessageContent = ""
+    if (Array.isArray(quickCheckMessages) && quickCheckMessages.length > 0) {
+      const lastMessage = quickCheckMessages[quickCheckMessages.length - 1]
+
+      if (typeof lastMessage.content === "string") {
+        quickUserMessageContent = lastMessage.content
+      } else if (Array.isArray(lastMessage.content)) {
+        const textPart = lastMessage.content.find((p: any) => p.type === "text")
+        quickUserMessageContent = textPart ? textPart.text : ""
+      }
+    }
+
+    function normalizeQuickInput(input: string): string {
+      return (
+        input
+          .trim()
+          .toLowerCase()
+          // حذف تمام علائم نگارشی رایج (فارسی و انگلیسی)
+          .replace(/[.,؟?!]/g, "")
+      )
+      // می‌توانید موارد بیشتری اضافه کنید
+      // مثلاً: .replace(/ي/g, "ی").replace(/ك/g, "ک")
+    }
+
+    if (quickUserMessageContent) {
+      // ورودی را با تابع جدید نرمال‌سازی می‌کنیم
+      const normalizedInput = normalizeQuickInput(quickUserMessageContent)
+
+      const response = quickResponses[normalizedInput]
+
+      if (response) {
+        console.log(
+          `⚡️ [LEVEL 0] Sending instant reply for: "${normalizedInput}"`
+        )
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(response)) // ✅ از متغیر response استفاده می‌کنیم
+            controller.close()
+          }
+        })
+        // 🔥🔥🔥 بازگشت فوری قبل از هرگونه احراز هویت 🔥🔥🔥
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no"
+          }
+        })
+      }
+    }
     const {
       chatSettings,
       messages,
@@ -240,7 +293,7 @@ export async function POST(request: Request) {
     // console.log("--- RECEIVED MESSAGES ARRAY ---")
     // console.log(JSON.stringify(messages, null, 2))
     // console.log("-----------------------------")
-    const selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
+    let selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized: Missing Bearer token", {
@@ -414,6 +467,7 @@ export async function POST(request: Request) {
         console.log("DEBUG: Skipping user message save (client already saved).")
       }
     }
+
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("balance")
@@ -443,8 +497,6 @@ export async function POST(request: Request) {
       organization: profile.openai_organization_id
     })
 
-    // --- ⬇️ تغییر ۲: منطق هدایت (Redirect) بروزرسانی شد ---
-    // تمام مدل‌های موجود در OPENROUTER_MODELS را به کنترل‌کننده OpenRouter هدایت کن
     if (OPENROUTER_MODELS.has(selectedModel)) {
       console.log(
         `🔄 [ROUTER] Redirecting request for model ${selectedModel} to /api/chat/openrouter...`
@@ -664,13 +716,22 @@ export async function POST(request: Request) {
     // اگر مدل انتخاب شده برای تبدیل متن به گفتار است، آن را به کنترل‌کننده مربوطه بفرست
 
     // ✨ مدیریت پیام سیستم
+    const CHAT_HISTORY_LIMIT = 20
+
+    // مطمئن می‌شویم که 'messages' یک آرایه است
+    const validMessages = Array.isArray(messages) ? messages : []
+
+    // پیام‌ها را از انتها برش می‌زنیم تا فقط N تای آخر باقی بمانند
+    const recentMessages = validMessages.slice(-CHAT_HISTORY_LIMIT)
+
+    // ✨ مدیریت پیام سیستم
     const finalMessages = [
       {
         role: "system",
         content:
           MODEL_PROMPTS[selectedModel] || "You are a helpful AI assistant."
       },
-      ...(Array.isArray(messages) ? messages : [])
+      ...recentMessages // ✅ به جای کل 'messages'، از 'recentMessages' استفاده می‌کنیم
     ]
 
     if (selectedModel === "dall-e-3") {
@@ -874,7 +935,8 @@ export async function POST(request: Request) {
         model: selectedModel,
         messages: finalMessages,
         stream: true,
-        temperature: temp
+        temperature: temp,
+        user: userId
         // ... (max_tokens, service_tier مثل قبل)
       }
       if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
@@ -1138,7 +1200,8 @@ export async function POST(request: Request) {
             model: selectedModel,
             messages: finalMessages,
             stream: false,
-            temperature: temp
+            temperature: temp,
+            user: userId
           }
           if (MODELS_NEED_MAX_COMPLETION.has(selectedModel)) {
             ;(payload as any).max_completion_tokens = maxTokens
