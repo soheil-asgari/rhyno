@@ -432,20 +432,20 @@ export async function POST(request: Request) {
           console.log(
             `⚡️ [LEVEL 0] Sending instant reply for: "${normalizedInput}"`
           )
-          try {
-            await supabaseAdmin.from("messages").insert({
-              chat_id: chat_id,
-              user_id: userId,
-              role: "assistant",
-              content: response,
-              model: "quick-response",
-              image_paths: [],
-              sequence_number: messages.length
-            })
-            console.log("✅ Quick response from assistant saved to DB.")
-          } catch (e: any) {
-            console.error("❌ EXCEPTION saving quick response:", e.message)
-          }
+          // try {
+          //   await supabaseAdmin.from("messages").insert({
+          //     chat_id: chat_id,
+          //     user_id: userId,
+          //     role: "assistant",
+          //     content: response,
+          //     model: "quick-response",
+          //     image_paths: [],
+          //     sequence_number: messages.length
+          //   })
+          //   console.log("✅ Quick response from assistant saved to DB.")
+          // } catch (e: any) {
+          //   console.error("❌ EXCEPTION saving quick response:", e.message)
+          // }
 
           const encoder = new TextEncoder()
           const stream = new ReadableStream({
