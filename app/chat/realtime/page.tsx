@@ -130,25 +130,98 @@ const useAudioVisualizer = (stream: MediaStream | null) => {
   return volume
 }
 
-// ------------------------------------------------------------------
-// تابع کمکی توکن (خواندن از localStorage)
-// ------------------------------------------------------------------
-// const getSupabaseToken = (): string | null => {
-//     if (typeof window !== "undefined") {
-//         const token = localStorage.getItem("supabase-access-token")
-//         console.log(
-//             token
-//                 ? "✅ Token found in localStorage."
-//                 : "❌ Token not found in localStorage."
-//         )
-//         return token
-//     }
-//     return null
-// }
+const useAudioActivityDetector = (
+  stream: MediaStream | null,
+  onActivityChange: (isActive: boolean) => void,
+  options = { threshold: 10, silenceDelay: 500 } // آستانه حساسیت و تاخیر سکوت
+) => {
+  const contextRef = useRef<{
+    audioContext: AudioContext
+    analyser: AnalyserNode
+    animationFrameId: number
+    silenceTimerId: NodeJS.Timeout | null
+    isSpeaking: boolean
+  } | null>(null)
 
-// ------------------------------------------------------------------
-// کامپوننت اصلی صفحه
-// ------------------------------------------------------------------
+  useEffect(() => {
+    // اگر استریم وجود ندارد، همه چیز را پاکسازی کن
+    if (!stream) {
+      if (contextRef.current) {
+        cancelAnimationFrame(contextRef.current.animationFrameId)
+        if (contextRef.current.silenceTimerId)
+          clearTimeout(contextRef.current.silenceTimerId)
+        contextRef.current.audioContext.close().catch(console.error)
+        if (contextRef.current.isSpeaking) {
+          onActivityChange(false) // گزارش توقف فعالیت
+        }
+        contextRef.current = null
+      }
+      return
+    }
+
+    // اگر استریم وجود دارد، آنالایزر را بساز
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)()
+    const analyser = audioContext.createAnalyser()
+    analyser.fftSize = 256
+    const source = audioContext.createMediaStreamSource(stream)
+    source.connect(analyser)
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+    contextRef.current = {
+      audioContext,
+      analyser,
+      animationFrameId: 0,
+      silenceTimerId: null,
+      isSpeaking: false
+    }
+
+    const analyze = () => {
+      const ctx = contextRef.current
+      if (!ctx) return
+
+      ctx.analyser.getByteFrequencyData(dataArray)
+      const sum = dataArray.reduce((a, b) => a + b, 0)
+      const avg = sum / dataArray.length
+
+      if (avg > options.threshold) {
+        // صدا تشخیص داده شد
+        if (ctx.silenceTimerId) {
+          clearTimeout(ctx.silenceTimerId)
+          ctx.silenceTimerId = null
+        }
+        if (!ctx.isSpeaking) {
+          ctx.isSpeaking = true
+          onActivityChange(true) // گزارش: «شروع به صحبت کرد»
+        }
+      } else if (ctx.isSpeaking && !ctx.silenceTimerId) {
+        // سکوت تشخیص داده شد، تایمر را برای گزارش سکوت فعال کن
+        ctx.silenceTimerId = setTimeout(() => {
+          ctx.isSpeaking = false
+          onActivityChange(false) // گزارش: «صحبت تمام شد»
+          ctx.silenceTimerId = null
+        }, options.silenceDelay)
+      }
+
+      ctx.animationFrameId = requestAnimationFrame(analyze)
+    }
+
+    analyze()
+
+    // تابع پاکسازی نهایی
+    return () => {
+      if (contextRef.current) {
+        cancelAnimationFrame(contextRef.current.animationFrameId)
+        if (contextRef.current.silenceTimerId)
+          clearTimeout(contextRef.current.silenceTimerId)
+        contextRef.current.audioContext.close().catch(console.error)
+        contextRef.current = null
+      }
+    }
+  }, [stream, onActivityChange, options.threshold, options.silenceDelay])
+}
+
 const RealtimeVoicePage: FC = () => {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">(
     "idle"
@@ -163,10 +236,30 @@ const RealtimeVoicePage: FC = () => {
   const [userStream, setUserStream] = useState<MediaStream | null>(null)
   const [modelStream, setModelStream] = useState<MediaStream | null>(null)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
+  const userAudioSenderRef = useRef<RTCRtpSender | null>(null)
 
   const userVolume = useAudioVisualizer(userStream)
   const modelVolume = useAudioVisualizer(modelStream)
   const combinedVolume = Math.max(userVolume, modelVolume)
+
+  const handleModelSpeaking = useCallback((isSpeaking: boolean) => {
+    // چک کن که آیا فرستنده صدای کاربر (که به OpenAI می‌رود) وجود دارد
+    if (userAudioSenderRef.current && userAudioSenderRef.current.track) {
+      if (isSpeaking) {
+        // اگر مدل صحبت می‌کند، میکروفون کاربر را Mute کن
+        remoteLog("🔇 Model is speaking, MUTING user mic track.")
+        userAudioSenderRef.current.track.enabled = false
+      } else {
+        // اگر مدل ساکت شد، میکروفون کاربر را Unmute کن
+        remoteLog("🎤 Model stopped speaking, UNMUTING user mic track.")
+        userAudioSenderRef.current.track.enabled = true
+      }
+    }
+  }, []) // وابستگی خالی درست است، چون ما همیشه از Ref می‌خوانیم
+
+  // ۲. هوک جدید را فعال کن تا به صدای مدل گوش دهد
+  useAudioActivityDetector(modelStream, handleModelSpeaking)
+
   useEffect(() => {
     remoteLog("Page component mounted. Adding global error listener.")
 
@@ -445,10 +538,19 @@ const RealtimeVoicePage: FC = () => {
         })
         remoteLog("✅ SUCCESS: User microphone stream obtained.")
         setUserStream(ms)
-
+        remoteLog("🚀 Sending 'audio-ready' message to React Native.")
+        if (
+          typeof window !== "undefined" &&
+          (window as any).ReactNativeWebView
+        ) {
+          ;(window as any).ReactNativeWebView.postMessage(
+            JSON.stringify({ type: "audio-ready" })
+          )
+        }
         ms.getAudioTracks().forEach(track => {
           remoteLog(`🎤 Sending audio track: ${track.label}`)
-          pc.addTrack(track, ms)
+          const sender = pc.addTrack(track, ms)
+          userAudioSenderRef.current = sender
         })
       } catch (micError: any) {
         // ❗️❗️❗️ این لاگ به احتمال زیاد در شبیه‌ساز ظاهر می‌شود ❗️❗️❗️
