@@ -44,8 +44,6 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4-turbo-preview": "⚡ Rhyno V4 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
-  "gpt-4o-mini-tts": "🎤 Rhyno TTS", // ✅ اضافه شد
-  "gpt-4o-transcribe": "🎙️ Rhyno Transcribe", // ✅ اضافه شد
   "computer-use-preview": "🖥️ Rhyno Auto", // ✅ اضافه شد
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
@@ -54,8 +52,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-realtime-mini": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
   "google/gemini-2.5-flash-image": "🎨 Rhyno Image V2",
-  "gpt-5-codex": "💻 Rhyno Code V1",
-  "google/gemini-2.5-pro": "🖥️ Rhyno Pro"
+  "gpt-5-codex": "💻 Rhyno Code V1"
 }
 const formatToken = (num: number) => {
   if (num >= 1_000_000) {
