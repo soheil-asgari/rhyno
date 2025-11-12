@@ -12,8 +12,6 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-4-turbo-preview": "⚡ Rhyno V4 Preview",
   "gpt-4o": "🚀 Rhyno V4 Ultra",
   "gpt-4o-mini": "⚡ Rhyno V4 Mini",
-  "gpt-4o-mini-tts": "🎤 Rhyno TTS",
-  "gpt-4o-transcribe": "🎙️ Rhyno Transcribe",
   "computer-use-preview": "🖥️ Rhyno Auto",
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
