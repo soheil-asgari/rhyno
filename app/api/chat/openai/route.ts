@@ -20,6 +20,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 // ✅ این خط را اضافه کنید
 import { encode } from "gpt-tokenizer"
 import { quickResponses } from "@/lib/quick-responses"
+import { StreamingTextResponse } from "ai"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
@@ -483,20 +484,6 @@ export async function POST(request: Request) {
           console.log(
             `⚡️ [LEVEL 0] Sending instant reply for: "${normalizedInput}"`
           )
-          // try {
-          //   await supabaseAdmin.from("messages").insert({
-          //     chat_id: chat_id,
-          //     user_id: userId,
-          //     role: "assistant",
-          //     content: response,
-          //     model: "quick-response",
-          //     image_paths: [],
-          //     sequence_number: messages.length
-          //   })
-          //   console.log("✅ Quick response from assistant saved to DB.")
-          // } catch (e: any) {
-          //   console.error("❌ EXCEPTION saving quick response:", e.message)
-          // }
 
           const encoder = new TextEncoder()
           const stream = new ReadableStream({

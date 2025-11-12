@@ -65,6 +65,9 @@ export async function middleware(request: NextRequest) {
   // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
 
   const { pathname } = request.nextUrl;
+  if (pathname.startsWith('/api')) {
+    return response;
+  }
   const publicRoutes = ["/", '/login', '/signup', '/landing'];
   // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
 
@@ -138,7 +141,6 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - auth (auth routes)
@@ -147,6 +149,7 @@ export const config = {
      * - robots.txt (robots file)
      * - anything inside 'public' folder that has an extension (e.g., .png, .svg, .json)
      */
-    '/((?!api|_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)'
+    // ❗️ کلمه 'api' از اینجا حذف شد
+    '/((?!_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)'
   ]
 }
