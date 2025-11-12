@@ -68,16 +68,16 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     return response;
   }
-  const publicRoutes = ["/", '/login', '/signup', '/landing'];
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime'];
   // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
 
   const isPublicRoute = publicRoutes.some((route: string) => {
     if (route === '/') {
       return pathname === '/'; // فقط صفحه اصلی
     }
-    return pathname.startsWith(route); // صفحات دیگر
+    // ✅ اصلاح کوچک: مطمئن شوید که /chat/realtime به درستی مچ می‌شود
+    return pathname.startsWith(route);
   });
-
   // ❗️❗️ بخش اضافه شده: دروازه برای کاربران لاگین نکرده ❗️❗️
   // ۲. اگر کاربر لاگین نکرده و روی یک مسیر عمومی هم نیست...
   if (!user && !isPublicRoute) {
