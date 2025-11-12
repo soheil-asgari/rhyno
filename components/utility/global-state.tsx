@@ -109,6 +109,9 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   // TOOL STORE
   const [selectedTools, setSelectedTools] = useState<Tables<"tools">[]>([])
   const [toolInUse, setToolInUse] = useState<string>("none")
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState<boolean>(false)
+  const [modelVolume, setModelVolume] = useState<number>(0)
+  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0)
 
   // The fetchStartingData useEffect remains the same
   useEffect(() => {
@@ -269,7 +272,13 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
       selectedTools,
       setSelectedTools,
       toolInUse,
-      setToolInUse
+      setToolInUse,
+      isSpeechPlaying,
+      setIsSpeechPlaying,
+      modelVolume,
+      setModelVolume,
+      audioCurrentTime,
+      setAudioCurrentTime
     }),
     // Add ALL state variables to the dependency array
     [
@@ -322,7 +331,13 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
       useRetrieval,
       sourceCount,
       selectedTools,
-      toolInUse
+      toolInUse,
+      isSpeechPlaying,
+      setIsSpeechPlaying,
+      modelVolume,
+      setModelVolume,
+      audioCurrentTime,
+      setAudioCurrentTime
     ]
   )
 

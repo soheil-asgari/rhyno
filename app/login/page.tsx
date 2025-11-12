@@ -37,11 +37,14 @@ export default async function LoginPage({
     method?: "email" | "phone"
     step?: "otp"
     phone?: string
+    next?: string
   }
 }) {
   const cookieStore = cookies()
   const session = await getSession()
-
+  const nextPath = searchParams.next
+    ? decodeURIComponent(searchParams.next)
+    : undefined
   console.log("searchParams:", JSON.stringify(searchParams))
 
   if (session) {
@@ -192,21 +195,40 @@ export default async function LoginPage({
         `/login?method=email&error=${encodeURIComponent("invalid_workspace_id")}`
       )
     }
-
+    if (nextPath && nextPath !== "/setup" && nextPath !== "/verify-phone") {
+      console.log("Redirecting to 'next' path:", nextPath)
+      return redirect(nextPath)
+    }
     const redirectUrl = `/${homeWorkspace.id}/chat`
     console.log("Redirecting to:", redirectUrl)
     return redirect(redirectUrl)
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (formData: FormData) => {
     "use server"
+
+    // ❗️ ۲. پارامتر next را از formData بخوانید
+    const nextPath = formData.get("next") as string | null
+
     const origin = headers().get("origin") || process.env.NEXT_PUBLIC_SITE_URL
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
+
+    // ❗️ ۳. آدرس redirectTo را بسازید
+    // ما nextPath را به عنوان یک پارامتر به callback URL اضافه می‌کنیم
+    let redirectTo = `${origin}/auth/callback`
+    if (nextPath) {
+      redirectTo += `?next=${encodeURIComponent(nextPath)}`
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${origin}/auth/callback` }
+      options: {
+        // ❗️ ۴. از redirectTo جدید استفاده کنید
+        redirectTo: redirectTo
+      }
     })
+
     if (error) {
       console.log("Google auth error:", error.message)
       return redirect(`/login?message=${encodeURIComponent(error.message)}`)
@@ -383,6 +405,7 @@ export default async function LoginPage({
   return (
     <div className="flex w-full flex-1 flex-col items-center justify-center gap-1 px-8">
       <form className="animate-in text-foreground flex w-full flex-col justify-center gap-2 sm:max-w-md">
+        {nextPath && <input type="hidden" name="next" value={nextPath} />}
         {/* جایگزین کردن Brand با انیمیشن */}
         <div className="mb-0 flex justify-center">
           <AnimationHero />

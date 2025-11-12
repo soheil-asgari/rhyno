@@ -7,7 +7,7 @@ import { cookies } from "next/headers"
 const REALTIME_LLM_PRICING: {
   [key: string]: { input: number; output: number }
 } = {
-  "gpt-4o-realtime-preview-2025-06-03": {
+  "gpt-realtime-mini": {
     input: 40 / 1_000_000,
     output: 80 / 1_000_000
   },

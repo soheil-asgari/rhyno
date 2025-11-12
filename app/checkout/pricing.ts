@@ -289,7 +289,7 @@ export const models: ModelPricing[] = [
 
   // --- Realtime ---
   {
-    id: "gpt-4o-realtime-preview-2025-06-03",
+    id: "gpt-realtime",
     name: "🎙️ Rhyno Live V1",
     توضیحات: "پاسخ زنده و فوری",
     inputPricePer1MTokenUSD: 60.0,
@@ -304,7 +304,7 @@ export const models: ModelPricing[] = [
     })()
   },
   {
-    id: "gpt-4o-mini-realtime-preview-2024-12-17",
+    id: "gpt-realtime-mini",
     name: "🎧 Rhyno Live Mini",
     توضیحات: "نسخه سبک برای پاسخ زنده",
     inputPricePer1MTokenUSD: 25.0,

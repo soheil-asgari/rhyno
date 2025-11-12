@@ -220,10 +220,10 @@ const GPT4oMini: LLM = {
 
 // GPT-4o Realtime (Standard realtime entry: input $5.00, output $20.00)
 const GPT4oRealtime: LLM = {
-  modelId: "gpt-4o-realtime-preview-2025-06-03",
+  modelId: "gpt-realtime",
   modelName: "GPT-4o Realtime",
   provider: "openai",
-  hostedId: "gpt-4o-realtime-preview-2025-06-03",
+  hostedId: "gpt-realtime",
   platformLink: OPENAI_PLATFORM_LINK,
   imageInput: false,
   pricing: {
@@ -236,10 +236,10 @@ const GPT4oRealtime: LLM = {
 
 // GPT-4o Mini Realtime (Standard: input $0.60, output $2.40)
 const GPT4oMiniRealtime: LLM = {
-  modelId: "gpt-4o-mini-realtime-preview-2024-12-17",
+  modelId: "gpt-realtime-mini",
   modelName: "GPT-4o Mini Realtime",
   provider: "openai",
-  hostedId: "gpt-4o-mini-realtime-preview-2024-12-17",
+  hostedId: "gpt-realtime-mini",
   platformLink: OPENAI_PLATFORM_LINK,
   imageInput: false,
   pricing: {

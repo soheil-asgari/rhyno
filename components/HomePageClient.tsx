@@ -134,7 +134,8 @@ export default function HomePageClient() {
     { href: "/blog", label: "بلاگ" },
     { href: "/contact", label: "تماس با ما" },
     { href: "#faq", label: "سوالات متداول" },
-    { href: "/company", label: "شرکت" }
+    { href: "/company", label: "شرکت" },
+    { href: "/avatar", label: "آواتار" }
   ]
   // ❌ ۳. این state دیگر نیاز نیست (در Header.tsx است)
   // const [isMenuOpen, setIsMenuOpen] = useState(false)

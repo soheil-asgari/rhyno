@@ -35,6 +35,7 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
   const [prompts, setPrompts] = useState<Tables<"prompts">[]>([])
   const [tools, setTools] = useState<Tables<"tools">[]>([])
   const [workspaces, setWorkspaces] = useState<Tables<"workspaces">[]>([])
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState(false)
 
   // ATTACHMENTS STORE - ✨ state های کلیدی شما اینجا تعریف شده‌اند
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
@@ -105,7 +106,10 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
       newMessageImages,
       setNewMessageImages,
       showFilesDisplay,
-      setShowFilesDisplay
+      setShowFilesDisplay,
+      isSpeechPlaying,
+      setIsSpeechPlaying,
+      chatSettings
       // ... (بقیه مقادیر را اینجا اضافه کنید)
     }),
     [
@@ -124,8 +128,11 @@ export const ChatbotUIProvider: FC<ChatbotUIProviderProps> = ({ children }) => {
       chatImages,
       newMessageFiles,
       newMessageImages,
-      showFilesDisplay
-      // ... (بقیه وابستگی‌ها)
+      showFilesDisplay,
+      isSpeechPlaying,
+      setIsSpeechPlaying,
+      chatSettings,
+      updateChatSettings // (updateChatSettings چون با useCallback ساخته شده، مشکلی ندارد)
     ]
   )
 

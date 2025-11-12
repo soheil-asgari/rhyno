@@ -136,6 +136,10 @@ interface ChatbotUIContext {
   setSelectedTools: Dispatch<SetStateAction<Tables<"tools">[]>>
   toolInUse: string
   setToolInUse: Dispatch<SetStateAction<string>>
+  isSpeechPlaying: boolean
+  setIsSpeechPlaying: Dispatch<SetStateAction<boolean>>
+  modelVolume: number
+  setModelVolume: Dispatch<SetStateAction<number>>
 }
 
 export const ChatbotUIContext = createContext<ChatbotUIContext>({
@@ -261,5 +265,9 @@ export const ChatbotUIContext = createContext<ChatbotUIContext>({
   selectedTools: [],
   setSelectedTools: () => {},
   toolInUse: "none",
-  setToolInUse: () => {}
+  setToolInUse: () => {},
+  isSpeechPlaying: false,
+  setIsSpeechPlaying: () => {},
+  modelVolume: 0,
+  setModelVolume: () => {}
 })

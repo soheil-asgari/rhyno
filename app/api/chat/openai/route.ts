@@ -240,18 +240,6 @@ export async function POST(request: Request) {
   console.log("🔥🔥🔥 درخواست به API دریافت شد! شروع پردازش... 🔥🔥🔥")
   try {
     const requestBody = await request.json()
-    const {
-      chatSettings,
-      messages,
-      enableWebSearch,
-      input,
-      chat_id,
-      is_user_message_saved
-    } = requestBody
-    // console.log("--- RECEIVED MESSAGES ARRAY ---")
-    // console.log(JSON.stringify(messages, null, 2))
-    // console.log("-----------------------------")
-    let selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
     const authHeader = request.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized: Missing Bearer token", {
@@ -315,6 +303,69 @@ export async function POST(request: Request) {
 
     // ✅ حالا ما آبجکت User کامل را داریم (برای handleTTS و...)
     console.log(`✅ Full user object retrieved for: ${user.email}`)
+    const { isUsageReport, modelId, usage } = requestBody
+    if (isUsageReport === true && modelId && usage) {
+      console.log(`📊 [REALTIME-USAGE] دریافت گزارش هزینه برای مدل: ${modelId}`)
+
+      const { data: wallet, error: walletError } = await supabaseAdmin
+        .from("wallets")
+        .select("balance")
+        .eq("user_id", userId)
+        .single()
+
+      if (walletError || !wallet) {
+        console.error(
+          "❌ [REALTIME-USAGE] خطای دسترسی به کیف پول:",
+          walletError?.message
+        )
+        return NextResponse.json(
+          { message: "Wallet not found for usage report" },
+          { status: 400 }
+        )
+      }
+
+      const userCostUSD = calculateUserCostUSD(modelId, {
+        prompt_tokens: usage.input_tokens,
+        completion_tokens: usage.output_tokens
+      })
+
+      console.log(`💰 [REALTIME-USAGE] هزینه محاسبه شده: ${userCostUSD} USD`)
+
+      if (userCostUSD > 0 && wallet.balance >= userCostUSD) {
+        await supabaseAdmin.rpc("deduct_credits_and_log_usage", {
+          p_user_id: userId,
+          p_model_name: modelId,
+          p_prompt_tokens: usage.input_tokens,
+          p_completion_tokens: usage.output_tokens,
+          p_cost: userCostUSD
+        })
+        console.log(`✅ [REALTIME-USAGE] هزینه با موفقیت کسر شد.`)
+      } else if (userCostUSD > 0) {
+        console.warn(
+          `⚠️ [REALTIME-USAGE] موجودی کافی نیست. هزینه: ${userCostUSD}, موجودی: ${wallet.balance}`
+        )
+      } else {
+        console.log("ℹ️ [REALTIME-USAGE] هزینه صفر بود، نیازی به کسر نیست.")
+      }
+
+      // ❗️❗️❗️ مهم: بعد از پردازش گزارش، خارج شوید
+      return NextResponse.json(
+        { success: true, message: "Usage reported." },
+        { status: 200 }
+      )
+    }
+    const {
+      chatSettings,
+      messages,
+      enableWebSearch,
+      input,
+      chat_id,
+      is_user_message_saved
+    } = requestBody
+    // console.log("--- RECEIVED MESSAGES ARRAY ---")
+    // console.log(JSON.stringify(messages, null, 2))
+    // console.log("-----------------------------")
+    let selectedModel = (chatSettings.model || "gpt-4o-mini") as LLMID
 
     const cookieStore = cookies()
     const supabase = createSSRClient(cookieStore)

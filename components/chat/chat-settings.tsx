@@ -25,8 +25,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-5": "🌌 Rhyno V5 Ultra",
   "gpt-5-mini": "✨ Rhyno V5 Mini",
   "gpt-5-nano": "🔹 Rhyno V5 Nano",
-  "gpt-4o-realtime-preview-2025-06-03": "🎙️ Rhyno Live V1",
-  "gpt-4o-mini-realtime-preview-2024-12-17": "🎧 Rhyno Live Mini",
+  "gpt-realtime": "🎙️ Rhyno Live V1",
+  "gpt-realtime-mini": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
   "google/gemini-2.5-flash-image": "🎨 Rhyno Image V2",
   "gpt-5-codex": "💻 Rhyno Code V1",
@@ -57,9 +57,9 @@ const MODEL_PROMPTS: Record<string, string> = {
   "gpt-5": "You are GPT-5 AI assistant. Your name is Rhyno v5",
   "gpt-5-mini": "You are GPT-5 mini AI assistant. Your name is Rhyno v5 mini",
   "gpt-5-nano": "You are GPT-5 nano AI assistant. Your name is Rhyno v5 nano",
-  "gpt-4o-realtime-preview-2025-06-03":
+  "gpt-realtime":
     "You are Rhyno Live, respond in real-time Persian voice and text",
-  "gpt-4o-mini-realtime-preview-2024-12-17":
+  "gpt-realtime-mini":
     "You are Rhyno Live Mini, real-time Persian chat assistant",
   "gpt-5-codex":
     "You are Rhyno Code V1, expert in programming and code assistance"

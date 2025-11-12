@@ -65,6 +65,28 @@ export async function middleware(request: NextRequest) {
   // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
 
   const { pathname } = request.nextUrl;
+  const publicRoutes = ["/", '/login', '/signup', '/landing'];
+  // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
+
+  const isPublicRoute = publicRoutes.some((route: string) => {
+    if (route === '/') {
+      return pathname === '/'; // فقط صفحه اصلی
+    }
+    return pathname.startsWith(route); // صفحات دیگر
+  });
+
+  // ❗️❗️ بخش اضافه شده: دروازه برای کاربران لاگین نکرده ❗️❗️
+  // ۲. اگر کاربر لاگین نکرده و روی یک مسیر عمومی هم نیست...
+  if (!user && !isPublicRoute) {
+    // ...او را به صفحه لاگین بفرست.
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    // (اختیاری) می‌توانید آدرس فعلی را به عنوان پارامتر بفرستید
+    // تا بعد از لاگین به همین صفحه برگردد
+    // url.searchParams.set('next', pathname)
+    url.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
   // const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
   // const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
@@ -114,6 +136,17 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|auth|sitemap.xml|robots.txt).*)'
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - auth (auth routes)
+     * - favicon.ico (favicon file)
+     * - sitemap.xml (sitemap file)
+     * - robots.txt (robots file)
+     * - anything inside 'public' folder that has an extension (e.g., .png, .svg, .json)
+     */
+    '/((?!api|_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)'
   ]
 }

@@ -51,12 +51,12 @@ const MODEL_CATEGORIES: Record<
   ],
   "🎧 Realtime / صوتی": [
     {
-      id: "gpt-4o-realtime-preview-2025-06-03",
+      id: "gpt-realtime",
       name: "🎙️ Rhyno Live V1",
       desc: "مکالمه زنده با صدا و متن"
     },
     {
-      id: "gpt-4o-mini-realtime-preview-2024-12-17",
+      id: "gpt-realtime-mini",
       name: "🎧 Rhyno Live Mini",
       desc: "نسخه ریل‌تایم کوچک"
     }
