@@ -226,7 +226,7 @@ const RealtimeVoicePage: FC = () => {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">(
     "idle"
   )
-  const [model, setModel] = useState<string>("gpt-4o-realtime-preview")
+  const [model, setModel] = useState<string>("gpt-realtime-mini")
 
   // ✅ [اصلاح اصلی ۱]
   // یک state برای نگهداری توکن اضافه می‌کنیم

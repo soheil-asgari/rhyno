@@ -146,7 +146,7 @@ export default async function SignupPage({
       .from("otp_codes")
       .select("id, expires_at")
       .eq("phone", phone)
-      .eq("code", otp)
+      .eq("hashed_otp", otp)
       .single()
 
     // اگر کد اشتباه بود یا خطایی رخ داد، به کاربر اطلاع بده

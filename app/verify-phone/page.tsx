@@ -17,8 +17,8 @@ export default function VerifyPhonePage() {
   const message = searchParams.get("message")
 
   return (
-    <div className=" font-vazir flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
-      <form className="font-vazir animate-in text-foreground flex w-full flex-1 flex-col justify-center gap-2">
+    <div className="font-vazir flex w-full flex-1 flex-col items-center justify-center px-8">
+      <form className="font-vazir animate-in text-foreground flex w-full flex-col justify-center gap-2 sm:max-w-md">
         <h1 className="font-vazir mb-4 text-center text-2xl font-bold">
           تکمیل پروفایل
         </h1>
