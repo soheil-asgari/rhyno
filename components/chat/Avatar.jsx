@@ -530,70 +530,70 @@ export function Avatar({ ...props }) {
     });
   });
 
-  useControls("FacialExpressions", {
-    winkLeft: button(() => {
-      setWinkLeft(true);
-      setTimeout(() => setWinkLeft(false), 300);
-    }),
-    winkRight: button(() => {
-      setWinkRight(true);
-      setTimeout(() => setWinkRight(false), 300);
-    }),
-    animation: {
-      value: animation,
-      options: animations.map((a) => a.name),
-      onChange: (value) => setAnimation(value),
-    },
-    facialExpression: {
-      options: Object.keys(facialExpressions),
-      onChange: (value) => setFacialExpression(value),
-    },
-    enableSetupMode: button(() => {
-      setupMode = true;
-    }),
-    disableSetupMode: button(() => {
-      setupMode = false;
-    }),
-    logMorphTargetValues: button(() => {
-      const emotionValues = {};
-      Object.keys(nodes.EyeLeft.morphTargetDictionary).forEach((key) => {
-        if (key === "eyeBlinkLeft" || key === "eyeBlinkRight") {
-          return; // eyes wink/blink are handled separately
-        }
-        const value =
-          nodes.EyeLeft.morphTargetInfluences[
-          nodes.EyeLeft.morphTargetDictionary[key]
-          ];
-        if (value > 0.01) {
-          emotionValues[key] = value;
-        }
-      });
-      // console.log(JSON.stringify(emotionValues, null, 2));
-    }),
-  });
+  // useControls("FacialExpressions", {
+  //   winkLeft: button(() => {
+  //     setWinkLeft(true);
+  //     setTimeout(() => setWinkLeft(false), 300);
+  //   }),
+  //   winkRight: button(() => {
+  //     setWinkRight(true);
+  //     setTimeout(() => setWinkRight(false), 300);
+  //   }),
+  //   animation: {
+  //     value: animation,
+  //     options: animations.map((a) => a.name),
+  //     onChange: (value) => setAnimation(value),
+  //   },
+  //   facialExpression: {
+  //     options: Object.keys(facialExpressions),
+  //     onChange: (value) => setFacialExpression(value),
+  //   },
+  //   enableSetupMode: button(() => {
+  //     setupMode = false;
+  //   }),
+  //   disableSetupMode: button(() => {
+  //     setupMode = false;
+  //   }),
+  //   logMorphTargetValues: button(() => {
+  //     const emotionValues = {};
+  //     Object.keys(nodes.EyeLeft.morphTargetDictionary).forEach((key) => {
+  //       if (key === "eyeBlinkLeft" || key === "eyeBlinkRight") {
+  //         return; // eyes wink/blink are handled separately
+  //       }
+  //       const value =
+  //         nodes.EyeLeft.morphTargetInfluences[
+  //         nodes.EyeLeft.morphTargetDictionary[key]
+  //         ];
+  //       if (value > 0.01) {
+  //         emotionValues[key] = value;
+  //       }
+  //     });
+  //     // console.log(JSON.stringify(emotionValues, null, 2));
+  //   }),
+  // });
 
-  const [, set] = useControls("MorphTarget", () =>
-    Object.assign(
-      {},
-      ...Object.keys(nodes.EyeLeft.morphTargetDictionary).map((key) => {
-        return {
-          [key]: {
-            label: key,
-            value: 0,
-            min: nodes.EyeLeft.morphTargetInfluences[
-              nodes.EyeLeft.morphTargetDictionary[key]
-            ],
-            max: 1,
-            onChange: (val) => {
-              if (setupMode) {
-                lerpMorphTarget(key, val, 1);
-              }
-            },
-          },
-        };
-      })
-    )
-  );
+  // const [, set] = useControls("MorphTarget", () =>
+  //   Object.assign(
+  //     {},
+  //     ...Object.keys(nodes.EyeLeft.morphTargetDictionary).map((key) => {
+  //       return {
+  //         [key]: {
+  //           label: key,
+  //           value: 0,
+  //           min: nodes.EyeLeft.morphTargetInfluences[
+  //             nodes.EyeLeft.morphTargetDictionary[key]
+  //           ],
+  //           max: 1,
+  //           onChange: (val) => {
+  //             if (setupMode) {
+  //               lerpMorphTarget(key, val, 1);
+  //             }
+  //           },
+  //         },
+  //       };
+  //     })
+  //   )
+  // );
 
   useEffect(() => {
     let blinkTimeout;
