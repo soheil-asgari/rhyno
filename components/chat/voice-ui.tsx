@@ -214,7 +214,7 @@ export const VoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         //    (چون sessionData در scope بالاتر تعریف شده، اینجا قابل دسترسی است)
         dc.onmessage = async msg => {
           const data = JSON.parse(msg.data)
-          console.log("📩 RAW event:", data)
+          // console.log("📩 RAW event:", data)
 
           if (data.type === "response.function_call_arguments.delta") {
             // ... (کد شما برای این بخش مشکلی نداشت)

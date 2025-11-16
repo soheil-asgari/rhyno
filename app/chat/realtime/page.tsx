@@ -471,6 +471,7 @@ const RealtimeVoicePage: FC = () => {
       const buffers = new Map<string, string>()
 
       // ۵. تعریف onmessage (منطق فانکشن کال شما)
+      // ۵. تعریف onmessage (منطق فانکشن کال شما)
       dc.onmessage = async msg => {
         const data = JSON.parse(msg.data)
         remoteLog("raw data is logging :")
@@ -494,12 +495,33 @@ const RealtimeVoicePage: FC = () => {
             const query = args.query
             console.log("🔎 Search requested:", query)
             if (!query) return
-
+            console.log(
+              `[AUTH DEBUG] Sending token: ${supabaseToken ? supabaseToken.substring(0, 10) + "..." : "TOKEN IS NULL!"}`
+            )
+            // ❗️❗️❗️ [اصلاح اصلی اینجاست] ❗️❗️❗️
             const searchRes = await fetch("/api/chat/search", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                // ✅ این خط مشکل را برطرف می‌کند
+                Authorization: `Bearer ${supabaseToken}`
+              },
               body: JSON.stringify({ query })
             })
+
+            // بررسی کنید که آیا خود درخواست جست‌وجو موفق بود یا نه
+            if (!searchRes.ok) {
+              const errorText = await searchRes.text()
+              console.error(
+                `Search API failed with status ${searchRes.status}: ${errorText}`
+              )
+              remoteLog(
+                `Search API failed with status ${searchRes.status}: ${errorText}`
+              )
+              // ما خطای اصلی را به عنوان JSON برمی‌گردانیم تا سینتکس ارور ندهیم
+              // اما در اینجا چون سرور 401 داده، ما فقط لاگ می‌گیریم و متوقف می‌شویم
+              return
+            }
 
             const searchData = await searchRes.json()
             const textResult = searchData.output_text ?? "No result found."
@@ -510,15 +532,20 @@ const RealtimeVoicePage: FC = () => {
             }
             dc.send(JSON.stringify(payload))
             console.log("✅ Sent search results back to model")
-          } catch (err) {
-            console.error("❌ Error parsing JSON buffer:", buffer, err)
+          } catch (err: any) {
+            console.error(
+              "❌ Error parsing JSON buffer or fetching search:",
+              buffer,
+              err
+            )
+            remoteLog(`❌ Error in function call 'done': ${err.message}`)
           }
         }
 
         if (data.type === "response.done") {
           console.log("✅ Response.done received from OpenAI.")
         }
-      } // پایان dc.onmessage
+      }
 
       pc.onconnectionstatechange = () => {
         console.log("⚡ Connection state:", pc.connectionState)

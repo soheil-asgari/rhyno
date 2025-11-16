@@ -131,7 +131,7 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
       dataChannelRef.current &&
       dataChannelRef.current.readyState === "open"
     ) {
-      console.log("➡️ Sending session.terminate event to OpenAI...")
+      // console.log("➡️ Sending session.terminate event to OpenAI...")
       dataChannelRef.current.send(JSON.stringify({ type: "session.terminate" }))
     }
 
@@ -156,7 +156,7 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
     }
     setIsSpeechPlaying(false)
     setStatus("idle")
-    console.log("🛑 Realtime session stopped")
+    // console.log("🛑 Realtime session stopped")
   }, [userStream, modelStream, setIsSpeechPlaying])
 
   const startRealtime = useCallback(
@@ -195,13 +195,13 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         // 3. حالا sessionData را مقداردهی کن
         sessionData = await res.json()
         try {
-          console.log(
-            `✅ Session created (${sessionData.id}). Waiting 1 sec for OpenAI to provision...`
-          )
+          // console.log(
+          //   `✅ Session created (${sessionData.id}). Waiting 1 sec for OpenAI to provision...`
+          // )
           await new Promise(resolve => setTimeout(resolve, 1000)) // 1 ثانیه صبر کن
           console.log("...Waited 1 sec. Attempting SDP exchange.")
         } catch (e) {
-          console.error("Error during delay", e)
+          // console.error("Error during delay", e)
         }
         // 4. حالا که sessionData را داریم، WebRTC را راه‌اندازی کن
         const pc = new RTCPeerConnection()
@@ -221,17 +221,17 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
           audioEl
             .play()
             .then(() => {
-              console.log("🔊 Model audio playing...")
+              // console.log("🔊 Model audio playing...")
             })
             .catch(err => {
-              console.error("🚨 Autoplay blocked:", err)
+              // console.error("🚨 Autoplay blocked:", err)
             })
         }
 
         const dc = pc.createDataChannel("oai-events")
         dataChannelRef.current = dc
         dc.onopen = () => {
-          console.log("📡 DataChannel opened:", dc.label)
+          // console.log("📡 DataChannel opened:", dc.label)
         }
 
         const buffers = new Map<string, string>()
@@ -240,7 +240,7 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         //    (چون sessionData در scope بالاتر تعریف شده، اینجا قابل دسترسی است)
         dc.onmessage = async msg => {
           const data = JSON.parse(msg.data)
-          console.log("📩 RAW event:", data)
+          // console.log("📩 RAW event:", data)
 
           if (data.type === "response.function_call_arguments.delta") {
             // ... (کد شما برای این بخش مشکلی نداشت)
@@ -249,10 +249,10 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               console.warn("⚠️ No tool_call_id or item_id in delta:", data)
               return
             }
-            console.log("🆔 Using buffer id:", id, " | delta:", data.delta)
+            // console.log("🆔 Using buffer id:", id, " | delta:", data.delta)
             const prev = buffers.get(id) ?? ""
             buffers.set(id, prev + (data.delta ?? ""))
-            console.log("✍️ Partial buffer for", id, ":", buffers.get(id))
+            // console.log("✍️ Partial buffer for", id, ":", buffers.get(id))
           }
 
           if (data.type === "response.function_call_arguments.done") {
@@ -262,28 +262,37 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
               console.warn("⚠️ No tool_call_id or item_id in done:", data)
               return
             }
-            console.log("🆔 Finalizing buffer for id:", id)
+            // console.log("🆔 Finalizing buffer for id:", id)
             const buffer = buffers.get(id) ?? ""
             buffers.delete(id)
-            console.log("✅ Final buffer (raw):", buffer)
+            // console.log("✅ Final buffer (raw):", buffer)
             if (!buffer.startsWith("{") || !buffer.endsWith("}")) {
-              console.warn("⚠️ Incomplete JSON, skipping:", buffer)
+              // console.warn("⚠️ Incomplete JSON, skipping:", buffer)
               return
             }
             try {
               const args = JSON.parse(buffer)
               const query = args.query
-              console.log("🔎 Search requested:", query)
+              // console.log("🔎 Search requested:", query)
               if (!query) return
-              console.log("🌐 Sending query to /api/chat/search ...")
+              const token = await getUserAccessToken()
+              if (!token) {
+                console.error("❌ Cannot search: User token is null.")
+                return // اگر توکن نبود، متوقف شو
+              }
+              // console.log("🌐 Sending query to /api/chat/search ...")
               const searchRes = await fetch("/api/chat/search", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  // ✅ ۲. توکن را به هدر اضافه کنید
+                  Authorization: `Bearer ${token}`
+                },
                 body: JSON.stringify({ query })
               })
-              console.log("🌐 Got response, status:", searchRes.status)
+              // console.log("🌐 Got response, status:", searchRes.status)
               const data = await searchRes.json()
-              console.log("📥 Search API raw response:", data)
+              // console.log("📥 Search API raw response:", data)
               const textResult = data.output_text ?? "No result found."
               let payload
               if (data.tool_call_id) {
@@ -297,12 +306,12 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
                   response: { conversation: "auto", instructions: textResult }
                 }
               }
-              console.log(
-                "📦 Payload to realtime:",
-                JSON.stringify(payload, null, 2)
-              )
+              // console.log(
+              //   "📦 Payload to realtime:",
+              //   JSON.stringify(payload, null, 2)
+              // )
               dc.send(JSON.stringify(payload))
-              console.log("✅ Sent results back to model")
+              // console.log("✅ Sent results back to model")
             } catch (err) {
               console.error("❌ Error parsing JSON buffer:", buffer, err)
             }
@@ -311,9 +320,9 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
           // 6. این بلاک "done" (ارسال usage) است
           if (data.type === "response.done" && data.response?.usage) {
             const usageData = data.response.usage // <-- 'usage' اینجا تعریف می‌شود
-            console.log(`🔎 اطلاعات توکن برای این پاسخ:`)
-            console.log(`- ورودی: ${usageData.input_tokens} توکن`)
-            console.log(`- خروجی: ${usageData.output_tokens} توکن`)
+            // console.log(`🔎 اطلاعات توکن برای این پاسخ:`)
+            // console.log(`- ورودی: ${usageData.input_tokens} توکن`)
+            // console.log(`- خروجی: ${usageData.output_tokens} توکن`)
 
             // ✨ 7. اینجا راه‌حل قبلی (گرفتن توکن تازه) را اعمال کن
             try {
@@ -354,7 +363,7 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
         } // پایان dc.onmessage
 
         pc.onconnectionstatechange = () => {
-          console.log("⚡ Connection state:", pc.connectionState)
+          // console.log("⚡ Connection state:", pc.connectionState)
           if (
             ["disconnected", "failed", "closed"].includes(pc.connectionState)
           ) {
@@ -368,15 +377,15 @@ export const AvatarVoiceUI: FC<VoiceUIProps> = ({ chatSettings }) => {
             echoCancellation: true
           }
         })
-        console.log("🎤 Local stream obtained:", ms)
+        // console.log("🎤 Local stream obtained:", ms)
         setUserStream(ms)
 
         ms.getAudioTracks().forEach(track => {
-          console.log("🎤 Sending audio track:", track.label, track.readyState)
+          // console.log("🎤 Sending audio track:", track.label, track.readyState)
           pc.addTrack(track, ms)
         })
 
-        console.log("🎤 Local stream tracks:", ms.getTracks())
+        // console.log("🎤 Local stream tracks:", ms.getTracks())
 
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
