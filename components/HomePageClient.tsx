@@ -381,7 +381,7 @@ export default function HomePageClient() {
           </section>
           <div className="relative z-50 mt-8 flex justify-center">
             <a
-              href="/RhynoAI.apk"
+              href="https://github.com/soheil-asgari/rhyno/releases/download/RhynoApp/RhynoAI.apk"
               download="RhynoAI.apk"
               className="group inline-flex cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-8 py-3.5 font-bold text-gray-700 shadow-lg transition-all hover:scale-110 hover:bg-gray-50 active:scale-95"
             >
