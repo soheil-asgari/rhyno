@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     return response;
   }
-  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime','/company', '/blog', '/about', '/contact'];
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime', '/company', '/blog', '/about', '/contact', '/blog'];
   // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
 
   const isPublicRoute = publicRoutes.some((route: string) => {
@@ -93,7 +93,7 @@ export async function middleware(request: NextRequest) {
   // const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
   // const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
-  const authRedirectRoutes = ['/login', '/signup', '/landing'];
+  const authRedirectRoutes = ['/login', '/signup', '/'];
   const shouldRedirectFromAuthRoute = authRedirectRoutes.some(route => pathname.startsWith(route));
 
   if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {

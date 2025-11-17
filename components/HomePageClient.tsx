@@ -36,7 +36,8 @@ import {
   FiZap,
   FiSmile,
   FiImage,
-  FiFileText
+  FiFileText,
+  FiDownload
 } from "react-icons/fi"
 import { BsCodeSlash } from "react-icons/bs"
 import { BiSolidUserVoice } from "react-icons/bi"
@@ -127,15 +128,11 @@ const pricingFeatures = [
 // --- Main Component ---
 export default function HomePageClient() {
   const companyNavLinks: NavLink[] = [
-    { href: "#features", label: "ویژگی‌ها" },
-    { href: "#process", label: "فرآیند کار" },
+    { href: "/company", label: "راهکارهای سازمانی" },
+    { href: "/avatar", label: "آواتار زنده" },
     { href: "#pricing", label: "تعرفه‌ها" },
-    { href: "/about", label: "درباره ما" },
     { href: "/blog", label: "بلاگ" },
-    { href: "/contact", label: "تماس با ما" },
-    { href: "#faq", label: "سوالات متداول" },
-    { href: "/company", label: "شرکت" },
-    { href: "/avatar", label: "آواتار" }
+    { href: "/contact", label: "تماس" }
   ]
   // ❌ ۳. این state دیگر نیاز نیست (در Header.tsx است)
   // const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -382,6 +379,22 @@ export default function HomePageClient() {
               </motion.div>
             </motion.div>
           </section>
+          <div className="relative z-50 mt-8 flex justify-center">
+            <a
+              href="/RhynoAI.apk"
+              download="RhynoAI.apk"
+              className="group inline-flex cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-8 py-3.5 font-bold text-gray-700 shadow-lg transition-all hover:scale-110 hover:bg-gray-50 active:scale-95"
+            >
+              <FiDownload className="text-xl text-green-500 transition-transform group-hover:scale-110" />
+
+              <div className="text-right leading-tight">
+                <div className="text-xs font-semibold uppercase opacity-70">
+                  دانلود
+                </div>
+                <div className="text-sm font-bold">نسخه مستقیم</div>
+              </div>
+            </a>
+          </div>
 
           {/* --- بخش MultiModalHero --- */}
           <motion.div
