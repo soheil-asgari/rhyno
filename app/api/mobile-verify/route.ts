@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 import { createClient as createSSRClient } from "@/lib/supabase/server"
 
 // --- تنظیمات ---
-const INITIAL_FREE_CREDIT = 50000 // مبلغ شارژ اولیه
+const INITIAL_FREE_CREDIT = 0.5 // مبلغ شارژ اولیه
 
 // --- توابع کمکی ---
 const toE164 = (phone: string) => {
