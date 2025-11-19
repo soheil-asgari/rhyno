@@ -69,6 +69,7 @@ export async function POST(request: Request) {
 
     if (!user) {
       isNewUser = true
+      // ساخت کاربر جدید
       const { data: newUser, error: createError } =
         await supabaseAdmin.auth.admin.createUser({
           email: fakeEmail,
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
       if (createError) throw createError
       user = newUser.user
     } else {
+      // آپدیت پسورد کاربر قدیمی برای لاگین
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         email: fakeEmail,
         email_confirm: true,
@@ -89,19 +91,23 @@ export async function POST(request: Request) {
 
     if (!user) throw new Error("User failed to create/load")
 
-    // ۳. 👈 بخش جدید: ثبت اجباری شماره موبایل در هسته Supabase
-    // این کار باعث می‌شود فیلد phone در اپلیکیشن موبایل پر شود
-    const { error: rpcError } = await supabaseAdmin.rpc("force_update_phone", {
-      user_id: user.id,
-      new_phone: phoneE164
-    })
+    // ۳. ثبت اجباری شماره موبایل (فقط برای کاربران جدید) 👈 تغییر اینجاست
+    if (isNewUser) {
+      const { error: rpcError } = await supabaseAdmin.rpc(
+        "force_update_phone",
+        {
+          user_id: user.id,
+          new_phone: phoneE164
+        }
+      )
 
-    if (rpcError) {
-      console.error("[RPC ERROR] Failed to force update phone:", rpcError)
-      // ادامه می‌دهیم چون خطا بحرانی نیست، ولی در لاگ ثبت می‌شود
+      if (rpcError) {
+        console.error("[RPC ERROR] Failed to force update phone:", rpcError)
+      }
     }
 
     // ۴. تنظیم پروفایل و کیف پول
+    // آپدیت پروفایل عمومی (برای همه انجام شود بهتر است تا دیتابیس به‌روز بماند)
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update({ phone: phoneE164 })
@@ -121,7 +127,7 @@ export async function POST(request: Request) {
     }
 
     if (isNewUser) {
-      // ایجاد کیف پول با ۱ دلار شارژ اولیه
+      // ایجاد کیف پول با ۱ دلار شارژ اولیه (فقط کاربران جدید)
       const { error: walletError } = await supabaseAdmin.from("wallets").upsert(
         {
           user_id: user.id,
