@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     return response;
   }
-  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime', '/company', '/blog', '/about', '/contact', '/blog'];
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime', '/company', '/blog', '/about', '/contact', '/blog', '/services'];
   // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
 
   const isPublicRoute = publicRoutes.some((route: string) => {
