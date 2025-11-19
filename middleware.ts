@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl
 
   // لیست مسیرهای عمومی
-  const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services']
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company']
   const isPublicRoute = publicRoutes.some(route =>
     url.pathname === route || (route !== '/' && url.pathname.startsWith(route))
   )
