@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 import { createClient as createSSRClient } from "@/lib/supabase/server"
 
 // --- تنظیمات ---
-const INITIAL_FREE_CREDIT = 0.5 // مبلغ شارژ اولیه
+const INITIAL_FREE_CREDIT = 1.0 // اعتبار اولیه ۱ دلار
 
 // --- توابع کمکی ---
 const toE164 = (phone: string) => {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   )
 
   try {
-    // ۱. بررسی کد OTP
+    // ۱. بررسی OTP
     const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     await supabaseAdmin.from("otp_codes").delete().eq("id", latestOtp.id)
 
-    // ۲. پیدا کردن یا ساخت کاربر
+    // ۲. مدیریت کاربر (ثبت‌نام یا آپدیت)
     const { data: users } = await supabaseAdmin.auth.admin.listUsers()
     let user = users.users.find(
       u => u.email === fakeEmail || u.user_metadata?.phone === phoneE164
@@ -69,7 +69,6 @@ export async function POST(request: Request) {
 
     if (!user) {
       isNewUser = true
-      console.log(`[AUTH] Creating new user: ${fakeEmail}`)
       const { data: newUser, error: createError } =
         await supabaseAdmin.auth.admin.createUser({
           email: fakeEmail,
@@ -80,7 +79,6 @@ export async function POST(request: Request) {
       if (createError) throw createError
       user = newUser.user
     } else {
-      // آپدیت کاربر قدیمی
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         email: fakeEmail,
         email_confirm: true,
@@ -89,26 +87,32 @@ export async function POST(request: Request) {
       })
     }
 
-    if (!user) throw new Error("User creation failed")
+    if (!user) throw new Error("User failed to create/load")
 
-    // ۳. تنظیمات پروفایل و کیف پول (اصلاح شده برای حل تداخل با Trigger)
+    // ۳. 👈 بخش جدید: ثبت اجباری شماره موبایل در هسته Supabase
+    // این کار باعث می‌شود فیلد phone در اپلیکیشن موبایل پر شود
+    const { error: rpcError } = await supabaseAdmin.rpc("force_update_phone", {
+      user_id: user.id,
+      new_phone: phoneE164
+    })
 
-    // الف) آپدیت شماره در پروفایل
-    // تلاش می‌کنیم پروفایل موجود (که توسط Trigger ساخته شده) را آپدیت کنیم
-    const { error: updateProfileError } = await supabaseAdmin
+    if (rpcError) {
+      console.error("[RPC ERROR] Failed to force update phone:", rpcError)
+      // ادامه می‌دهیم چون خطا بحرانی نیست، ولی در لاگ ثبت می‌شود
+    }
+
+    // ۴. تنظیم پروفایل و کیف پول
+    const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update({ phone: phoneE164 })
       .eq("user_id", user.id)
 
-    // اگر پروفایلی وجود نداشت (Trigger کار نکرده بود)، یکی می‌سازیم
-    if (updateProfileError || isNewUser) {
-      // برای اطمینان یک upsert هم انجام می‌دهیم که اگر آپدیت بالا به هر دلیلی نگرفت، اینجا درست شود
+    if (profileError || isNewUser) {
       await supabaseAdmin.from("profiles").upsert(
         {
           user_id: user.id,
           phone: phoneE164,
           username: `user_${phoneE164.slice(-4)}_${Math.floor(Math.random() * 10000)}`,
-          // مقادیر پیش‌فرض برای جلوگیری از خطای نال بودن
           display_name: phoneE164,
           bio: ""
         },
@@ -116,22 +120,17 @@ export async function POST(request: Request) {
       )
     }
 
-    // ب) اعمال شارژ اولیه (فقط برای کاربر جدید)
     if (isNewUser) {
-      console.log(`[WALLET] Setting initial credit for ${user.id}`)
-
-      // اینجا به جای insert، از upsert استفاده می‌کنیم تا اگر Trigger قبلاً با 0 ساخته بود، آن را 50000 کنیم
+      // ایجاد کیف پول با ۱ دلار شارژ اولیه
       const { error: walletError } = await supabaseAdmin.from("wallets").upsert(
         {
           user_id: user.id,
-          balance: INITIAL_FREE_CREDIT // 👈 این عدد جایگزین 0 می‌شود
+          balance: INITIAL_FREE_CREDIT
         },
         { onConflict: "user_id" }
       )
 
       if (walletError) {
-        console.error("[WALLET ERROR]", walletError)
-        // تیر آخر: اگر upsert هم ارور داد (کم پیش می‌آید)، مستقیم update می‌زنیم
         await supabaseAdmin
           .from("wallets")
           .update({ balance: INITIAL_FREE_CREDIT })
@@ -139,7 +138,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ۴. لاگین
+    // ۵. لاگین
     const { data: signInData, error: signInError } =
       await supabase.auth.signInWithPassword({
         email: fakeEmail,
