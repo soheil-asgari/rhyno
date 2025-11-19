@@ -2,13 +2,11 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // console.log("Middleware: Processing URL:", request.nextUrl.pathname, request.nextUrl.search);
-  // console.log("Middleware: Cookies:", request.cookies.getAll());
-
+  // ۱. پاسخ اولیه را می‌سازیم
   let response = NextResponse.next({
     request: {
-      headers: request.headers
-    }
+      headers: request.headers,
+    },
   })
 
   const supabase = createServerClient(
@@ -17,139 +15,84 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          const value = request.cookies.get(name)?.value;
-          // console.log("Middleware: Getting cookie:", { name, value });
-          return value;
+          return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          console.log("Middleware: Setting cookie:", { name, value: value.slice(0, 50) + (value.length > 50 ? "..." : ""), options });
-          try {
-            // اعتبارسنجی مقدار کوکی
-            if (!value || typeof value !== "string") {
-              // console.error("Middleware: Invalid cookie value:", { name, value });
-              return;
-            }
-            request.cookies.set({ name, value, ...options });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers
-              }
-            });
-            response.cookies.set({ name, value, ...options });
-          } catch (e) {
-            // console.error("Middleware: Error setting cookie:", { name, error: e });
-          }
+          // کوکی را هم در درخواست (برای ادامه مسیر) و هم در پاسخ (برای ذخیره در مرورگر) ست می‌کنیم
+          request.cookies.set({ name, value, ...options })
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
+          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          // console.log("Middleware: Removing cookie:", { name, options });
-          try {
-            request.cookies.set({ name, value: '', ...options });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers
-              }
-            });
-            response.cookies.set({ name, value: '', ...options });
-          } catch (e) {
-            // console.error("Middleware: Error removing cookie:", { name, error: e });
-          }
+          request.cookies.set({ name, value: '', ...options })
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
+          response.cookies.set({ name, value: '', ...options })
+        },
+      },
+    }
+  )
+
+  // ۲. رفرش کردن سشن
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // ۳. مدیریت مسیرها
+  const url = request.nextUrl
+
+  // لیست مسیرهای عمومی
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services']
+  const isPublicRoute = publicRoutes.some(route =>
+    url.pathname === route || (route !== '/' && url.pathname.startsWith(route))
+  )
+
+  // اگر کاربر لاگین نکرده و مسیر عمومی نیست -> ریدایرکت به لاگین
+  if (!user && !isPublicRoute) {
+    // جلوگیری از ریدایرکت تکراری اگر کاربر در حال حاضر در لاگین است
+    if (url.pathname.startsWith('/login')) {
+      return response;
+    }
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // اگر کاربر لاگین کرده است
+  if (user) {
+    // اگر در صفحه لاگین یا اصلی است، به دشبورد/چت بفرست
+    if (url.pathname === '/login' || url.pathname === '/signup' || url.pathname === '/') {
+      // اگر next دارد، به همانجا بفرست
+      const nextParam = url.searchParams.get('next')
+      if (nextParam && nextParam.startsWith('/')) {
+        return NextResponse.redirect(new URL(nextParam, request.url))
+      }
+
+      // در غیر این صورت منطق ورک‌اسپیس
+      if (user.phone) {
+        const { data: homeWorkspace } = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("is_home", true)
+          .single()
+
+        if (homeWorkspace) {
+          return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url))
+        } else {
+          return NextResponse.redirect(new URL('/setup', request.url))
         }
       }
     }
-  );
-
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-  // console.log("Middleware: User data:", user ? { id: user.id, email: user.email, phone: user.phone } : null, "Error:", error);
-
-  const { pathname } = request.nextUrl;
-  if (pathname.startsWith('/api')) {
-    return response;
-  }
-  const publicRoutes = ["/", '/login', '/signup', '/landing', '/chat/realtime', '/company', '/blog', '/about', '/contact', '/blog', '/services'];
-  // (هر مسیر عمومی دیگری مثل /blog یا /about را به این لیست اضافه کنید)
-
-  const isPublicRoute = publicRoutes.some((route: string) => {
-    if (route === '/') {
-      return pathname === '/'; // فقط صفحه اصلی
-    }
-    // ✅ اصلاح کوچک: مطمئن شوید که /chat/realtime به درستی مچ می‌شود
-    return pathname.startsWith(route);
-  });
-  // ❗️❗️ بخش اضافه شده: دروازه برای کاربران لاگین نکرده ❗️❗️
-  // ۲. اگر کاربر لاگین نکرده و روی یک مسیر عمومی هم نیست...
-  if (!user && !isPublicRoute) {
-    // ...او را به صفحه لاگین بفرست.
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    // (اختیاری) می‌توانید آدرس فعلی را به عنوان پارامتر بفرستید
-    // تا بعد از لاگین به همین صفحه برگردد
-    // url.searchParams.set('next', pathname)
-    url.searchParams.set('next', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
-  }
-  // const publicRoutes = ['/login', '/signup', '/landing', '/blog', '/app', '/about', '/contact'];
-  // const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  const workspaceidPattern = /^[0-9a-fA-F-]{36}$/;
-  const authRedirectRoutes = ['/login', '/signup', '/'];
-  const shouldRedirectFromAuthRoute = authRedirectRoutes.some(route => pathname.startsWith(route));
-
-  if (user && user.phone && workspaceidPattern.test(pathname.slice(1)) && !pathname.endsWith("/chat")) {
-    // console.log("Middleware: Redirecting from", pathname, "to", `${pathname}/chat`);
-    return NextResponse.redirect(new URL(`${pathname}/chat`, request.url));
   }
 
-  if (user) {
-    const isOnVerifyPage = pathname === '/verify-phone';
-    const isOnSetupPage = pathname === '/setup';
-
-    // اولویت ۱: بررسی تایید شماره تلفن
-    if (!user.phone && !isOnVerifyPage) {
-      return NextResponse.redirect(new URL('/verify-phone', request.url));
-    }
-
-    // اگر شماره تلفن تایید شده، وضعیت workspace را بررسی کن
-    if (user.phone) {
-      const { data: homeWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_home", true)
-        .single();
-
-      const hasHomeWorkspace = !!homeWorkspace;
-
-      // اولویت ۲: بررسی ساخت workspace
-      // اگر workspace ندارد و در صفحه setup هم نیست، او را به setup بفرست
-      if (!hasHomeWorkspace && !isOnSetupPage) {
-        return NextResponse.redirect(new URL('/setup', request.url));
-      }
-
-      // اگر کاربر کاملاً آماده است و به صفحات عمومی یا مراحل اولیه رفته، او را به صفحه اصلی ببر
-      if (hasHomeWorkspace && (shouldRedirectFromAuthRoute || isOnSetupPage || isOnVerifyPage)) {
-        return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url));
-      }
-    }
-  }
-
-  return response;
+  return response
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - auth (auth routes)
-     * - favicon.ico (favicon file)
-     * - sitemap.xml (sitemap file)
-     * - robots.txt (robots file)
-     * - anything inside 'public' folder that has an extension (e.g., .png, .svg, .json)
-     */
-    // ❗️ کلمه 'api' از اینجا حذف شد
-    '/((?!_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)'
-  ]
+    '/((?!_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)',
+  ],
 }

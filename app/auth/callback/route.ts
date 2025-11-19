@@ -1,71 +1,92 @@
-// مسیر فایل: app/auth/callback/route.ts
-
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { type NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
+  const next = requestUrl.searchParams.get("next")
   const origin = requestUrl.origin
-  const nextUrl = requestUrl.searchParams.get("next") // <-- اضافه شد
 
-  if (!code) {
-    return NextResponse.redirect(`${origin}/login?message=No code provided`)
-  }
+  // ۱. تعیین آدرس بازگشت (پیش‌فرض: setup)
+  // اگر next وجود داشته باشد، همان را استفاده می‌کنیم
+  let redirectTo =
+    next && next.startsWith("/") ? `${origin}${next}` : `${origin}/setup`
 
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  // ۲. ساخت شیء پاسخ نهایی همین ابتدا
+  // این کار باعث می‌شود کوکی‌ها مستقیماً روی پاسخی که حاوی ریدایرکت است سوار شوند
+  const response = NextResponse.redirect(redirectTo)
 
-  // تبادل کد با session
-  const { data: exchangeData, error: exchangeError } =
-    await supabase.auth.exchangeCodeForSession(code)
-
-  if (exchangeError) {
-    return NextResponse.redirect(
-      `${origin}/login?message=${encodeURIComponent(exchangeError.message)}`
+  if (code) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            // کوکی‌ها را مستقیماً روی پاسخ نهایی تنظیم می‌کنیم
+            response.cookies.set({
+              name,
+              value,
+              ...options
+            })
+          },
+          remove(name: string, options: CookieOptions) {
+            response.cookies.set({
+              name,
+              value: "",
+              ...options
+            })
+          }
+        }
+      }
     )
-  }
 
-  const { session, user } = exchangeData || {}
+    // ۳. تبادل کد با نشست (Session)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-  if (!session || !user) {
-    return NextResponse.redirect(`${origin}/login?message=No session found`)
-  }
+    if (!error && data?.user) {
+      // ۴. منطق دیتابیس (فقط اگر آدرس مقصد مشخص نشده باشد، هوشمند عمل می‌کنیم)
+      // اگر next وجود دارد (مثل /avatar)، به منطق زیر کاری نداریم و کاربر را مستقیم می‌فرستیم
+      if (!next || next === "/") {
+        // بررسی کیف پول
+        const { data: wallet } = await supabase
+          .from("wallets")
+          .select("id")
+          .eq("user_id", data.user.id)
+          .single()
 
-  // اگر لینک reset password بود و next مشخص شده
-  if (nextUrl) {
-    return NextResponse.redirect(`${origin}${nextUrl}`)
-  }
+        if (!wallet) {
+          await supabase.from("wallets").insert({
+            user_id: data.user.id,
+            amount_usd: 1,
+            description: "خوش‌آمدگویی 1$"
+          })
+        }
 
-  // بررسی اینکه آیا کاربر جدید است (برای اضافه کردن 1$ خوش‌آمدگویی)
-  const { data: walletData } = await supabase
-    .from("wallets")
-    .select("id")
-    .eq("user_id", user.id)
-    .single()
+        // پیدا کردن ورک‌اسپیس برای هدایت پیش‌فرض
+        const { data: homeWorkspace } = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("user_id", data.user.id)
+          .eq("is_home", true)
+          .single()
 
-  if (!walletData) {
-    // اضافه کردن 1$ خوش‌آمدگویی
-    await supabase.from("wallets").insert({
-      user_id: user.id,
-      amount_usd: 1,
-      description: "خوش‌آمدگویی 1$"
-    })
-  }
-
-  // پیدا کردن ورک‌اسپیس اصلی کاربر
-  const { data: homeWorkspace } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("is_home", true)
-    .single()
-
-  // هدایت به ورک‌اسپیس یا صفحه setup
-  if (homeWorkspace) {
-    return NextResponse.redirect(`${origin}/${homeWorkspace.id}/chat?welcome=1`)
+        if (homeWorkspace) {
+          // تغییر آدرس ریدایرکت به چت روم اصلی
+          const newRedirectUrl = `${origin}/${homeWorkspace.id}/chat?welcome=1`
+          // آپدیت هدر Location در پاسخ موجود
+          response.headers.set("Location", newRedirectUrl)
+        }
+      }
+    } else {
+      return NextResponse.redirect(`${origin}/login?message=Auth failed`)
+    }
   } else {
-    return NextResponse.redirect(`${origin}/setup?welcome=1`)
+    return NextResponse.redirect(`${origin}/login?message=No code`)
   }
+
+  return response
 }

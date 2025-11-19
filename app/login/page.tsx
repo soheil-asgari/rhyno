@@ -13,8 +13,11 @@ import Head from "next/head"
 import { ChangePassword } from "@/components/utility/change-password"
 import AnimationHero from "./AnimationHero"
 
-export const metadata: Metadata = {
-  title: "ورود | Rhyno Chat"
+export const metadata = {
+  title: "Login - Rhyno",
+  alternates: {
+    canonical: "https://www.rhynoai.ir/login"
+  }
 }
 
 const errorMessages: { [key: string]: string } = {
