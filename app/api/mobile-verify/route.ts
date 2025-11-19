@@ -1,14 +1,8 @@
-// In Next.js Project: app/api/mobile-verify/route.ts
-// ⚠️ این فایل را در پروژه بک‌اند Next.js خود جایگزین کنید
-
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
-import { createClient } from "@/lib/supabase/server"
 import { createClient as createSSRClient } from "@/lib/supabase/server"
-
-// ... (توابع کمکی toE164, generateStrongPassword, normalizePhone را از actions.ts خود اینجا کپی کنید) ...
 
 const toE164 = (phone: string) => {
   if (phone.startsWith("0")) {
@@ -18,10 +12,6 @@ const toE164 = (phone: string) => {
     return `+98${phone}`
   }
   return phone
-}
-
-const normalizePhone = (phone: string) => {
-  return phone.startsWith("+") ? phone.slice(1) : phone
 }
 
 function generateStrongPassword(length = 16): string {
@@ -45,8 +35,10 @@ function generateStrongPassword(length = 16): string {
 }
 
 export async function POST(request: Request) {
-  const { phone, otp } = await request.json() // 👈 ورودی: JSON
+  const { phone, otp } = await request.json()
   const phoneE164 = toE164(phone)
+  const fakeEmail = `${phoneE164.replace("+", "")}@placeholder.rhyno`
+
   const cookieStore = cookies()
   const supabase = createSSRClient(cookieStore)
   const supabaseAdmin = createAdminClient(
@@ -55,7 +47,6 @@ export async function POST(request: Request) {
   )
 
   try {
-    // مراحل ۱ تا ۳: اعتبارسنجی OTP (کپی شده از verifyCustomOtpAction)
     const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -74,74 +65,65 @@ export async function POST(request: Request) {
     if (!isValid) {
       return NextResponse.json({ message: "کد نامعتبر" }, { status: 400 })
     }
-    await supabase.from("otp_codes").delete().eq("id", latestOtp.id)
 
-    // مرحله ۴: پیدا کردن کاربر
+    await supabaseAdmin.from("otp_codes").delete().eq("id", latestOtp.id)
+
     const { data: users, error: listError } =
       await supabaseAdmin.auth.admin.listUsers()
     if (listError) throw new Error(`Failed to list users: ${listError.message}`)
 
-    const normalizedPhoneE164 = normalizePhone(phoneE164)
-    const user = users.users.find(
-      u => u.phone === phoneE164 || u.phone === normalizedPhoneE164
+    let user = users.users.find(
+      u => u.email === fakeEmail || u.user_metadata?.phone === phoneE164
     )
 
-    if (!user) {
-      // ⚠️ اگر کاربر پیدا نشد، باید او را ثبت‌نام کنیم
-      // این بخش در verifyCustomOtpAction شما وجود نداشت و به صفحه ثبت‌نام ریدایرکت می‌شد
-      // در موبایل، ما مستقیماً او را ثبت‌نام می‌کنیم
-      // (اگر نمی‌خواهید ثبت‌نام خودکار انجام شود، این بخش را حذف کنید و خطای زیر را برگردانید)
-      // return NextResponse.json({ message: "اکانت پیدا نشد. ثبت‌نام کنید." }, { status: 404 });
+    const passwordToUse = generateStrongPassword()
 
-      console.log(`[AUTH] User not found, creating new user for ${phoneE164}`)
-      const newPassword = generateStrongPassword()
+    if (!user) {
       const { data: newUserData, error: signUpError } =
         await supabaseAdmin.auth.admin.createUser({
-          phone: phoneE164,
-          password: newPassword,
-          phone_confirm: true
+          email: fakeEmail,
+          password: passwordToUse,
+          email_confirm: true,
+          user_metadata: {
+            phone: phoneE164
+          }
         })
 
       if (signUpError)
         throw new Error(`Failed to create user: ${signUpError.message}`)
-
-      // حالا با کاربر جدید لاگین می‌کنیم
-      const { data: signInData, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          phone: phoneE164,
-          password: newPassword
+      user = newUserData.user
+    } else {
+      if (!user.email || user.email !== fakeEmail) {
+        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+          email: fakeEmail,
+          email_confirm: true,
+          password: passwordToUse,
+          user_metadata: { ...user.user_metadata, phone: phoneE164 }
         })
-
-      if (signInError) throw signInError
-      if (!signInData.session)
-        throw new Error("Session not created after sign up")
-
-      return NextResponse.json({
-        access_token: signInData.session.access_token,
-        refresh_token: signInData.session.refresh_token
-      })
+      } else {
+        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+          password: passwordToUse,
+          user_metadata: { ...user.user_metadata, phone: phoneE164 }
+        })
+      }
     }
 
-    // اگر کاربر وجود داشت:
-    if (!user.email) throw new Error("User has no email address")
-
-    // مرحله ۵: ایجاد نشست با رمز عبور موقت (کپی شده از verifyCustomOtpAction)
-    const temporaryPassword = generateStrongPassword()
-
-    await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      password: temporaryPassword
-    })
+    if (user) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ phone: phoneE164 })
+        .eq("user_id", user.id)
+    }
 
     const { data: signInData, error: signInError } =
       await supabase.auth.signInWithPassword({
-        email: user.email, // لاگین با ایمیل انجام می‌شود طبق کد شما
-        password: temporaryPassword
+        email: fakeEmail,
+        password: passwordToUse
       })
 
     if (signInError) throw signInError
     if (!signInData.session) throw new Error("Session not created")
 
-    // 👈 خروجی: JSON (توکن‌ها)
     return NextResponse.json({
       access_token: signInData.session.access_token,
       refresh_token: signInData.session.refresh_token
