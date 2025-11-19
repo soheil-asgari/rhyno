@@ -28,7 +28,7 @@ import { HiOutlineChip } from "react-icons/hi"
 const platformFeatures = [
   {
     title: "دسترسی بدون محدودیت",
-    desc: "دسترسی مستقیم و پرسرعت به مدل‌های جهانی (GPT-4, Claude) بدون نیاز به تغییر IP.",
+    desc: "دسترسی مستقیم و پرسرعت به مدل‌های شخصی سازی شده جهانی بدون نیاز به تغییر IP.",
     icon: <FiServer />
   },
   {
