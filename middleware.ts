@@ -18,7 +18,6 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // کوکی را هم در درخواست (برای ادامه مسیر) و هم در پاسخ (برای ذخیره در مرورگر) ست می‌کنیم
           request.cookies.set({ name, value, ...options })
           response = NextResponse.next({
             request: { headers: request.headers },
@@ -39,9 +38,14 @@ export async function middleware(request: NextRequest) {
   // ۲. رفرش کردن سشن
   const { data: { user } } = await supabase.auth.getUser()
 
-  // ۳. مدیریت مسیرها
   const url = request.nextUrl
 
+  // ❗️❗️ اصلاح مهم برای موبایل: اگر درخواست به API است، ریدایرکت نکن و اجازه بده رد شود ❗️❗️
+  if (url.pathname.startsWith('/api')) {
+    return response
+  }
+
+  // ۳. مدیریت مسیرهای وب‌سایت
   // لیست مسیرهای عمومی
   const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company']
   const isPublicRoute = publicRoutes.some(route =>
@@ -50,9 +54,8 @@ export async function middleware(request: NextRequest) {
 
   // اگر کاربر لاگین نکرده و مسیر عمومی نیست -> ریدایرکت به لاگین
   if (!user && !isPublicRoute) {
-    // جلوگیری از ریدایرکت تکراری اگر کاربر در حال حاضر در لاگین است
     if (url.pathname.startsWith('/login')) {
-      return response;
+      return response
     }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
@@ -62,9 +65,9 @@ export async function middleware(request: NextRequest) {
 
   // اگر کاربر لاگین کرده است
   if (user) {
-    // اگر در صفحه لاگین یا اصلی است، به دشبورد/چت بفرست
+    // اگر در صفحه لاگین یا اصلی است
     if (url.pathname === '/login' || url.pathname === '/signup' || url.pathname === '/') {
-      // اگر next دارد، به همانجا بفرست
+      // اگر پارامتر next دارد، اولویت با آن است
       const nextParam = url.searchParams.get('next')
       if (nextParam && nextParam.startsWith('/')) {
         return NextResponse.redirect(new URL(nextParam, request.url))
@@ -93,6 +96,16 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - auth (auth routes)
+     * - favicon.ico (favicon file)
+     * - sitemap.xml (sitemap file)
+     * - robots.txt (robots file)
+     * - files with extensions (e.g. .png, .jpg)
+     */
     '/((?!_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)',
   ],
 }
