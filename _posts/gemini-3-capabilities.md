@@ -2,7 +2,7 @@
 title: "جمینای ۳ (Gemini 3) چیست؟ | بررسی قابلیت‌های انقلابی هوش مصنوعی گوگل"
 date: "2025-11-21"
 author: "تیم Rhyno"
-image: "/blog/gemini-3-review.jpg"
+image: "/blog/gemini-3-review.png"
 excerpt: "با Gemini 3، قدرتمندترین مدل هوش مصنوعی گوگل آشنا شوید. بررسی سرعت، درک چندوجهی و پنجره متنی عظیم که قوانین بازی را تغییر داده است."
 category: "تکنولوژی"
 canonical: "https://www.rhynoai.ir/blog/gemini-3-capabilities"
