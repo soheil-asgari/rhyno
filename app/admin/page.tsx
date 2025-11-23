@@ -17,9 +17,22 @@ export default async function AdminPage() {
     return redirect("/login")
   }
 
-  // دریافت داده‌ها از سرور اکشن
+  // 1. Get data from server action
   const initialData = await getAdminData()
 
-  // پاس دادن داده‌ها به کلاینت
-  return <AdminClientPage user={user} initialData={initialData} />
+  // 2. Sanitize the data to handle undefined values
+  // If initialData might be an error object, we should handle that too,
+  // but this specific fix solves the "undefined is not assignable to any[]" error.
+  const sanitizedData = {
+    ...initialData,
+    // Use nullish coalescing (??) to default to empty array if undefined
+    tickets:
+      "tickets" in initialData && initialData.tickets
+        ? initialData.tickets
+        : [],
+    users: "users" in initialData && initialData.users ? initialData.users : []
+  }
+
+  // 3. Pass the sanitized data
+  return <AdminClientPage user={user} initialData={sanitizedData} />
 }

@@ -52,7 +52,7 @@ export async function getAdminData() {
       }
     })
 
-    return { users: fullUsers, tickets: enrichedTickets }
+    return { users: fullUsers, tickets: enrichedTickets || [] }
   } catch (error: any) {
     console.error("Admin Data Error:", error)
     return { users: [], tickets: [], error: error.message }
