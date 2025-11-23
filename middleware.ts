@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   // ۳. مدیریت مسیرهای وب‌سایت
   // لیست مسیرهای عمومی
-  const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company', '/checkout', '/bi',]
+  const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company', '/checkout', '/bi', '/enterprise']
   const isPublicRoute = publicRoutes.some(route =>
     url.pathname === route || (route !== '/' && url.pathname.startsWith(route))
   )
