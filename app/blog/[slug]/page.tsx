@@ -5,7 +5,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { FiCalendar, FiUser } from "react-icons/fi"
 import RelatedPosts from "@/components/RelatedPosts"
-
+import Image from "next/image"
 // ⭐️ ۱. ایمپورت‌های مورد نیاز برای شمارنده و 404
 import { notFound } from "next/navigation"
 import { ViewCounter } from "./components/ViewCounter" // (مسیر را بر اساس ساختار پروژه خود تنظیم کنید)
@@ -127,12 +127,18 @@ export default async function PostPage({ params }: Props) {
             )}
           </div>
           {image && (
-            <img
-              src={image}
-              alt={post.title}
-              className="mt-4 w-full rounded-lg object-cover"
-              loading="eager"
-            />
+            <div className="relative mt-4 h-[400px] w-full">
+              {" "}
+              {/* ارتفاع باید متناسب باشد */}
+              <Image
+                src={image}
+                alt={post.title}
+                fill
+                className="rounded-lg object-cover"
+                priority // چون بالای صفحه است و LCP حساب می‌شود
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              />
+            </div>
           )}
         </header>
 

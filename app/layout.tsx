@@ -37,12 +37,61 @@ const inter = Inter({
 })
 
 const APP_NAME = "Rhyno AI"
-// ... (بقیه metadata) ...
 export const metadata: Metadata = {
-  // ...
+  // ✅ 1. دامنه اصلی سایت را اینجا تعریف کنید (برای حل مشکل تصاویر در لینکدین و توییتر)
+  metadataBase: new URL("https://www.rhynoai.ir"),
+
+  title: {
+    default: "Rhyno AI | پلتفرم ابزارهای هوشمند فارسی",
+    template: "%s | Rhyno AI" // این باعث می‌شود نام صفحات به صورت "نام مقاله | Rhyno AI" نمایش داده شود
+  },
+  description:
+    "دستیار هوشمند فارسی و ابزارهای تولید محتوا، سئو و تحلیل داده با هوش مصنوعی.",
+
+  // ✅ 2. تنظیمات Open Graph برای نمایش زیبا در تلگرام و واتس‌اپ
+  openGraph: {
+    type: "website",
+    locale: "fa_IR",
+    url: "https://www.rhynoai.ir",
+    siteName: "Rhyno AI",
+    images: [
+      {
+        url: "/rhyno-logo-square.jpg", // مطمئن شوید این عکس در پوشه public وجود دارد
+        width: 1200,
+        height: 630,
+        alt: "Rhyno AI Platform"
+      }
+    ]
+  },
+
+  // ✅ 3. تنظیمات توییتر
+  twitter: {
+    card: "summary_large_image",
+    title: "Rhyno AI",
+    description: "پلتفرم هوش مصنوعی فارسی",
+    images: ["/rhyno-logo-square.jpg"]
+  },
+
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png"
+  },
+
+  robots: {
+    index: true,
+    follow: true
+  }
 }
 export const viewport: Viewport = {
-  // ...
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1, // این خط باعث می‌شود کاربر نتواند زوم کند (حس اپلیکیشن واقعی)
+  userScalable: false,
+  // ✅ تنظیم رنگ نوار بالای مرورگر در موبایل (هماهنگ با لایت/دارک مود)
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" }
+  ]
 }
 
 const i18nNamespaces = ["translation"]
