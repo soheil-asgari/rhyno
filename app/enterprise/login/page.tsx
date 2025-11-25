@@ -1,4 +1,4 @@
-// app/(enterprise)/login/page.tsx
+// app/enterprise/login/page.tsx
 "use client"
 
 import { useState } from "react"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { FiLock, FiShield, FiArrowLeft } from "react-icons/fi"
 import Link from "next/link"
-import Image from "next/image"
+// Image import removed as it was commented out in original
 
 export default function EnterpriseLoginPage() {
   const router = useRouter()
@@ -33,6 +33,10 @@ export default function EnterpriseLoginPage() {
         setLoading(false)
         return
       }
+
+      // تنظیم کوکی برای تشخیص کاربر سازمانی در میدل‌ور
+      document.cookie =
+        "rhyno_app_mode=enterprise; path=/; max-age=2592000; SameSite=Lax" // 30 days
 
       // موفقیت: هدایت به صفحه پورتال برای مسیریابی هوشمند
       toast.success("خوش آمدید")
@@ -119,12 +123,8 @@ export default function EnterpriseLoginPage() {
       <div className="relative hidden w-1/2 overflow-hidden bg-slate-900 md:block">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-slate-900 opacity-90" />
 
-        {/* اگر تصویری دارید در پوشه public بگذارید */}
-        {/* <Image src="/images/enterprise-bg.jpg" alt="Enterprise" fill className="object-cover mix-blend-overlay" /> */}
-
         <div className="relative z-10 flex h-full flex-col items-center justify-center p-12 text-center text-white">
           <div className="mb-6 rounded-2xl bg-white/10 p-4 backdrop-blur-lg">
-            {/* اینجا می‌توانید آیکون BI بگذارید */}
             <svg
               width="64"
               height="64"
