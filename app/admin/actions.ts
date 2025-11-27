@@ -105,6 +105,9 @@ export async function createEnterpriseAccount(formData: FormData) {
   const companyName = formData.get("company") as string
   const balance = parseInt(formData.get("balance") as string) || 0
 
+  // تغییر ۱: دریافت نقش از فرم (پیش‌فرض روی user)
+  const role = (formData.get("role") as string) || "payer"
+
   if (!email || !password || !companyName) return { error: "اطلاعات ناقص است" }
 
   // ۱. ساخت یوزر
@@ -119,8 +122,7 @@ export async function createEnterpriseAccount(formData: FormData) {
   if (authError) return { error: authError.message }
   const userId = authData.user.id
 
-  // ۲. آپدیت یا ساخت پروفایل (اینجا از upsert استفاده می‌کنیم)
-  // ✅ اصلاح مهم: استفاده از upsert به جای insert برای جلوگیری از تداخل با Trigger
+  // ۲. آپدیت پروفایل (اصلاح شده: اضافه کردن role)
   const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
     {
       user_id: userId,
@@ -129,18 +131,18 @@ export async function createEnterpriseAccount(formData: FormData) {
         "_" +
         Math.floor(Math.random() * 1000),
       display_name: companyName,
-      has_onboarded: true, // این خط باعث می‌شود کاربر به صفحه Setup نرود
+      has_onboarded: true,
       image_url: "",
       image_path: "",
       bio: "Enterprise Account",
-      profile_context: "Enterprise Customer"
+      profile_context: "Enterprise Customer",
+      role: role // <--- این خط را حتما اضافه کنید
     },
     { onConflict: "user_id" }
   )
 
   if (profileError) {
     console.error("Profile creation failed:", profileError)
-    // حتی اگر پروفایل فیل شد، ادامه می‌دهیم چون یوزر ساخته شده
   }
 
   // ۳. ساخت ورک‌اسپیس
