@@ -71,7 +71,7 @@ export async function loginEnterpriseUser(formData: FormData) {
   switch (role) {
     // مدیر عامل -> داشبورد هوش تجاری (BI)
     case "ceo":
-      return redirect(`/enterprise/${workspace.id}/dashboard`)
+      return redirect(`/enterprise/${workspace.id}/ceo/dashboard`)
 
     // مدیر مالی -> داشبورد گزارشات مالی
     case "finance_manager":

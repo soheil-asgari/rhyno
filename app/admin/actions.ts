@@ -99,18 +99,21 @@ export async function closeTicketAction(ticketId: string) {
 }
 
 // ساخت اکانت سازمانی (اصلاح شده با upsert)
+// app/admin/actions.ts
+// ... (سایر ایمپورت‌ها)
+
 export async function createEnterpriseAccount(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const companyName = formData.get("company") as string
   const balance = parseInt(formData.get("balance") as string) || 0
 
-  // تغییر ۱: دریافت نقش از فرم (پیش‌فرض روی user)
+  // دریافت نقش از فرم (پیش‌فرض: payer)
   const role = (formData.get("role") as string) || "payer"
 
   if (!email || !password || !companyName) return { error: "اطلاعات ناقص است" }
 
-  // ۱. ساخت یوزر
+  // 1. ساخت یوزر در Auth
   const { data: authData, error: authError } =
     await supabaseAdmin.auth.admin.createUser({
       email,
@@ -122,10 +125,11 @@ export async function createEnterpriseAccount(formData: FormData) {
   if (authError) return { error: authError.message }
   const userId = authData.user.id
 
-  // ۲. آپدیت پروفایل (اصلاح شده: اضافه کردن role)
+  // 2. ساخت/آپدیت پروفایل با نقش صحیح
   const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
     {
       user_id: userId,
+      // ساخت یوزرنیم رندوم
       username:
         companyName.toLowerCase().replace(/\s/g, "_") +
         "_" +
@@ -136,22 +140,22 @@ export async function createEnterpriseAccount(formData: FormData) {
       image_path: "",
       bio: "Enterprise Account",
       profile_context: "Enterprise Customer",
-      role: role // <--- این خط را حتما اضافه کنید
+
+      // *** نکته کلیدی: ذخیره نقش ***
+      role: role
     },
     { onConflict: "user_id" }
   )
 
-  if (profileError) {
-    console.error("Profile creation failed:", profileError)
-  }
+  if (profileError) console.error("Profile creation failed:", profileError)
 
-  // ۳. ساخت ورک‌اسپیس
+  // 3. ساخت ورک‌اسپیس
   await supabaseAdmin.from("workspaces").insert({
     user_id: userId,
     name: companyName,
     is_home: true,
     default_context_length: 4096,
-    default_model: "gpt-4-turbo",
+    default_model: "gpt-4-turbo", // یا مدل پیش‌فرض شما
     default_prompt: "You are a helpful AI assistant.",
     default_temperature: 0.5,
     description: "Enterprise Workspace",
@@ -161,7 +165,7 @@ export async function createEnterpriseAccount(formData: FormData) {
     instructions: ""
   })
 
-  // ۴. شارژ کیف پول
+  // 4. شارژ کیف پول
   if (balance > 0) {
     await supabaseAdmin.from("wallets").insert({
       user_id: userId,

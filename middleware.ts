@@ -1,14 +1,15 @@
-// middleware.ts
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // 1. ایجاد Response اولیه
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
+  // 2. تنظیم کلاینت Supabase
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -35,64 +36,75 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // 3. دریافت وضعیت کاربر
   const { data: { user } } = await supabase.auth.getUser()
   const url = request.nextUrl
+  const pathname = url.pathname
 
-  if (url.pathname.startsWith('/api')) {
+  // --- اگر مسیر API است، کاری نداشته باش ---
+  if (pathname.startsWith('/api')) {
     return response
   }
 
+  // --- منطق مسیرهای عمومی (Public) ---
   const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company', '/checkout', '/bi', '/enterprise']
   const isPublicRoute = publicRoutes.some(route =>
-    url.pathname === route || (route !== '/' && url.pathname.startsWith(route))
+    pathname === route || (route !== '/' && pathname.startsWith(route))
   )
 
+  // --- اگر کاربر لاگین نکرده است ---
   if (!user && !isPublicRoute) {
-    if (url.pathname.startsWith('/login')) {
+    if (pathname.startsWith('/login')) {
       return response
     }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
-    loginUrl.searchParams.set('next', request.nextUrl.pathname)
+    loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
+  // --- اگر کاربر لاگین کرده است (بخش اصلی مشکل شما) ---
   if (user) {
-    // ⭐️ اصلاح مهم: اولویت مطلق با کاربر سازمانی ⭐️
+    // A. بررسی حالت Enterprise
     const appMode = request.cookies.get('rhyno_app_mode')?.value
-    const isEnterprisePath = url.pathname.startsWith('/enterprise')
+    const isEnterprisePath = pathname.startsWith('/enterprise')
 
     if (appMode === 'enterprise') {
-      // اگر کاربر سازمانی است و دارد به صفحه اصلی یا لاگین یا ستاپ می‌رود -> بفرست به پورتال
-      // نکته: اجازه میدهیم اگر در مسیرهای خود /enterprise هست، همانجا بماند
-      if (['/', '/login', '/setup'].includes(url.pathname)) {
+      if (['/', '/login', '/setup'].includes(pathname)) {
         return NextResponse.redirect(new URL('/enterprise/portal', request.url))
       }
-      // اگر کاربر در مسیر سازمانی است، کاری نداریم و میدل‌ور تمام می‌شود
-      if (isEnterprisePath) {
-        return response
-      }
+      // اگر کاربر سازمانی است و در مسیر درست است یا مسیر دیگری (مثل ادمین) را می‌خواهد، اجازه بده
+      return response
     }
 
-    // منطق عادی برای کاربران غیر سازمانی
-    if (url.pathname === '/login' || url.pathname === '/signup' || url.pathname === '/') {
-      const nextParam = url.searchParams.get('next')
-      if (nextParam && nextParam.startsWith('/')) {
-        return NextResponse.redirect(new URL(nextParam, request.url))
-      }
+    // B. اصلاح مهم: فقط در صورتی ریدایرکت کن که کاربر در صفحات "ورود" یا "خانه" باشد.
+    // اگر کاربر در /admin یا /uuid/chat است، این شرط False می‌شود و کد رد می‌شود.
+    const isAuthOrLandingPage = ['/login', '/signup', '/'].includes(pathname)
 
-      const { data: homeWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_home", true)
-        .single()
+    if (!isAuthOrLandingPage) {
+      // اگر کاربر در صفحه ادمین یا چت خاص است، هیچ کاری نکن و اجازه بده برود
+      return response
+    }
 
-      if (homeWorkspace) {
-        return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url))
-      } else {
-        return NextResponse.redirect(new URL('/setup', request.url))
-      }
+    // C. منطق ریدایرکت به داشبورد (فقط برای صفحات لاگین/خانه اجرا می‌شود)
+    // چک کردن پارامتر next (مثلاً اگر از ایمیل آمده باشد)
+    const nextParam = url.searchParams.get('next')
+    if (nextParam && nextParam.startsWith('/')) {
+      return NextResponse.redirect(new URL(nextParam, request.url))
+    }
+
+    // پیدا کردن ورک‌اسپیس و ریدایرکت
+    const { data: homeWorkspace } = await supabase
+      .from("workspaces")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("is_home", true)
+      .single()
+
+    if (homeWorkspace) {
+      return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url))
+    } else {
+      return NextResponse.redirect(new URL('/setup', request.url))
     }
   }
 

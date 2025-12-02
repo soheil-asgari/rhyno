@@ -1,15 +1,8 @@
-// components/bi/EnterpriseSidebar.tsx
 "use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  FiPieChart,
-  FiDatabase,
-  FiSettings,
-  FiLogOut,
-  FiCpu
-} from "react-icons/fi"
+import { FiPieChart, FiDatabase, FiSettings, FiLogOut } from "react-icons/fi"
 import { cn } from "@/lib/utils"
 
 interface SidebarProps {
@@ -18,6 +11,14 @@ interface SidebarProps {
 
 export const EnterpriseSidebar = ({ workspaceId }: SidebarProps) => {
   const pathname = usePathname()
+
+  // اصلاح مهم: اگر در بخش مالی هستیم، سایدبار BI را نشان نده
+  if (
+    pathname.includes(`/enterprise/${workspaceId}/finance`) ||
+    pathname.includes(`/enterprise/${workspaceId}/ceo`)
+  ) {
+    return null
+  }
 
   const links = [
     {
@@ -34,7 +35,7 @@ export const EnterpriseSidebar = ({ workspaceId }: SidebarProps) => {
       name: "تنظیمات مدل AI",
       href: `/enterprise/${workspaceId}/settings`,
       icon: <FiSettings />
-    } // آیکون تنظیمات
+    }
   ]
 
   return (

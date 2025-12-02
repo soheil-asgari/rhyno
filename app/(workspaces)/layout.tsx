@@ -11,15 +11,14 @@ import { getPresetWorkspacesByWorkspaceId } from "@/db/presets"
 import { getPromptWorkspacesByWorkspaceId } from "@/db/prompts"
 import { getToolWorkspacesByWorkspaceId } from "@/db/tools"
 import { getWorkspaceById } from "@/db/workspaces"
-import { supabase } from "@/lib/supabase/browser-client"
 import { ChatMessage } from "@/types"
-import { ReactNode, useContext, useEffect, useState, useCallback } from "react"
+import { ReactNode, useContext, useEffect, useState } from "react"
 import Loading from "../loading"
 import dynamic from "next/dynamic"
 import { useParams, useRouter, notFound } from "next/navigation"
 import { getChatById } from "@/db/chats"
 import { getMessagesByChatId } from "@/db/messages"
-import { Tables, TablesUpdate } from "@/supabase/types"
+import { Tables } from "@/supabase/types"
 
 const Dashboard = dynamic(
   () => import("@/components/ui/dashboard").then(mod => mod.Dashboard),
@@ -34,8 +33,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const params = useParams()
   const router = useRouter()
 
-  // ✅ اصلاح شد: از نام‌گذاری استاندارد camelCase استفاده می‌کنیم
-  // ‼️ توجه: مطمئن شوید نام پوشه‌های داینامیک شما [workspaceId] و [chatId] باشد
+  // نام پارامتر باید دقیقاً با نام پوشه یکی باشد (مثلاً [workspaceid] یا [workspaceId])
   const workspaceid = params.workspaceid as string
   const chatId = params.chatId as string | undefined
 
@@ -45,7 +43,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   const {
-    workspaces, // ✅ برای بهینه‌سازی، لیست workspaces را از کانتکست می‌خوانیم
+    workspaces,
     setAssistants,
     setChats,
     setCollections,
@@ -65,34 +63,37 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
   useEffect(() => {
     const validateAndFetchData = async () => {
-      // اگر شناسه workspace از URL نیامده بود، آن را نامعتبر تلقی کن
       if (!workspaceid) {
         setIsValidWorkspace(false)
         setLoading(false)
         return
       }
 
-      // ابتدا در لیستی که از قبل داریم جستجو کن
-      let workspace: Tables<"workspaces"> | null | undefined
+      // 1. پیدا کردن ورک‌اسپیس
+      let workspace: Tables<"workspaces"> | null = null
 
-      // اگر در لیست نبود، از دیتابیس بپرس
+      // اگر ورک‌اسپیس‌ها قبلاً لود شده‌اند، داخل آن‌ها بگرد
+      if (workspaces.length > 0) {
+        workspace = workspaces.find(w => w.id === workspaceid) || null
+      }
+
+      // اگر پیدا نشد، از دیتابیس بگیر
       if (!workspace) {
         workspace = await getWorkspaceById(workspaceid)
       }
 
-      // حالا کد بدون خطای تایپ‌اسکریپت کار می‌کند
-      if (workspace) {
-        setSelectedWorkspace(workspace)
-        setIsValidWorkspace(true)
-      } else {
+      // ❌ اصلاح مهم: اگر ورک‌اسپیس وجود نداشت، همینجا متوقف شو
+      if (!workspace) {
         setIsValidWorkspace(false)
+        setLoading(false)
+        return
       }
 
-      // ✅ اگر workspace پیدا شد، آن را معتبر علامت زده و در state قرار بده
-      setIsValidWorkspace(true)
+      // ✅ اگر رسیدیم اینجا یعنی ورک‌اسپیس معتبر است
       setSelectedWorkspace(workspace)
+      setIsValidWorkspace(true)
 
-      // حالا بقیه اطلاعات مربوط به این workspace معتبر را واکشی کن
+      // 2. دریافت سایر اطلاعات
       const [
         assistants,
         chats,
@@ -129,59 +130,53 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     }
 
     validateAndFetchData()
-  }, [
-    workspaceid,
-    workspaces,
-    setSelectedWorkspace,
-    setAssistants,
-    setChats,
-    setCollections,
-    setFolders,
-    setFiles,
-    setModels,
-    setPresets,
-    setPrompts,
-    setTools
-  ])
+  }, [workspaceid]) // وابستگی‌ها را کم کردم تا لوپ بی‌نهایت نخورید
 
+  // ریدایرکت در صورت نامعتبر بودن
   useEffect(() => {
-    // این useEffect مسئول هدایت کاربر در صورت نامعتبر بودن workspace است
     if (!loading && !isValidWorkspace) {
-      router.push("/")
+      router.push("/setup") // بهتر است به setup بروید تا home، چون شاید ورک‌اسپیس ندارد
     }
   }, [loading, isValidWorkspace, router])
 
+  // واکشی پیام‌های چت
   useEffect(() => {
-    // این useEffect مسئول واکشی پیام‌های یک چت خاص است
     const fetchChatMessages = async () => {
-      if (chatId) {
-        const chat = await getChatById(chatId)
-        if (!chat) return notFound()
-
-        const messages = await getMessagesByChatId(chatId)
-        const formattedMessages: ChatMessage[] = messages.map(msg => ({
-          message: msg,
-          fileItems: []
-        }))
-        setSelectedChat(chat)
-        setChatMessages(formattedMessages)
-      } else {
+      if (!chatId || !isValidWorkspace) {
         setSelectedChat(null)
         setChatMessages([])
+        return
       }
+
+      const chat = await getChatById(chatId)
+      if (!chat) {
+        // اگر چت پیدا نشد ولی ورک‌اسپیس معتبر بود، فقط چت را خالی کن (ریدایرکت نکن که اذیت نکنه)
+        setSelectedChat(null)
+        return
+      }
+
+      const messages = await getMessagesByChatId(chatId)
+      const formattedMessages: ChatMessage[] = messages.map(msg => ({
+        message: msg,
+        fileItems: []
+      }))
+
+      setSelectedChat(chat)
+      setChatMessages(formattedMessages)
     }
 
-    // فقط در صورتی پیام‌ها را واکشی کن که در یک workspace معتبر باشیم
-    if (isValidWorkspace) {
+    if (!loading && isValidWorkspace) {
       fetchChatMessages()
     }
-  }, [chatId, isValidWorkspace, setSelectedChat, setChatMessages])
+  }, [chatId, isValidWorkspace, loading])
 
-  // تا زمانی که در حال بررسی هستیم یا workspace نامعتبر است و در حال هدایت شدن است، صفحه لودینگ را نمایش بده
-  if (loading || !isValidWorkspace) {
+  if (loading) {
     return <Loading />
   }
 
-  // فقط اگر workspace معتبر بود، داشبورد و محتوای صفحه را نمایش بده
+  if (!isValidWorkspace) {
+    return <Loading /> // تا زمان ریدایرکت شدن چیزی نشان نده
+  }
+
   return <Dashboard>{children}</Dashboard>
 }

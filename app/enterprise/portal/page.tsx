@@ -1,10 +1,8 @@
-// app/(enterprise)/portal/page.tsx
 "use client"
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/browser-client"
-import { getWorkspacesByUserId } from "@/db/workspaces" // این تابع را باید ایمپورت کنیم (شاید نیاز به ساخت اکشن سروری باشد)
 import { FiLoader } from "react-icons/fi"
 
 export default function EnterprisePortal() {
@@ -12,7 +10,7 @@ export default function EnterprisePortal() {
 
   useEffect(() => {
     const resolveWorkspace = async () => {
-      // 1. گرفتن کاربر فعلی
+      // 1. دریافت کاربر
       const {
         data: { user }
       } = await supabase.auth.getUser()
@@ -22,28 +20,43 @@ export default function EnterprisePortal() {
         return
       }
 
-      // 2. دریافت ورک‌اسپیس‌های این کاربر
-      // نکته: چون getWorkspacesByUserId سمت سرور است، بهتر است اینجا یک API Route صدا بزنیم
-      // یا از کلاینت ساپربیس استفاده کنیم:
-
-      const { data: workspaces, error } = await supabase
+      // 2. دریافت ورک‌اسپیس
+      const { data: workspaces } = await supabase
         .from("workspaces")
-        .select("*")
+        .select("id")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false }) // جدیدترین ورک‌اسپیس
+        .order("created_at", { ascending: false })
         .limit(1)
 
-      if (error || !workspaces || workspaces.length === 0) {
-        // اگر ورک‌اسپیسی نداشت، شاید باید بسازیم یا ارور بدهیم
-        // برای نسخه سازمانی فرض بر این است که شما قبلا ورک‌اسپیس را ساخته‌اید
+      if (!workspaces || workspaces.length === 0) {
         alert("هیچ فضای کاری سازمانی یافت نشد.")
         return
       }
 
       const targetWorkspaceId = workspaces[0].id
 
-      // 3. هدایت به داشبورد اصلی با شناسه صحیح
-      router.push(`/enterprise/${targetWorkspaceId}/dashboard`)
+      // 3. *** بخش جدید: دریافت نقش کاربر ***
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single()
+
+      const userRole = profile?.role || "user"
+
+      // 4. هدایت هوشمند بر اساس نقش
+      if (userRole === "ceo") {
+        // مدیر عامل -> داشبورد مدیریتی
+        router.push(`/enterprise/${targetWorkspaceId}/ceo/dashboard`)
+      } else if (
+        ["finance_manager", "finance_staff", "payer"].includes(userRole)
+      ) {
+        // تیم مالی -> داشبورد مالی
+        router.push(`/enterprise/${targetWorkspaceId}/finance/dashboard`)
+      } else {
+        // سایر کاربران (ادمین یا عادی) -> داشبورد اصلی (BI)
+        router.push(`/enterprise/${targetWorkspaceId}/dashboard`)
+      }
     }
 
     resolveWorkspace()
@@ -53,7 +66,7 @@ export default function EnterprisePortal() {
     <div className="flex h-screen w-full flex-col items-center justify-center bg-gray-50 dark:bg-[#0f1018]">
       <FiLoader className="size-12 animate-spin text-blue-600" />
       <p className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">
-        در حال بارگذاری محیط سازمانی...
+        در حال شناسایی نقش و ورود به سامانه...
       </p>
     </div>
   )
