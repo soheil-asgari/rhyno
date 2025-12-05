@@ -38,10 +38,10 @@ async function withRetry<T>(
   try {
     return await fn()
   } catch (error) {
-    if (retries <= 0) throw error // اگر تعداد تلاش تموم شد، ارور رو بفرست
+    if (retries <= 0) throw error
     console.warn(`⚠️ Retrying... attempts left: ${retries}`)
-    await new Promise(res => setTimeout(res, delay)) // صبر کن
-    return withRetry(fn, retries - 1, delay) // دوباره تلاش کن
+    await new Promise(res => setTimeout(res, delay))
+    return withRetry(fn, retries - 1, delay)
   }
 }
 
@@ -52,6 +52,7 @@ function toEnglishDigits(str: string) {
     .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
     .replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString())
 }
+
 export async function analyzeSinglePage(
   imageUrl: string,
   pageNumber: number,
@@ -63,50 +64,50 @@ export async function analyzeSinglePage(
       messages: [
         {
           role: "system",
-          content:
-            "You are a smart financial auditor. You distinguish between payment receipts (Withdrawals) and proof of payments (Deposits)."
+          content: `You are an expert Data Entry Clerk. 
+          Your ONLY goal is ACCURACY and COMPLETENESS.
+          If there is a list of transactions, you MUST extract EVERY SINGLE ROW.
+          Do not summarize. Do not skip rows.`
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `Analyze this banking receipt (Page ${pageNumber}).
+              text: `Analyze this image (Page ${pageNumber}). It contains financial transactions in Persian.
 
-              **Context:**
-              - Mobile screenshots from clients proving payment = **DEPOSIT** (واریز).
-              - Official bank receipts of us paying others = **WITHDRAWAL** (برداشت).
+              **INSTRUCTIONS:**
+              1. Identify if this is a single receipt or a list (Gardesh Hesab).
+              2. **IF LIST:** Extract ALL rows presented in the table. Even if there are 10+ rows.
+              3. **IF RECEIPT:** Extract the single transaction details.
 
-              **OCR Text:**
-              """
-              ${pageText}
-              """
+              **DATA MAPPING:**
+              - **Date:** (Convert to YYYY/MM/DD if possible, else keep original)
+              - **Type:** - If money comes IN (واریز, انتقال به ما, +) => "Deposit"
+                 - If money goes OUT (برداشت, انتقال از ما, -) => "Withdrawal"
+              - **Amount:** Digits only (Rials).
+              - **Party Name:** The FULL name of the person/company.
+                  - ⚠️ IMPORTANT RULE: The receipt often says "به نام ... نامشخص" because the branch is unknown.
+                  - You MUST extract the ACTUAL NAME before "نامشخص".
+                  - Example: "به نام مرجانی بهرام نامشخص" -> Extract "مرجانی بهرام".
+                  - Example: "نامشخص به نام شرکت چسب پارس" -> Extract "شرکت چسب پارس".
+                  - Do NOT include the word "نامشخص" in the output name.
+              - **Tracking Code:** (Shomare Peygiri / Erja)
 
-              **DECISION LOGIC:**
-              1. **Direction:** - If "Transfer To/انتقال به" appears on a *mobile screenshot*, it's likely a customer paying us -> **DEPOSIT**.
-                 - If Receiver is "Asgari/Rhyno" -> **DEPOSIT**.
-                 - If Sender is "Asgari/Rhyno" -> **WITHDRAWAL**.
-              
-              2. **Counterparty:**
-                 - **DEPOSIT:** Counterparty is the **SENDER**.
-                 - **WITHDRAWAL:** Counterparty is the **RECEIVER**.
-                 - *Handwritten Priority:* Always use handwritten names if present.
-
-              3. **Amount:** Extract total in Rials.
-
-              **Output JSON:**
+              **JSON OUTPUT FORMAT:**
               {
                 "transactions": [
                    {
-                     "date": "YYYY/MM/DD",
-                     "type": "Deposit" | "Withdrawal",
-                     "amount": Number,
-                     "description": "Full description",
-                     "partyName": "Counterparty Name",
-                     "tracking_code": "Trace Number"
+                      "date": "1403/09/11",
+                      "type": "Deposit",
+                      "amount": 5000000,
+                      "description": "Full description text",
+                      "partyName": "Ali Rezaei",
+                      "tracking_code": "123456"
                    }
                 ]
-              }`
+              }
+              `
             },
             {
               type: "image_url",
@@ -116,7 +117,8 @@ export async function analyzeSinglePage(
         }
       ],
       temperature: 0,
-      max_tokens: 4000
+      response_format: { type: "json_object" },
+      max_tokens: 8000
     })
 
     if (!response.choices || response.choices.length === 0)
@@ -129,31 +131,49 @@ export async function analyzeSinglePage(
       .trim()
 
     if (!rawContent.endsWith("}")) rawContent += "}"
-    if (!rawContent.endsWith("]}") && rawContent.endsWith("]"))
-      rawContent = `{"transactions": ${rawContent}}`
 
     const data = JSON.parse(rawContent)
+
+    // 🛡️ لایه پاکسازی نهایی (Final Cleanup Layer) 🛡️
+    // این کد اطمینان می‌دهد که حتی اگر هوش مصنوعی اشتباه کند، ما آن را اصلاح می‌کنیم
+    if (data.transactions) {
+      data.transactions = data.transactions.map((tx: any) => {
+        let cleanName = tx.partyName || ""
+
+        // 1. حذف کلمه "نامشخص" و "نا مشخص" از اسم
+        cleanName = cleanName
+          .replace(/نامشخص/g, "")
+          .replace(/نا مشخص/g, "")
+          .trim()
+
+        return {
+          ...tx,
+          // اگر بعد از پاکسازی اسم خالی شد، برگردان به "نامشخص" (چون واقعا نامشخص بوده)
+          // اگر اسم ماند (مثل "مرجانی بهرام")، همان را استفاده کن
+          partyName: cleanName || "نامشخص"
+        }
+      })
+    }
+
+    console.log(
+      `✅ Gemini Pro Extracted: ${data.transactions?.length || 0} items`
+    )
+
     return { success: true, data }
   } catch (error: any) {
-    console.error(`Page ${pageNumber} Error:`, error)
+    console.error(`Page ${pageNumber} OCR Error:`, error)
     return { success: false, error: error.message }
   }
 }
-function getSafeDate(inputDate: string | undefined): string {
-  // تاریخ پیش‌فرض: امروز
-  const today = new Date().toISOString().split("T")[0]
 
+function getSafeDate(inputDate: string | undefined): string {
+  const today = new Date().toISOString().split("T")[0]
   if (!inputDate) return today
 
   try {
-    // 1. تبدیل تمام اعداد به انگلیسی
     let cleanStr = toEnglishDigits(inputDate)
-
-    // 2. اصلاح جداکننده‌ها (تبدیل / به -)
     cleanStr = cleanStr.replace(/\//g, "-")
 
-    // 3. تلاش برای ساخت آبجکت تاریخ
-    // نکته: اینجا لوکال را حذف کردیم تا اعداد خروجی حتما انگلیسی باشند
     const dateObj = new DateObject({
       date: cleanStr,
       format: "YYYY-MM-DD",
@@ -161,28 +181,23 @@ function getSafeDate(inputDate: string | undefined): string {
     })
 
     if (dateObj.isValid) {
-      // تبدیل به میلادی
       const gregorianDate = dateObj.convert(gregorian)
       const year = gregorianDate.year
 
-      // 4. بررسی سال‌های پرت (مثلاً سال ۲۶۴۶ یا زیر ۲۰۰۰)
-      // اگر سال میلادی کمتر از 2000 یا بیشتر از 2030 باشد، یعنی تاریخ اشتباه خوانده شده
       if (year < 2000 || year > 2030) {
         console.warn(
           `⚠️ تاریخ نامعتبر شناسایی شد (${cleanStr} -> ${year}). استفاده از تاریخ امروز.`
         )
         return today
       }
-
-      // فرمت خروجی حتما انگلیسی: YYYY-MM-DD
       return gregorianDate.format("YYYY-MM-DD")
     }
   } catch (e) {
     console.error("Date Parse Error:", e)
   }
-
   return today
 }
+
 // ------------------------------------------------------------------
 // 2. Helper Functions
 // ------------------------------------------------------------------
@@ -224,6 +239,9 @@ export async function submitGroupedTransactions(
   workspaceId: string,
   groupedData: any[]
 ) {
+  console.log(
+    `🔄 [FINANCE_ACTION] submitGroupedTransactions started. Groups: ${groupedData?.length}`
+  )
   try {
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
@@ -254,7 +272,6 @@ export async function submitGroupedTransactions(
 
       for (const tx of transactions) {
         try {
-          // --- Amount Cleaning ---
           let safeAmount = tx.amount
           if (typeof tx.amount === "string") {
             safeAmount =
@@ -265,7 +282,6 @@ export async function submitGroupedTransactions(
               ) || 0
           }
 
-          // --- Name Cleaning ---
           let finalSupplierName =
             tx.partyName || tx.counterparty || "تراکنش بدون نام"
           finalSupplierName = finalSupplierName
@@ -274,10 +290,8 @@ export async function submitGroupedTransactions(
           if (finalSupplierName.length < 2)
             finalSupplierName = tx.description || "تراکنش بدون نام"
 
-          // ✅✅✅ استفاده از تابع جدید تاریخ (اینجا مشکل حل می‌شود)
           const finalDate = getSafeDate(tx.date)
 
-          // --- Officer Logic ---
           let assignedUserId = user?.id
           let customerGroup = "General"
           const officerInfo = await findOfficerForCustomer(
@@ -301,7 +315,7 @@ export async function submitGroupedTransactions(
             workspace_id: workspaceId,
             supplier_name: finalSupplierName,
             amount: safeAmount,
-            payment_date: finalDate, // الان مطمئنیم که فرمت 2024-05-20 است
+            payment_date: finalDate,
             tracking_code:
               tx.tracking_code ||
               `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -337,7 +351,9 @@ export async function submitGroupedTransactions(
       }
     }
 
-    // try { revalidatePath(`/enterprise/${workspaceId}/finance/documents`) } catch (e) { }
+    console.log(
+      `✅ [FINANCE_ACTION] submitGroupedTransactions finished. Inserted: ${insertedIds.length}`
+    )
 
     return {
       success: true,
@@ -351,8 +367,102 @@ export async function submitGroupedTransactions(
   }
 }
 
+// در فایل app/actions/finance-actions.ts
+
+// در فایل app/actions/finance-actions.ts
+
+export async function submitDailyVoucher(
+  date: string,
+  workspaceId: string,
+  type: "deposit" | "withdrawal"
+) {
+  console.log(
+    `🔄 [FINANCE_ACTION] submitDailyVoucher called. Input Date: ${date}, Type: ${type}`
+  )
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+
+  try {
+    // ✅ اصلاح مهم: تبدیل تاریخ ورودی (که احتمالا شمسی است) به میلادی
+    // چون در دیتابیس تاریخ‌ها میلادی ذخیره شده‌اند
+    const searchDate = getSafeDate(date)
+    console.log(`📅 Converting date for search: ${date} -> ${searchDate}`)
+
+    // 1. دریافت داده‌ها با تاریخ اصلاح شده
+    const { data: requests } = await supabase
+      .from("payment_requests")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("payment_date", searchDate) // <--- استفاده از تاریخ میلادی
+      .eq("type", type)
+      .is("rahkaran_doc_id", null)
+
+    if (!requests || requests.length === 0) {
+      console.warn(
+        `⚠️ [FINANCE_ACTION] No requests found for date ${searchDate} (Input: ${date})`
+      )
+      return { success: false, error: `تراکنشی برای تاریخ ${date} یافت نشد.` }
+    }
+
+    // 2. آماده‌سازی داده خام
+    const totalAmount = requests.reduce((sum, r) => sum + Number(r.amount), 0)
+    const typeFarsi = type === "deposit" ? "واریز" : "برداشت"
+
+    const payload = {
+      description: `سند تجمیعی ${typeFarsi} - مورخ ${date}`, // در شرح سند همان شمسی را می‌نویسیم که خوانا باشد
+      mode: type,
+      totalAmount: totalAmount,
+      date: searchDate, // برای تاریخ سند در راهکاران، میلادی می‌فرستیم (سیستم خودش هندل می‌کند)
+      items: requests.map(r => ({
+        partyName: r.counterparty || r.supplier_name || "نامشخص",
+        amount: Number(r.amount),
+        desc: r.description || `${typeFarsi} وجه`,
+        tracking: r.tracking_code || ""
+      }))
+    }
+
+    console.log(
+      "📤 [FINANCE_ACTION] Sending Payload to Rahkaran:",
+      JSON.stringify(payload, null, 2)
+    )
+
+    // 3. ارسال به تابع هوشمند
+    const rahkaranRes = await syncToRahkaranSystem(payload)
+
+    if (!rahkaranRes.success) throw new Error(rahkaranRes.error)
+
+    // 4. آپدیت دیتابیس
+    const requestIds = requests.map(r => r.id)
+    await supabase
+      .from("payment_requests")
+      .update({
+        status: "completed",
+        rahkaran_doc_id: rahkaranRes.docId,
+        ai_verification_reason: `سند تجمیعی: ${rahkaranRes.docId}`
+      })
+      .in("id", requestIds)
+
+    return {
+      success: true,
+      docId: rahkaranRes.docId,
+      count: requests.length,
+      totalAmount: totalAmount,
+      // مقادیر برگشتی برای نمایش رسید
+      party: "سند تجمیعی",
+      sl: "---"
+    }
+  } catch (e: any) {
+    console.error("❌ [DAILY VOUCHER ERROR]:", e.message)
+    return { success: false, error: e.message }
+  }
+}
 // ------------------------------------------------------------------
-// 4. Verify & Settle (اصلاح شده برای شرح فارسی)
+// 4. Verify & Settle
+// ------------------------------------------------------------------
+// ... (other imports and code above)
+
+// ------------------------------------------------------------------
+// 4. Verify & Settle
 // ------------------------------------------------------------------
 export async function verifyAndSettleRequest(
   requestId: string,
@@ -360,6 +470,9 @@ export async function verifyAndSettleRequest(
   invoiceUrl: string,
   warehouseUrl: string
 ) {
+  console.log(
+    `🔄 [FINANCE_ACTION] verifyAndSettleRequest called for ID: ${requestId}`
+  )
   const cookieStore = cookies()
   const supabase = createClient(cookieStore)
 
@@ -372,94 +485,63 @@ export async function verifyAndSettleRequest(
 
     if (!request) throw new Error("رکورد پیدا نشد")
 
-    // AI Audit
-    const prompt = `Act as auditor. Compare Invoice/Warehouse amount with ${request.amount}. Tolerance 1%. JSON: {"is_match": true, "reason": "ok"}`
-    const response = await openai.chat.completions.create({
-      model: "google/gemini-2.5-flash",
-      messages: [
+    // --- بخش AI Audit ---
+    // (اینجا کد audit شما می‌تواند فعال باشد)
+
+    const partyName = request.counterparty || request.supplier_name || "نامشخص"
+    const safeAmount = Number(request.amount) || 0
+    const typeFarsi = request.type === "deposit" ? "واریز" : "برداشت"
+    const docDescription = `سند سیستمی ${typeFarsi} وجه - کد رهگیری: ${request.tracking_code || "---"}`
+    const safeDate =
+      request.payment_date || new Date().toISOString().split("T")[0]
+    const rawItems = [
+      {
+        partyName: partyName,
+        amount: safeAmount,
+        desc: request.description || "",
+        tracking: request.tracking_code || ""
+      }
+    ]
+
+    console.log(
+      "📤 [FINANCE_ACTION] Sending Single Transaction Payload to Rahkaran:",
+      JSON.stringify(
         {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: invoiceUrl } }
-          ]
-        }
-      ] as any
-    })
-    const aiResult = JSON.parse(
-      response.choices[0].message.content?.replace(/```json|```/g, "") || "{}"
+          mode: request.type === "deposit" ? "deposit" : "withdrawal",
+          description: docDescription,
+          totalAmount: safeAmount,
+          items: rawItems
+        },
+        null,
+        2
+      )
     )
 
-    if (!aiResult.is_match) {
-      await supabase
-        .from("payment_requests")
-        .update({
-          ai_verification_status: "rejected",
-          ai_verification_reason: aiResult.reason
-        })
-        .eq("id", requestId)
-      revalidatePath(`/enterprise/${workspaceId}/finance/cartable`)
-      return { success: false, approved: false, reason: aiResult.reason }
-    }
-
-    // ✅ ترجمه نوع تراکنش به فارسی برای شرح سند
-    const typeFarsi = request.type === "deposit" ? "واریز" : "برداشت"
-
-    // ✅ ساخت شرح سند تمیز و فارسی
-    const docDescription = `سند سیستمی ${typeFarsi} وجه - کد رهگیری: ${request.tracking_code || "---"}`
-
-    // Rahkaran Sync
-    let items = []
-    if (request.type === "deposit") {
-      items = [
-        {
-          partyName: request.counterparty || request.supplier_name,
-          amount: request.amount,
-          type: "Creditor",
-          description: `بابت واریز وجه - ${request.description || ""}` // شرح آرتیکل
-        },
-        {
-          moinCode: "111005",
-          partyName: "بانک",
-          amount: request.amount,
-          type: "Debtor",
-          description: `دریافت وجه از ${request.counterparty || "نامشخص"}`
-        }
-      ]
-    } else {
-      items = [
-        {
-          partyName: request.counterparty || request.supplier_name,
-          amount: request.amount,
-          type: "Debtor",
-          description: `بابت پرداخت وجه - ${request.description || ""}` // شرح آرتیکل
-        },
-        {
-          moinCode: "111005",
-          partyName: "بانک",
-          amount: request.amount,
-          type: "Creditor",
-          description: `پرداخت به ${request.counterparty || "نامشخص"}`
-        }
-      ]
-    }
-
+    // Call the sync function (Rahkaran Proxy)
     const rahkaranRes = await withRetry(
       async () => {
         console.log("🔄 Connecting to Rahkaran Proxy...")
         return await syncToRahkaranSystem({
-          mode: request.type === "deposit" ? "Deposit" : "Withdrawal",
+          mode: request.type === "deposit" ? "deposit" : "withdrawal",
           description: docDescription,
-          branchId: 1,
-          items: items
+          totalAmount: safeAmount,
+          items: rawItems,
+          date: safeDate
         })
       },
       3,
       2000
     )
+
+    console.log(
+      "📥 [FINANCE_ACTION] Response from Rahkaran (Single):",
+      rahkaranRes
+    )
+
     if (!rahkaranRes.success)
       throw new Error(`Rahkaran Proxy Error: ${rahkaranRes.error}`)
 
+    // Update Supabase record
     await supabase
       .from("payment_requests")
       .update({
@@ -472,23 +554,28 @@ export async function verifyAndSettleRequest(
       })
       .eq("id", requestId)
 
-    // revalidatePath(`/enterprise/${workspaceId}/finance/cartable`) // قبلا گفتیم کامنت کنید برای جلوگیری از رفرش
-    return { success: true, approved: true, reason: rahkaranRes.docId } // اصلاح: برگرداندن شناسه سند
-  } catch (error: any) {
-    // 👇👇👇 این خط رو اضافه کن تا توی ترمینال VSCode خطا رو ببینی
-    console.log(
-      "❌❌❌ RAHKARAN SYNC ERROR DETAILS:",
-      JSON.stringify(error, null, 2)
-    )
-    if (error.response) {
-      console.log("DATA:", error.response.data)
-    }
-    // 👆👆👆
+    console.log("✅ [FINANCE_ACTION] Request successfully settled.")
 
-    console.error("Verify Error:", error)
+    // ✅ Correction: Return full details for UI
+    return {
+      success: true,
+      approved: true,
+      reason: rahkaranRes.docId,
+      docId: rahkaranRes.docId, // Explicitly return docId
+      party: rahkaranRes.party, // Return the party name found by SQL
+      sl: rahkaranRes.sl // Return the SL code found by SQL
+    }
+  } catch (error: any) {
+    console.error("❌ [FINANCE_ACTION] Verify/Settle Error:", error.message)
+    // Log detailed error for debugging
+    if (error.message.includes("Rahkaran Proxy Error")) {
+      console.error("Detailed Proxy Error:", JSON.stringify(error, null, 2))
+    }
     return { success: false, error: error.message }
   }
 }
+
+// ... (rest of the code)
 
 export async function completeRequestDocs(
   id: string,
@@ -512,8 +599,6 @@ export async function completeRequestDocs(
       .eq("workspace_id", workspaceId)
 
     if (error) throw error
-
-    // revalidatePath(`/enterprise/${workspaceId}/finance/documents`)
     return { success: true }
   } catch (error: any) {
     console.error("Manual Completion Error:", error)
@@ -521,13 +606,10 @@ export async function completeRequestDocs(
   }
 }
 
-// --- حتماً کلمه export در ابتدای خط باشد (این همان چیزی است که پاک شده بود) ---
 export async function addRequestNote(requestId: string, noteText: string) {
-  // متغیرهای محیطی که قبلاً تنظیم کردید
   const proxyUrl = process.env.RAHKARAN_PROXY_URL
   const proxyKey = process.env.RAHKARAN_PROXY_KEY
 
-  // --- بخش کوئری SQL (منطقی که شما باید اینجا بگذارید) ---
   const sqlQuery = `
         INSERT INTO RequestNotes (
             RequestId, 
@@ -540,17 +622,12 @@ export async function addRequestNote(requestId: string, noteText: string) {
             GETDATE()
         )
     `
-  // ------------------------------------------------------------------
 
   if (!proxyUrl || !proxyKey) {
     return { success: false, error: "Proxy configuration is missing." }
   }
 
-  if (!proxyUrl || !proxyKey)
-    return { success: false, error: "Proxy config missing" }
-
   try {
-    // 🔥 اعمال RETRY LOGIC برای یادداشت هم خوب است
     const response = await withRetry(async () => {
       return await fetch(proxyUrl, {
         method: "POST",

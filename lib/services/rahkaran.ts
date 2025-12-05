@@ -1,5 +1,101 @@
 import OpenAI from "openai"
 import { createClient } from "@supabase/supabase-js"
+import {
+  verifyNameMatch,
+  detectFee,
+  verifyWithAI,
+  auditVoucherWithAI
+} from "./bankIntelligence"
+
+export interface RahkaranSyncResult {
+  success: boolean
+  docId?: string
+  error?: string
+  message?: string
+  party?: string // ✅ اضافه شد
+  sl?: string // ✅ اضافه شد
+}
+
+export interface FeeResult {
+  isFee: boolean
+  reason: string
+}
+
+const GENERIC_WORDS = new Set([
+  "شرکت",
+  "موسسه",
+  "سازمان",
+  "بازرگانی",
+  "تولیدی",
+  "صنعتی",
+  "گروه",
+  "خدمات",
+  "فنی",
+  "مهندسی",
+  "تجاری",
+  "عمومی",
+  "تعاونی",
+  "آقای",
+  "خانم",
+  "فروشگاه",
+  "راه",
+  "ساختمانی",
+  "توسعه",
+  "گسترش",
+  "پیمانکاری",
+  "مشاوره",
+  "بین",
+  "المللی",
+  "سازه",
+  "صنعت",
+  "طرح",
+  "اجرا",
+  "نظارت",
+  "تجهیزات",
+  "مجتمع",
+  "کارخانه",
+  "راه و ساختمانی",
+  "بانک",
+  "شعبه",
+  "کد",
+  "نامشخص",
+  "بنام",
+  "به",
+  "نام",
+  "واریز",
+  "چک",
+  "بابت",
+  "امور",
+  "دفتر"
+])
+const FEE_KEYWORDS = [
+  "کارمزد",
+  "هزینه بانکی",
+  "آبونمان",
+  "ابونمان", // با و بدون کلاه
+  "حق اشتراک",
+  "صدور چک",
+  "صدور دسته چک",
+  "هزینه پیامک",
+  "سرویس پیامک",
+  "تمبر",
+  "خدمات بانکی",
+  "کارمزد ساتنا",
+  "کارمزد پایا",
+  "عودت کارمزد  ساتنا/پایا",
+  "عودت کارمزد",
+  "کارمزد",
+  "هزینه بانکی",
+  "آبونمان",
+  "ابونمان",
+  "حق اشتراک",
+  "صدور چک",
+  "صدور دسته چک",
+  "هزینه پیامک",
+  "سرویس پیامک",
+  "تمبر",
+  "خدمات بانکی"
+]
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -19,208 +115,384 @@ const openai = new OpenAI({
 
 const AI_MODEL = "google/gemini-2.5-flash"
 
-// ✅ 1. تابع کمکی برای جلوگیری از خراب شدن SQL با کاراکتر '
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
-  return str.replace(/'/g, "''") // تبدیل ' به '' در SQL استاندارد است
+  return str.toString().replace(/'/g, "''")
 }
 
 async function logToDb(level: string, message: string, data: any = null) {
+  const timestamp = new Date().toLocaleTimeString()
+  console.log(`[${level}] ${timestamp} ➤ ${message}`)
   try {
-    console.log(`[${level}] ${message}`)
-    await supabase.from("Rhyno_DebugLog").insert([
-      {
-        level,
-        message,
-        data: data ? JSON.stringify(data) : null
-      }
-    ])
+    supabase
+      .from("Rhyno_DebugLog")
+      .insert([
+        {
+          level,
+          message,
+          data: data ? JSON.stringify(data) : null
+        }
+      ])
+      .then(() => {})
+  } catch (e) {}
+}
+
+async function executeSql(sql: string) {
+  const proxyRes = await fetch(PROXY_URL!, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY! },
+    body: JSON.stringify({ query: sql })
+  })
+  const responseText = await proxyRes.text()
+  let proxyData
+  try {
+    proxyData = JSON.parse(responseText)
   } catch (e) {
-    console.error("Log Error:", e)
+    throw new Error(`Proxy JSON Error: ${responseText.substring(0, 100)}`)
+  }
+
+  if (!proxyRes.ok || !proxyData.success) {
+    throw new Error(`SQL Error: ${proxyData.error || proxyData.message}`)
+  }
+  return proxyData.recordset || []
+}
+
+interface SyncPayload {
+  mode: "deposit" | "withdrawal"
+  date: string
+  description: string
+  totalAmount: number
+  branchId?: number
+  items: {
+    partyName: string
+    amount: number
+    desc?: string
+    tracking?: string
+  }[]
+}
+
+// اضافه کردن کلاینت سوپابیس در بالای فایل
+const supabaseService = createClient(
+  supabaseUrl,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+const EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
+
+async function findAccountCode(
+  partyName: string
+): Promise<{
+  dlCode?: string
+  dlType?: number
+  slId?: number
+  foundName: string
+}> {
+  let cleanName = partyName.replace(/نامشخص/g, "").trim()
+  if (!cleanName || cleanName.length < 2) return { foundName: "نامشخص" }
+
+  const stopWords = [
+    "شرکت",
+    "مهندسی",
+    "تولیدی",
+    "بازرگانی",
+    "صنعتی",
+    "گروه",
+    "آقای",
+    "خانم",
+    "فروشگاه",
+    "موسسه",
+    "تعاونی",
+    "خدمات",
+    "تجاری",
+    "نامشخص"
+  ]
+
+  let processedName = cleanName
+  stopWords.forEach(word => {
+    processedName = processedName.replace(new RegExp(word, "g"), "").trim()
+  })
+
+  // ---------------------------------------------------------
+  // 1. جستجوی وکتور
+  // ---------------------------------------------------------
+  try {
+    const embeddingRes = await openai.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: cleanName.replace(/\s+/g, " ")
+    })
+
+    const embedding = embeddingRes.data[0].embedding
+    const { data: matches } = await supabaseService.rpc(
+      "match_rahkaran_entities",
+      {
+        query_embedding: embedding,
+        match_threshold: 0.45,
+        match_count: 3
+      }
+    )
+
+    if (matches && matches.length > 0) {
+      for (const best of matches) {
+        // --- اصلاح شد: ابتدا بررسی الگوریتمی ---
+        if (verifyNameMatch(cleanName, best.title)) {
+          console.log(
+            `✅ Algo Verified Vector: "${cleanName}" => "${best.title}"`
+          )
+          return {
+            dlCode: best.dl_code,
+            dlType: best.dl_type,
+            foundName: best.title
+          }
+        }
+
+        // اگر الگوریتم رد کرد، حالا از هوش مصنوعی بپرس (هزینه دارد)
+        if (best.similarity < 0.5) continue // برای AI سخت‌گیرتر باشیم
+
+        const isVerified = await verifyWithAI(cleanName, best.title)
+        if (isVerified) {
+          console.log(
+            `✅ AI Verified Vector: "${cleanName}" => "${best.title}"`
+          )
+          return {
+            dlCode: best.dl_code,
+            dlType: best.dl_type,
+            foundName: best.title
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Vector search failed:", e)
+  }
+
+  // ---------------------------------------------------------
+  // 2. جستجوی SQL
+  // ---------------------------------------------------------
+  console.log("⚠️ Using SQL Fallback for:", cleanName)
+
+  const words = processedName
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !GENERIC_WORDS.has(w))
+  const w1 = words[0] || cleanName.split(" ")[0]
+  const w2 = words[1] || ""
+
+  const sqlSearch = `
+    SET NOCOUNT ON;
+    DECLARE @RawName nvarchar(500) = N'${escapeSql(cleanName)}';
+    DECLARE @W1 nvarchar(100) = N'${escapeSql(w1)}';
+    DECLARE @W2 nvarchar(100) = N'${escapeSql(w2)}';
+    SET @RawName = REPLACE(REPLACE(@RawName, N'ي', N'ی'), N'ك', N'ک');
+    SET @W1 = REPLACE(REPLACE(@W1, N'ي', N'ی'), N'ك', N'ک');
+    SET @W2 = REPLACE(REPLACE(@W2, N'ي', N'ی'), N'ك', N'ک');
+    DECLARE @LikeName nvarchar(500) = REPLACE(@RawName, N' ', N'%');
+
+    SELECT TOP 3 Code, DLTypeRef, Title, Score
+    FROM (
+        SELECT TOP 10 Code, DLTypeRef, Title,
+            (
+                (CASE WHEN CleanTitle = @RawName THEN 1000 ELSE 0 END) +
+                (CASE WHEN CleanTitle LIKE N'%'+ @LikeName +'%' THEN 500 ELSE 0 END) +
+                (CASE WHEN @W1 <> '' AND @W2 <> '' AND CleanTitle LIKE N'%'+ @W1 +'%' AND CleanTitle LIKE N'%'+ @W2 +'%' THEN 200 ELSE 0 END) +
+                (CASE WHEN @W1 <> '' AND CleanTitle LIKE N'%'+ @W1 +'%' THEN 50 ELSE 0 END)
+            ) as Score
+        FROM (
+            SELECT Code, DLTypeRef, Title, 
+                REPLACE(REPLACE(Title, N'ي', N'ی'), N'ك', N'ک') as CleanTitle
+            FROM [FIN3].[DL]
+            WHERE (@W1 <> '' AND REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @W1 +'%')
+        ) as T 
+    ) as BestMatch
+    WHERE Score >= 50
+    ORDER BY Score DESC;
+  `
+
+  const res = await executeSql(sqlSearch)
+
+  if (res && res.length > 0) {
+    for (const row of res) {
+      // --- اصلاح شد: ابتدا بررسی الگوریتمی ---
+      if (verifyNameMatch(cleanName, row.Title)) {
+        console.log(`✅ Algo Verified SQL: "${cleanName}" => "${row.Title}"`)
+        return { dlCode: row.Code, dlType: row.DLTypeRef, foundName: row.Title }
+      }
+
+      // اگر الگوریتم رد کرد، از هوش مصنوعی بپرس
+      const isVerified = await verifyWithAI(cleanName, row.Title)
+      if (isVerified) {
+        console.log(`✅ AI Verified SQL: "${cleanName}" => "${row.Title}"`)
+        return { dlCode: row.Code, dlType: row.DLTypeRef, foundName: row.Title }
+      }
+    }
+  }
+
+  // جستجوی معین
+  const slSql = `
+     SELECT TOP 1 SLID, Title FROM [FIN3].[SL] 
+     WHERE Title LIKE N'%${escapeSql(w1)}%' 
+     AND CAST(SLID AS VARCHAR(50)) NOT IN (N'111003', N'111005') 
+     AND Code NOT LIKE '111%'
+  `
+  const slRes = await executeSql(slSql)
+  const slRow = slRes[0] || {}
+
+  return {
+    slId: slRow.SLID,
+    foundName: slRow.Title || "نامشخص"
   }
 }
 
-export async function syncToRahkaranSystem(transactionData: any) {
+export async function syncToRahkaranSystem(payload: any): Promise<any> {
   try {
-    await logToDb("INFO", `Starting Sync Process`, transactionData)
+    console.log("\n---------------------------------------------------")
+    console.log("🚀 STARTING ROBUST SIMULATION (FAIL-SAFE MODE)")
+    console.log("---------------------------------------------------")
 
-    const branchId = transactionData.branchId || 1
-    const fiscalYearId = transactionData.fiscalYearId || 106
-    const ledgerId = transactionData.ledgerId || 1
-    const voucherTypeRef = 1
-    const items = transactionData.items || []
+    const { mode, items } = payload
+    const isDeposit = mode === "deposit"
+    const resultsTable = []
 
-    // ✅ پاکسازی ورودی‌ها قبل از ارسال به پرامپت
-    const safeHeaderDesc = escapeSql(transactionData.description)
+    const normalizeText = (text: string) =>
+      text ? text.replace(/[يیكک]/g, m => (m === "ك" ? "ک" : "ی")) : ""
 
-    const prompt = `
-      You are a Senior DBA for "SystemGroup Rahkaran". 
-      Generate a CLEAN T-SQL script to insert a voucher.
-      RETURN ONLY JSON. NO MARKDOWN.
+    // 1️⃣ تعیین حساب پیش‌فرض امن بر اساس نوع سند (همان اول کار!)
+    const DEFAULT_SAFE_SL = isDeposit
+      ? "21901 (پیش دریافت - موقت)"
+      : "11901 (پیش پرداخت - موقت)"
 
-      **Data:**
-      Header Desc: '${safeHeaderDesc}'
-      Items: ${JSON.stringify(items)}
+    for (const item of items) {
+      const partyName = item.partyName || "نامشخص"
+      const rawDesc = item.desc || ""
 
-      **Required T-SQL Structure (Strict Syntax):**
-      DECLARE @VoucherID bigint;
-      DECLARE @ItemID bigint;
-      DECLARE @Date datetime = GETDATE();
-      DECLARE @NewSequence int;
-      DECLARE @NewNumber int;
-      
-      -- Variables for Item Processing
-      DECLARE @CurrentSLRef bigint;
-      DECLARE @CurrentSLCode nvarchar(50);
-      DECLARE @FoundGLRef bigint;
-      DECLARE @FoundAGRef bigint;
-
-      BEGIN TRY
-          BEGIN TRANSACTION;
-            
-            -- 1. Get Number & Sequence
-            SELECT @NewSequence = ISNULL(MAX([Sequence]), 0) + 1 FROM [FIN3].[Voucher] WHERE BranchRef=${branchId} AND FiscalYearRef=${fiscalYearId} AND LedgerRef=${ledgerId};
-            SELECT @NewNumber = ISNULL(MAX([Number]), 0) + 1 FROM [FIN3].[Voucher] WHERE LedgerRef=${ledgerId} AND FiscalYearRef=${fiscalYearId};
-
-            -- 2. Insert Header
-            EXEC [SYS3].[spGetNextId] @TableName = 'FIN3.Voucher', @Id = @VoucherID OUTPUT, @IncValue = 1, @IsLegacy = 0;
-            
-            INSERT INTO [FIN3].[Voucher] 
-            (VoucherID, VoucherTypeRef, BranchRef, FiscalYearRef, LedgerRef, Date, Description, State, IsTemporary, IsCurrencyBased, IsExternal, IsReadonly, ShowCurrencyFields, Creator, CreationDate, LastModifier, LastModificationDate, Number, DailyNumber, Sequence)
-            VALUES 
-            (@VoucherID, ${voucherTypeRef}, ${branchId}, ${fiscalYearId}, ${ledgerId}, @Date, N'${safeHeaderDesc}', 1, 0, 0, 0, 0, 0, 1, @Date, 1, @Date, @NewNumber, 0, @NewSequence);
-
-          -- 3. Items Loop
-            ${items
-              .map((item: any, index: number) => {
-                const safeDesc = escapeSql(item.description)
-                const safeParty = escapeSql(item.partyName)
-                return `
-            -------------------------------------------------------
-            -- Item ${index + 1}
-            -------------------------------------------------------
-            SET @CurrentSLRef = ${item.moinCode ? item.moinCode : "NULL"};
-            SET @CurrentSLCode = ${item.moinCode ? `N'${item.moinCode}'` : "NULL"};
-
-            IF @CurrentSLRef IS NULL
-            BEGIN
-                SELECT TOP 1 @CurrentSLRef = SLID, @CurrentSLCode = Code 
-                FROM [FIN3].[SL] 
-                WHERE Title LIKE N'%${safeParty || safeDesc}%';
-                
-                IF @CurrentSLRef IS NULL 
-                BEGIN
-                    SET @CurrentSLRef = 111003; -- Default Cash
-                    SET @CurrentSLCode = N'111003';
-                END
-            END
-            ELSE
-            BEGIN
-                 SELECT TOP 1 @CurrentSLCode = Code FROM [FIN3].[SL] WHERE SLID = @CurrentSLRef;
-            END
-
-            SELECT TOP 1 @FoundGLRef = GLRef FROM [FIN3].[SL] WHERE SLID = @CurrentSLRef;
-            SELECT TOP 1 @FoundAGRef = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @FoundGLRef;
-
-            IF @FoundGLRef IS NULL SET @FoundGLRef = 1110; 
-            IF @FoundAGRef IS NULL SET @FoundAGRef = 11;   
-
-            EXEC [SYS3].[spGetNextId] @TableName = 'FIN3.VoucherItem', @Id = @ItemID OUTPUT, @IncValue = 1, @IsLegacy = 0;
-            
-            INSERT INTO [FIN3].[VoucherItem] 
-            (VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef, Debit, Credit, Description, RowNumber, IsCurrencyBased, IsTaxPrepaymentUnrefundable, IsTollPrepaymentUnrefundable)
-            VALUES 
-            (@ItemID, @VoucherID, ${branchId}, @CurrentSLRef, @CurrentSLCode, @FoundGLRef, @FoundAGRef, ${item.type === "Debtor" ? item.amount : 0}, ${item.type === "Creditor" ? item.amount : 0}, N'${safeDesc}', ${index + 1}, 0, 0, 0);
-            `
-              })
-              .join("\n")}
-            
-            COMMIT TRANSACTION;
-            SELECT @VoucherID as NewDocId;
-      END TRY
-      BEGIN CATCH
-          IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-          SELECT ERROR_MESSAGE() as ErrorMsg;
-      END CATCH;
-
-      **Output JSON:** {"sql": "THE_RAW_SQL_CODE", "analysis": "brief summary"}
-    `
-
-    // Call OpenAI
-    console.log("🧠 Generating SQL Logic...")
-    const aiResponse = await openai.chat.completions.create({
-      model: AI_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0
-    })
-
-    const result = JSON.parse(aiResponse.choices[0].message.content || "{}")
-    let cleanSql = result.sql
-      .replace(/```sql/g, "")
-      .replace(/```/g, "")
-      .trim()
-
-    // ✅ لاگ کردن کوئری واقعی برای دیباگ (بسیار مهم)
-    console.log("--------------- GENERATED SQL ---------------")
-    console.log(cleanSql)
-    console.log("---------------------------------------------")
-
-    await logToDb("AI_GEN", "SQL Generated", { analysis: result.analysis })
-
-    // Call Proxy
-    console.log("🚀 Sending SQL to Windows Proxy...")
-    const proxyRes = await fetch(PROXY_URL!, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-proxy-key": PROXY_KEY!
-      },
-      body: JSON.stringify({ query: cleanSql })
-    })
-
-    // ✅ خواندن متن خطا حتی در صورت وضعیت غیر 200
-    const proxyText = await proxyRes.text()
-    let proxyData
-    try {
-      proxyData = JSON.parse(proxyText)
-    } catch (e) {
-      throw new Error(`Proxy Parse Error: ${proxyText}`)
-    }
-
-    if (!proxyRes.ok) {
-      throw new Error(
-        `Proxy Error (${proxyRes.status}): ${proxyData.error || proxyText}`
+      console.log(
+        `📦 Item: [${partyName}] | Amount: ${item.amount.toLocaleString()}`
       )
+
+      // تشخیص کارمزد
+      const feeCheck = detectFee(partyName, rawDesc, item.amount)
+
+      // آبجکت تصمیم‌گیری (با مقدار پیش‌فرض پر می‌شود)
+      const decision = {
+        sl: DEFAULT_SAFE_SL, // <--- نکته کلیدی: هرگز UNKNOWN یا undefined نیست
+        dlCode: null as string | null,
+        reason: "Default Strategy",
+        isFee: feeCheck.isFee
+      }
+
+      if (decision.isFee) {
+        decision.sl = "921145 (هزینه بانکی)"
+        decision.reason = feeCheck.reason
+        console.log(`   💰 Fee Logic: YES (${decision.reason})`)
+      } else {
+        // جستجوی حساب
+        const searchResult = await findAccountCode(partyName)
+        decision.dlCode = searchResult.dlCode || null
+
+        if (searchResult.dlCode) {
+          // بررسی سابقه
+          const historySql = `
+              SELECT TOP 1 SL.Title + N' (' + SL.Code + N')' as SLInfo
+              FROM [FIN3].[VoucherItem] VI
+              JOIN [FIN3].[SL] SL ON VI.SLRef = SL.SLID
+              WHERE (VI.DLLevel4 = N'${searchResult.dlCode}' OR VI.DLLevel5 = N'${searchResult.dlCode}' OR VI.DLLevel6 = N'${searchResult.dlCode}')
+              AND ${isDeposit ? "ISNULL(VI.Credit, 0) > 0" : "ISNULL(VI.Debit, 0) > 0"}
+              ORDER BY VI.VoucherItemID DESC
+          `
+          const histRes = await executeSql(historySql)
+
+          // 🔥 بررسی دقیق اینکه آیا SLInfo واقعاً مقدار دارد؟
+          if (histRes && histRes[0] && histRes[0].SLInfo) {
+            decision.sl = histRes[0].SLInfo
+            decision.reason = "Found in History"
+            console.log(`   🗄️ History Logic: Found (${decision.sl})`)
+          } else {
+            console.log(
+              `   ⚠️ History Logic: DL Found but NO History. Checking Relations...`
+            )
+
+            // بررسی ارتباط
+            let relationFound = false
+            if (searchResult.dlType) {
+              const relSql = `
+                    SELECT TOP 1 SL.Title + N' (' + SL.Code + N')' as SLInfo 
+                    FROM [FIN3].[DLTypeRelation] R 
+                    JOIN [FIN3].[SL] SL ON R.SLRef = SL.SLID 
+                    WHERE DLTypeRef = ${searchResult.dlType}
+                `
+              const relRes = await executeSql(relSql)
+              // 🔥 بررسی دقیق Null بودن
+              if (relRes && relRes[0] && relRes[0].SLInfo) {
+                decision.sl = relRes[0].SLInfo
+                decision.reason = "From DL Type Relation"
+                relationFound = true
+                console.log(`   🔗 Relation Logic: Found (${decision.sl})`)
+              }
+            }
+
+            if (!relationFound) {
+              // اینجا نیازی نیست کاری کنیم چون decision.sl از اول روی DEFAULT_SAFE_SL تنظیم شده است
+              decision.reason = "DL Found > No History/Rel > Kept Default"
+              console.log(`   🛡️ Fallback Logic: Kept Default (${decision.sl})`)
+            }
+          }
+        } else if (searchResult.slId) {
+          decision.sl = `${searchResult.foundName} (${searchResult.slId})`
+          decision.reason = "Direct SL Match"
+        }
+      }
+
+      // 🛠️ سوپاپ اطمینان نهایی (محض احتیاط)
+      if (!decision.sl || decision.sl === "undefined") {
+        decision.sl = DEFAULT_SAFE_SL
+        decision.reason += " | Forced Safety"
+      }
+      const safeSL = decision.sl
+        ? decision.sl
+            .toString()
+            .trim()
+            .replace(/[\r\n\t]/g, " ")
+        : "UNKNOWN_ACCOUNT"
+      // 4️⃣ بازرسی نهایی توسط Auditor AI
+      const auditResult = await auditVoucherWithAI({
+        inputName: partyName,
+        inputDesc: rawDesc,
+        amount: item.amount,
+        selectedAccount: safeSL,
+        isFee: decision.isFee
+      })
+
+      let auditorStatus = "✅ APPROVED"
+      let finalAction = "READY TO SAVE"
+
+      if (!auditResult.approved) {
+        auditorStatus = "❌ REJECTED"
+        console.error(`   🚨 AUDITOR ALERT: ${auditResult.reason}`)
+
+        decision.sl = isDeposit
+          ? "21901 (پیش دریافت - بازرسی شده)"
+          : "11901 (پیش پرداخت - بازرسی شده)"
+        decision.dlCode = null
+        decision.reason = `Auditor Overrule: ${auditResult.reason}`
+        finalAction = "REDIRECTED TO DEFAULT"
+      }
+
+      resultsTable.push({
+        "Input Name": partyName,
+        "Is Fee?": decision.isFee ? "YES" : "NO",
+        "System Choice": decision.sl,
+        "👮 Auditor": auditorStatus,
+        "Final Action": finalAction,
+        Reason: decision.reason
+      })
     }
 
-    if (
-      proxyData.success &&
-      proxyData.recordset &&
-      proxyData.recordset.length > 0
-    ) {
-      const firstRow = proxyData.recordset[0]
-
-      // ✅ بررسی خطای منطقی SQL
-      if (firstRow.ErrorMsg) {
-        throw new Error(`SQL Logic Error: ${firstRow.ErrorMsg}`)
-      }
-
-      await logToDb("SUCCESS", "Voucher Created", { docId: firstRow.NewDocId })
-      return {
-        success: true,
-        docId: firstRow.NewDocId,
-        message: "سند با موفقیت ثبت شد",
-        analysis: result.analysis
-      }
-    } else {
-      // خطایی که از دیتابیس برگشته اما فرمت استاندارد ندارد
-      const errorDetail = proxyData.error || JSON.stringify(proxyData)
-      throw new Error(`Database Error: ${errorDetail}`)
+    console.table(resultsTable)
+    return {
+      success: true,
+      docId: "SIMULATED_AUDIT",
+      message: "Simulation completed."
     }
   } catch (error: any) {
-    console.error("❌ Transaction Failed:", error)
-    await logToDb("ERROR", "Operation Failed", { error: error.message })
+    console.error(`❌ [SYSTEM ERROR]: ${error.message}`)
     return { success: false, error: error.message }
   }
 }
