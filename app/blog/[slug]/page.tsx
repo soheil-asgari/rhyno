@@ -73,6 +73,7 @@ export default async function PostPage({ params }: Props) {
   const post = await getPostBySlug(params.slug)
 
   // ⭐️ ۳. مدیریت 404 برای صفحه
+  //1
   if (!post) {
     notFound()
   }
