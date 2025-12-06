@@ -74,6 +74,7 @@ export default async function PostPage({ params }: Props) {
 
   // ⭐️ ۳. مدیریت 404 برای صفحه
   //1
+  //2
   if (!post) {
     notFound()
   }
