@@ -84,7 +84,7 @@
     "bcryptjs": "^3.0.2",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.0",
-    "cmdk": "^0.2.0",
+    "cmdk": "^0.2.1",
     "crypto-js": "^4.2.0",
     "d3-dsv": "^2.0.0",
     "date-fns": "^2.30.0",

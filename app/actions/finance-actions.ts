@@ -11,6 +11,9 @@ import persian_fa from "react-date-object/locales/persian_fa"
 import { syncToRahkaranSystem } from "@/lib/services/rahkaran"
 import { sendCompletionSMS } from "@/lib/sms-service"
 
+const PROXY_URL = process.env.RAHKARAN_PROXY_URL
+const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
+
 const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -60,54 +63,51 @@ export async function analyzeSinglePage(
 ): Promise<SinglePageResult> {
   try {
     const response = await openai.chat.completions.create({
-      model: AI_MODEL,
+      model: AI_MODEL, // gemini-2.5-flash
       messages: [
         {
           role: "system",
-          content: `You are an expert Data Entry Clerk. 
-          Your ONLY goal is ACCURACY and COMPLETENESS.
-          If there is a list of transactions, you MUST extract EVERY SINGLE ROW.
-          Do not summarize. Do not skip rows.`
+          content: `You are an expert OCR engine for Persian Banking Documents.
+          Your goal is to extract EVERY SINGLE transaction row with 100% precision.
+          
+          CRITICAL RULES:
+          1. **Detached Numbers:** Sometimes text and numbers are glued together (e.g., "عددی49,000"). You MUST split them (e.g., Description: "عددی", Amount: 49000).
+          2. **Unknown Names:** If a name is "نامشخص", look at the description. Often the real name is hidden there (e.g. "به نام علی رضایی"). Extract the REAL name.
+          3. **Full List:** Do not stop after 5 items. If there are 50 items, extract 50 items.
+          4. **Amount:** Always convert Rials to integer. Remove commas.
+          `
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `Analyze this image (Page ${pageNumber}). It contains financial transactions in Persian.
+              text: `Extract data from this image (Page ${pageNumber}).
 
-              **INSTRUCTIONS:**
-              1. Identify if this is a single receipt or a list (Gardesh Hesab).
-              2. **IF LIST:** Extract ALL rows presented in the table. Even if there are 10+ rows.
-              3. **IF RECEIPT:** Extract the single transaction details.
-
-              **DATA MAPPING:**
-              - **Date:** (Convert to YYYY/MM/DD if possible, else keep original)
-              - **Type:** - If money comes IN (واریز, انتقال به ما, +) => "Deposit"
-                 - If money goes OUT (برداشت, انتقال از ما, -) => "Withdrawal"
-              - **Amount:** Digits only (Rials).
-              - **Party Name:** The FULL name of the person/company.
-                  - ⚠️ IMPORTANT RULE: The receipt often says "به نام ... نامشخص" because the branch is unknown.
-                  - You MUST extract the ACTUAL NAME before "نامشخص".
-                  - Example: "به نام مرجانی بهرام نامشخص" -> Extract "مرجانی بهرام".
-                  - Example: "نامشخص به نام شرکت چسب پارس" -> Extract "شرکت چسب پارس".
-                  - Do NOT include the word "نامشخص" in the output name.
-              - **Tracking Code:** (Shomare Peygiri / Erja)
-
-              **JSON OUTPUT FORMAT:**
+              **SPECIFIC INSTRUCTIONS FOR THIS DOCUMENT:**
+              - Look for rows with date, amount, and description.
+              - **Party Name:** Extract the name of the sender/receiver.
+                 - If the column says "نامشخص" or "Unknown", search the 'Description' (شرح) column for text like "به نام ..." or "بنام ...".
+                 - Example: Column="نامشخص", Desc="پایا به نام شرکت فولاد" => Party Name = "شرکت فولاد".
+              
+              - **Amounts:** - Watch out for glued text! 
+                 - "مبلغ: 49,000" is easy.
+                 - "مانده49,000" => Amount is 49000.
+                 - "سهیل عددی49,252,796,116" => Amount is 49252796116.
+              
+              - **Output JSON:**
               {
                 "transactions": [
-                   {
-                      "date": "1403/09/11",
-                      "type": "Deposit",
-                      "amount": 5000000,
-                      "description": "Full description text",
-                      "partyName": "Ali Rezaei",
-                      "tracking_code": "123456"
-                   }
+                  { 
+                    "date": "YYYY/MM/DD", 
+                    "type": "deposit" | "withdrawal", 
+                    "amount": 123456, 
+                    "description": "Full text", 
+                    "partyName": "Clean Name", 
+                    "tracking_code": "..." 
+                  }
                 ]
-              }
-              `
+              }`
             },
             {
               type: "image_url",
@@ -235,6 +235,42 @@ async function findOfficerForCustomer(
 // ------------------------------------------------------------------
 // 3. Submit Transactions (Fixed: returns IDs)
 // ------------------------------------------------------------------
+
+// در فایل app/actions/finance-actions.ts
+
+// ✅ تابع جدید: ثبت کامل واریز و برداشت یک روز به صورت همزمان
+export async function submitDayComplete(date: string, workspaceId: string) {
+  console.log(`🚀 STARTING FULL PROCESS FOR DATE: ${date}`)
+
+  const results = {
+    deposit: null as any,
+    withdrawal: null as any
+  }
+
+  // 1. اول واریزها را ثبت کن
+  try {
+    console.log(`--- Processing DEPOSITS for ${date} ---`)
+    results.deposit = await submitDailyVoucher(date, workspaceId, "deposit")
+  } catch (e) {
+    console.error(`Error processing deposits for ${date}:`, e)
+  }
+
+  // 2. بلافاصله برداشت‌ها را ثبت کن (چسب پارس اینجاست!)
+  try {
+    console.log(`--- Processing WITHDRAWALS for ${date} ---`)
+    results.withdrawal = await submitDailyVoucher(
+      date,
+      workspaceId,
+      "withdrawal"
+    )
+  } catch (e) {
+    console.error(`Error processing withdrawals for ${date}:`, e)
+  }
+
+  console.log(`🏁 FULL PROCESS FINISHED FOR ${date}`)
+  return results
+}
+
 export async function submitGroupedTransactions(
   workspaceId: string,
   groupedData: any[]
@@ -258,11 +294,13 @@ export async function submitGroupedTransactions(
     let insertedIds: string[] = []
 
     console.log(`🚀 START Submitting ${groupedData.length} groups...`)
+    console.log("📄 EXTRACTED DATA:", JSON.stringify(groupedData, null, 2))
 
     for (const group of groupedData) {
       const transactions = Array.isArray(group.transactions)
         ? group.transactions
         : []
+
       let finalFileUrl = ""
       if (Array.isArray(group.fileUrl)) {
         finalFileUrl = group.fileUrl.length > 0 ? group.fileUrl[0] : ""
@@ -272,6 +310,7 @@ export async function submitGroupedTransactions(
 
       for (const tx of transactions) {
         try {
+          // 1. مبلغ
           let safeAmount = tx.amount
           if (typeof tx.amount === "string") {
             safeAmount =
@@ -282,6 +321,7 @@ export async function submitGroupedTransactions(
               ) || 0
           }
 
+          // 2. نام
           let finalSupplierName =
             tx.partyName || tx.counterparty || "تراکنش بدون نام"
           finalSupplierName = finalSupplierName
@@ -292,18 +332,33 @@ export async function submitGroupedTransactions(
 
           const finalDate = getSafeDate(tx.date)
 
-          let assignedUserId = user?.id
-          let customerGroup = "General"
-          const officerInfo = await findOfficerForCustomer(
-            supabase,
-            workspaceId,
-            finalSupplierName
-          )
-          if (officerInfo) {
-            customerGroup = officerInfo.groupName
-            if (officerInfo.officerId) assignedUserId = officerInfo.officerId
+          // 3. کد رهگیری هوشمند (Deterministic ID)
+          let finalTrackingCode = tx.tracking_code
+
+          // اگر کد رهگیری ندارد یا نامشخص است
+          if (
+            !finalTrackingCode ||
+            finalTrackingCode.includes("نامشخص") ||
+            finalTrackingCode.length < 3
+          ) {
+            // 🛡️ راه حل امنیتی: تولید کد بر اساس محتوا (Content-Based ID)
+            // فرمول: NO-REF-[مبلغ]-[تاریخ]-[۵ حرف اول نام]
+            // این باعث می‌شود اگر فایل تکراری آپلود شود، کد تکراری تولید شود و دیتابیس جلویش را بگیرد.
+            // اما اگر تراکنش متفاوتی باشد (مثل چسب پارس)، کد متفاوتی تولید می‌شود.
+
+            const datePart = finalDate.replace(/[\/\-]/g, "") // حذف اسلش تاریخ
+            const namePart = finalSupplierName
+              .replace(/\s/g, "")
+              .substring(0, 8) // ۸ حرف اول نام بدون فاصله
+
+            finalTrackingCode = `NO-REF-${safeAmount}-${datePart}-${namePart}`
+
+            console.log(
+              `🔹 Generated Smart-ID for ${finalSupplierName}: ${finalTrackingCode}`
+            )
           }
 
+          // 4. نوع
           let transactionType = "withdrawal"
           if (tx.type && typeof tx.type === "string") {
             const t = tx.type.toLowerCase().trim()
@@ -316,33 +371,40 @@ export async function submitGroupedTransactions(
             supplier_name: finalSupplierName,
             amount: safeAmount,
             payment_date: finalDate,
-            tracking_code:
-              tx.tracking_code ||
-              `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            tracking_code: finalTrackingCode,
             receipt_image_url: finalFileUrl,
             description: tx.description || "",
             type: transactionType,
             counterparty: finalSupplierName,
             status: "pending_docs" as "pending_docs",
-            assigned_user_id: assignedUserId || null,
-            customer_group: customerGroup,
+            assigned_user_id: user?.id || null,
+            customer_group: "General",
             ai_verification_status: "pending" as "pending"
           }
 
+          // 5. عملیات درج در دیتابیس (با لاگ دقیق خطا)
           const { data, error } = await supabase
             .from("payment_requests")
             .upsert(insertData, {
               onConflict: "tracking_code",
-              ignoreDuplicates: true
+              ignoreDuplicates: true // ⛔️ مهم: اگر تکراری بود، نادیده بگیر (خواسته شما)
             })
             .select("id")
             .maybeSingle()
 
-          if (error) throw error
+          if (error) {
+            console.error("❌ Database Insert Error:", error) // لاگ خطا را ببینیم
+            throw error
+          }
 
           if (data) {
             insertedIds.push(data.id)
             successCount++
+          } else {
+            // اگر دیتا نال بود، یعنی تکراری بوده و ایگنور شده
+            console.log(
+              `⚠️ Duplicate skipped: ${finalSupplierName} (${finalTrackingCode})`
+            )
           }
         } catch (err: any) {
           console.error("Tx Error:", err.message)
@@ -352,7 +414,7 @@ export async function submitGroupedTransactions(
     }
 
     console.log(
-      `✅ [FINANCE_ACTION] submitGroupedTransactions finished. Inserted: ${insertedIds.length}`
+      `✅ [FINANCE_ACTION] Finished. Inserted: ${insertedIds.length} / Skipped duplicates.`
     )
 
     return {
@@ -409,10 +471,11 @@ export async function submitDailyVoucher(
     const typeFarsi = type === "deposit" ? "واریز" : "برداشت"
 
     const payload = {
-      description: `سند تجمیعی ${typeFarsi} - مورخ ${date}`, // در شرح سند همان شمسی را می‌نویسیم که خوانا باشد
+      description: `سند تجمیعی ${typeFarsi} - مورخ ${date}`,
       mode: type,
       totalAmount: totalAmount,
-      date: searchDate, // برای تاریخ سند در راهکاران، میلادی می‌فرستیم (سیستم خودش هندل می‌کند)
+      date: searchDate,
+      workspaceId: workspaceId, // ✅✅✅ این خط را اضافه کنید
       items: requests.map(r => ({
         partyName: r.counterparty || r.supplier_name || "نامشخص",
         amount: Number(r.amount),
@@ -526,7 +589,8 @@ export async function verifyAndSettleRequest(
           description: docDescription,
           totalAmount: safeAmount,
           items: rawItems,
-          date: safeDate
+          date: safeDate,
+          workspaceId: workspaceId // ✅✅✅ این خط را اضافه کنید
         })
       },
       3,
@@ -645,5 +709,468 @@ export async function addRequestNote(requestId: string, noteText: string) {
     return { success: false, error: data.error }
   } catch (error) {
     return { success: false, error: "Connection failed." }
+  }
+}
+
+export async function getRahkaranSLs() {
+  if (!PROXY_URL || !PROXY_KEY) return []
+  const sqlQuery = `
+    SELECT TOP 2000 Code, Title 
+    FROM [FIN3].[SL] 
+    WHERE Code NOT LIKE '111005%' 
+    ORDER BY Code ASC
+  `
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY },
+      body: JSON.stringify({ query: sqlQuery }),
+      cache: "no-store"
+    })
+    const data = await res.json()
+    if (data.recordset) {
+      return data.recordset.map((row: any) => ({
+        code: row.Code,
+        title: row.Title,
+        fullLabel: `${row.Code} - ${row.Title}`
+      }))
+    }
+    return []
+  } catch (e) {
+    console.error("Fetch SL Error:", e)
+    return []
+  }
+}
+
+// app/actions/finance-actions.ts
+
+export async function getRahkaranAccounts() {
+  const proxyUrl = process.env.RAHKARAN_PROXY_URL
+  const proxyKey = process.env.RAHKARAN_PROXY_KEY
+
+  if (!proxyUrl || !proxyKey) return []
+
+  // ✅ کوئری ترکیبی: هم معین (SL) و هم تفصیلی (DL)
+  // ما یک ستون مجازی 'Type' اضافه می‌کنیم تا در فرانت بتوانیم آیکون متفاوت نشان دهیم
+  const sqlQuery = `
+    SELECT TOP 2000 
+        Code, 
+        Title, 
+        'SL' as Type, 
+        CAST(Code AS NVARCHAR(50)) + ' - ' + Title as FullLabel
+    FROM [FIN3].[SL] 
+    WHERE Code NOT LIKE '111005%' -- حذف بانک‌ها
+    
+    UNION ALL
+    
+    SELECT TOP 2000 
+        Code, 
+        Title, 
+        'DL' as Type, 
+        Title + ' (' + CAST(Code AS NVARCHAR(50)) + ')' as FullLabel
+    FROM [FIN3].[DL]
+    WHERE Status = 1 -- فقط فعال‌ها
+    ORDER BY Type DESC, Code ASC -- معین‌ها اول بیایند
+  `
+
+  try {
+    const res = await fetch(proxyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-proxy-key": proxyKey },
+      body: JSON.stringify({ query: sqlQuery }),
+      cache: "no-store"
+    })
+
+    const data = await res.json()
+
+    if (data.recordset) {
+      return data.recordset.map((row: any) => ({
+        code: row.Code,
+        title: row.Title,
+        type: row.Type, // نوع حساب (SL یا DL)
+        // افزودن ایموجی برای تشخیص چشمی راحت‌تر
+        fullLabel:
+          row.Type === "SL" ? `📘 ${row.FullLabel}` : `👤 ${row.FullLabel}`
+      }))
+    }
+    return []
+  } catch (e) {
+    console.error("Fetch Accounts Error:", e)
+    return []
+  }
+}
+
+// ------------------------------------------------------------------
+// 2. تابع اصلی: ثبت سند در راهکاران + آپدیت دیتابیس
+// ------------------------------------------------------------------
+// app/actions/finance-actions.ts
+export async function approveUnspecifiedDocument(
+  id: string,
+  slCode: string,
+  dlCode: string | null, // ✅ این ورودی قبلاً نبود و باعث ارور می‌شد
+  description: string | null,
+  workspaceId: string
+) {
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+
+  try {
+    const { data: request } = await supabase
+      .from("payment_requests")
+      .select("*")
+      .eq("id", id)
+      .single()
+
+    if (!request) throw new Error("سند یافت نشد")
+
+    const amount = Number(request.amount) || 0
+    const isDeposit = request.type === "deposit" || request.type === "واریز"
+
+    const finalDesc = description
+      ? `${description}`
+      : request.description || "ثبت دستی از داشبورد"
+
+    // ارسال به راهکاران
+    const rahkaranResult = await insertVoucherWithDL({
+      slCode: slCode,
+      dlCode: dlCode,
+      amount: amount,
+      description: finalDesc,
+      isDeposit: isDeposit,
+      date: request.payment_date || new Date().toISOString().split("T")[0]
+    })
+
+    if (!rahkaranResult.success) {
+      throw new Error(rahkaranResult.error)
+    }
+
+    // آپدیت دیتابیس
+    await supabase
+      .from("payment_requests")
+      .update({
+        status: "completed",
+        ai_verification_status: "manual_verified",
+        description: finalDesc,
+        rahkaran_doc_id: rahkaranResult.docNumber?.toString(),
+        ai_verification_reason: `معین: ${slCode} / تفصیلی: ${dlCode || "ندارد"}`
+      })
+      .eq("id", id)
+
+    revalidatePath(`/enterprise/${workspaceId}/finance/dashboard`, "page")
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+// app/actions/finance-actions.ts
+
+// ------------------------------------------------------------------
+// تابع هوشمند SQL (نسخه با قابلیت ساخت خودکار تفصیلی + رفع باگ‌ها)
+// ------------------------------------------------------------------
+async function insertVoucherWithDL(params: {
+  slCode: string
+  dlCode: string | null
+  amount: number
+  description: string
+  isDeposit: boolean
+  date: string
+}) {
+  if (!PROXY_URL || !PROXY_KEY)
+    return { success: false, error: "تنظیمات پروکسی موجود نیست" }
+
+  const bankSL = "111005"
+  const safeDesc = params.description.replace(/'/g, "''")
+
+  // اگر DL انتخاب نشده بود، NULL بفرست
+  const dlCodeValue = params.dlCode ? `'${params.dlCode}'` : "NULL"
+
+  const sql = `
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @Date NVARCHAR(20) = '${params.date}';
+        DECLARE @Desc NVARCHAR(MAX) = N'${safeDesc}';
+        DECLARE @SLCode NVARCHAR(50) = '${params.slCode}';
+        
+        DECLARE @VoucherID BIGINT, @VoucherNumber BIGINT, @VoucherLockID BIGINT;
+        DECLARE @SLRef BIGINT, @GLRef BIGINT, @AccountGroupRef BIGINT;
+        
+        -- متغیرهای تفصیلی
+        DECLARE @DLRef BIGINT = NULL, @DLTypeRef BIGINT = NULL;
+
+        -- 1. پیدا کردن معین
+        SELECT TOP 1 @SLRef = SLID, @GLRef = GLRef, @AccountGroupRef = (SELECT TOP 1 AccountGroupRef FROM [FIN3].[GL] WHERE GLID = SL.GLRef)
+        FROM [FIN3].[SL] SL WHERE Code = @SLCode;
+
+        IF @SLRef IS NULL THROW 51000, 'کد معین یافت نشد', 1;
+
+        -- 2. پیدا کردن تفصیلی (اگر کاربر انتخاب کرده باشد)
+        IF ${dlCodeValue} IS NOT NULL
+        BEGIN
+            SELECT TOP 1 @DLRef = DLID, @DLTypeRef = DLTypeRef 
+            FROM [FIN3].[DL] WHERE Code = ${dlCodeValue};
+            
+            IF @DLRef IS NULL THROW 51000, 'کد تفصیلی انتخاب شده نامعتبر است', 1;
+        END
+
+        -- 3. هدر سند
+        DECLARE @BranchRef BIGINT = 1, @LedgerRef BIGINT = 1, @UserRef INT = 1;
+        DECLARE @FiscalYearRef BIGINT;
+        SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
+
+        EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
+        SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 FROM [FIN3].[Voucher] WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef;
+
+        INSERT INTO [FIN3].[Voucher] (
+            VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
+            Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
+            Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields, DailyNumber, Sequence
+        ) VALUES (
+            @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, @VoucherNumber,
+            @Date, 1, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
+            @Desc, 0, 0, 0, 0, @VoucherNumber, @VoucherNumber
+        );
+
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherLock', @Id = @VoucherLockID OUTPUT;
+        INSERT INTO [FIN3].[VoucherLock] (VoucherLockID, VoucherRef, UserRef, LastModificationDate) 
+        VALUES (@VoucherLockID, @VoucherID, @UserRef, GETDATE());
+
+        -- 4. آیتم طرف حساب (با تفصیلی مشخص)
+        DECLARE @ItemID1 BIGINT;
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID1 OUTPUT;
+        
+        INSERT INTO [FIN3].[VoucherItem] (
+            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
+            Debit, Credit, Description, RowNumber, IsCurrencyBased,
+            DLLevel4, DLTypeRef4 -- قرار دادن تفصیلی در سطح 4
+        ) VALUES (
+            @ItemID1, @VoucherID, @BranchRef, @SLRef, @SLCode, @GLRef, @AccountGroupRef,
+            ${params.isDeposit ? 0 : params.amount}, ${params.isDeposit ? params.amount : 0}, 
+            @Desc, 1, 0,
+            CASE WHEN @DLRef IS NOT NULL THEN ${dlCodeValue} ELSE NULL END, 
+            CASE WHEN @DLRef IS NOT NULL THEN @DLTypeRef ELSE NULL END
+        );
+
+        -- 5. آیتم بانک
+        DECLARE @BankSLRef BIGINT, @BankGLRef BIGINT, @BankAG BIGINT, @ItemID2 BIGINT;
+        SELECT TOP 1 @BankSLRef = SLID, @BankGLRef = GLRef, @BankAG = (SELECT TOP 1 AccountGroupRef FROM [FIN3].[GL] WHERE GLID = SL.GLRef) 
+        FROM [FIN3].[SL] WHERE Code = '${bankSL}';
+
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID2 OUTPUT;
+        INSERT INTO [FIN3].[VoucherItem] (
+            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
+            Debit, Credit, Description, RowNumber, IsCurrencyBased
+        ) VALUES (
+            @ItemID2, @VoucherID, @BranchRef, @BankSLRef, '${bankSL}', @BankGLRef, @BankAG,
+            ${params.isDeposit ? params.amount : 0}, ${params.isDeposit ? 0 : params.amount},
+            N'بانک - ' + @Desc, 2, 0
+        );
+
+        UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID;
+        COMMIT TRANSACTION;
+        SELECT 'Success' as Status, @VoucherNumber as VoucherNum;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        SELECT 'Error' as Status, ERROR_MESSAGE() as ErrMsg;
+    END CATCH
+  `
+
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY },
+      body: JSON.stringify({ query: sql }),
+      cache: "no-store"
+    })
+
+    const json = await res.json()
+    const resultRow = json.recordset ? json.recordset[0] : null
+
+    if (resultRow && resultRow.Status === "Success") {
+      return { success: true, docNumber: resultRow.VoucherNum }
+    } else {
+      return {
+        success: false,
+        error: resultRow ? resultRow.ErrMsg : "خطای SQL"
+      }
+    }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+// ------------------------------------------------------------------
+// 3. تابع کمکی: اجرای کوئری SQL اینسرت (هسته اصلی)
+// ------------------------------------------------------------------
+async function insertManualVoucherToRahkaran(params: {
+  slCode: string
+  amount: number
+  description: string
+  isDeposit: boolean
+  date: string
+}) {
+  if (!PROXY_URL || !PROXY_KEY)
+    return { success: false, error: "تنظیمات پروکسی موجود نیست" }
+
+  // منطق بدهکار/بستانکار
+  // اگر واریز است: بانک (111005) بدهکار، طرف حساب (slCode) بستانکار
+  // اگر برداشت است: طرف حساب (slCode) بدهکار، بانک (111005) بستانکار
+  const bankSL = "111005"
+
+  // تبدیل تاریخ (اگر نیاز به تبدیل میلادی به شمسی در سمت SQL دارید، اینجا پیچیده می‌شود)
+  // فعلا فرض بر این است که تاریخ میلادی می‌فرستیم و راهکاران هندل می‌کند یا تاریخ امروز
+  const dateStr = params.date
+
+  const sql = `
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @VoucherID BIGINT;
+        DECLARE @VoucherNumber BIGINT;
+        DECLARE @BranchRef BIGINT = 1; -- کد شعبه پیش‌فرض
+        DECLARE @LedgerRef BIGINT = 1; -- دفتر کل پیش‌فرض
+        DECLARE @UserRef INT = 1; -- کاربر سیستم
+        DECLARE @FiscalYearRef BIGINT;
+        
+        -- 1. پیدا کردن سال مالی
+        SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
+
+        -- 2. ساخت هدر سند
+        EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
+        
+        SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 FROM [FIN3].[Voucher] 
+        WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef;
+
+        INSERT INTO [FIN3].[Voucher] (
+            VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
+            Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
+            Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields, DailyNumber, Sequence
+        ) VALUES (
+            @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, @VoucherNumber,
+            '${dateStr}', 1, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
+            N'${params.description}', 0, 0, 0, 0, @VoucherNumber, @VoucherNumber
+        );
+
+        -- متغیرهای کمکی آیتم
+        DECLARE @BankSLRef BIGINT, @PartySLRef BIGINT;
+        DECLARE @BankGLRef BIGINT, @PartyGLRef BIGINT;
+        DECLARE @BankAG BIGINT, @PartyAG BIGINT;
+        DECLARE @ItemID1 BIGINT, @ItemID2 BIGINT;
+
+        -- پیدا کردن رفرنس‌های بانک
+        SELECT TOP 1 @BankSLRef = SLID, @BankGLRef = GLRef FROM [FIN3].[SL] WHERE Code = '${bankSL}';
+        SELECT TOP 1 @BankAG = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @BankGLRef;
+
+        -- پیدا کردن رفرنس‌های حساب انتخابی کاربر
+        SELECT TOP 1 @PartySLRef = SLID, @PartyGLRef = GLRef FROM [FIN3].[SL] WHERE Code = '${params.slCode}';
+        SELECT TOP 1 @PartyAG = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @PartyGLRef;
+
+        IF @PartySLRef IS NULL THROW 51000, 'کد معین انتخاب شده در سیستم یافت نشد', 1;
+
+        -- 3. آیتم اول: طرف حساب (کاربر)
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID1 OUTPUT;
+        INSERT INTO [FIN3].[VoucherItem] (
+            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
+            Debit, Credit, Description, RowNumber
+        ) VALUES (
+            @ItemID1, @VoucherID, @BranchRef, @PartySLRef, '${params.slCode}', @PartyGLRef, @PartyAG,
+            ${params.isDeposit ? 0 : params.amount}, -- بدهکار (در برداشت)
+            ${params.isDeposit ? params.amount : 0}, -- بستانکار (در واریز)
+            N'${params.description}', 1
+        );
+
+        -- 4. آیتم دوم: بانک
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID2 OUTPUT;
+        INSERT INTO [FIN3].[VoucherItem] (
+            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
+            Debit, Credit, Description, RowNumber
+        ) VALUES (
+            @ItemID2, @VoucherID, @BranchRef, @BankSLRef, '${bankSL}', @BankGLRef, @BankAG,
+            ${params.isDeposit ? params.amount : 0}, -- بدهکار (در واریز)
+            ${params.isDeposit ? 0 : params.amount}, -- بستانکار (در برداشت)
+            N'بانک - ${params.description}', 2
+        );
+
+        -- پایان
+        UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID; -- موقت
+        
+        COMMIT TRANSACTION;
+        SELECT 'Success' as Status, @VoucherNumber as VoucherNum;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        SELECT 'Error' as Status, ERROR_MESSAGE() as ErrMsg;
+    END CATCH
+  `
+
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY },
+      body: JSON.stringify({ query: sql }),
+      cache: "no-store"
+    })
+    const json = await res.json()
+    const resultRow = json.recordset ? json.recordset[0] : null
+
+    if (resultRow && resultRow.Status === "Success") {
+      return { success: true, docNumber: resultRow.VoucherNum }
+    } else {
+      return {
+        success: false,
+        error: resultRow ? resultRow.ErrMsg : "خطای ناشناخته در SQL"
+      }
+    }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+export async function getRahkaranDLs() {
+  if (!process.env.RAHKARAN_PROXY_URL) return []
+
+  // ⚠️ تغییر: حذف شرط Status = 1 برای تست
+  // ⚠️ تغییر: فقط ۱۰ تا رکورد بگیر تا ببینیم اصلا جدول را می‌شناسد یا نه
+  const sqlQuery = `
+    SELECT TOP 5000 Code, Title 
+    FROM [FIN3].[DL] 
+    ORDER BY Code DESC
+  `
+
+  try {
+    const res = await fetch(process.env.RAHKARAN_PROXY_URL!, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-proxy-key": process.env.RAHKARAN_PROXY_KEY!
+      },
+      body: JSON.stringify({ query: sqlQuery }),
+      cache: "no-store"
+    })
+
+    const data = await res.json()
+
+    // لاگ کردن نتیجه برای فهمیدن مشکل
+    console.log("DL Query Result:", JSON.stringify(data).substring(0, 200)) // فقط ۲۰۰ کاراکتر اول
+
+    if (data.recordset) {
+      return data.recordset.map((row: any) => ({
+        code: row.Code,
+        title: row.Title,
+        fullLabel: `👤 ${row.Title} (${row.Code})`
+      }))
+    }
+
+    // اگر ارور SQL باشد اینجا چاپ می‌شود
+    if (data.error) {
+      console.error("❌ SQL Error on DL:", data.error)
+    }
+
+    return []
+  } catch (e) {
+    console.error("Fetch DL Error:", e)
+    return []
   }
 }

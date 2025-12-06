@@ -57,7 +57,7 @@ export default async function FinanceLayout({
               size="sm"
               className="gap-2 text-gray-500 hover:text-blue-600"
             >
-              <ArrowRight className="size-4" /> بازگشت به داشبورد اصلی
+              {/* <ArrowRight className="size-4" /> بازگشت به داشبورد اصلی */}
             </Button>
           </Link>
           <Link href="/enterprise/login">

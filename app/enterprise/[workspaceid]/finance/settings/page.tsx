@@ -1,76 +1,18 @@
-"use client"
+// فایل: D:\rhyno-site\rhyno\app\enterprise\[workspaceid]\finance\settings\page.tsx
 
-import { useState } from "react"
-import { uploadCustomerMapping } from "@/app/actions/settings-actions"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "sonner"
-import { Loader2, FileSpreadsheet } from "lucide-react"
+import { CustomerMappingUpload } from "@/components/CustomerMappingUpload" // مسیر را چک کنید
 
-export function CustomerMappingUpload({
-  workspaceId
+export default function SettingsPage({
+  params
 }: {
-  workspaceId: string
+  params: { workspaceid: string }
 }) {
-  const [uploading, setUploading] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
-
-  const handleUpload = async () => {
-    if (!file) return toast.error("لطفا یک فایل اکسل انتخاب کنید")
-
-    setUploading(true)
-    const formData = new FormData()
-    formData.append("file", file)
-
-    try {
-      const res = await uploadCustomerMapping(workspaceId, formData)
-
-      if (!res.success) throw new Error(res.error)
-
-      toast.success(`${res.count} مشتری با موفقیت بروزرسانی شد! 🎉`)
-      setFile(null)
-      // ریست کردن اینپوت فایل (اختیاری)
-      const fileInput = document.getElementById(
-        "excel-upload"
-      ) as HTMLInputElement
-      if (fileInput) fileInput.value = ""
-    } catch (error: any) {
-      toast.error(error.message)
-    } finally {
-      setUploading(false)
-    }
-  }
-
   return (
-    <div className="rounded-lg border bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <div className="rounded-full bg-green-100 p-2 text-green-600">
-          <FileSpreadsheet className="size-6" />
-        </div>
-        <h3 className="text-lg font-semibold">تخصیص گروهی مشتریان</h3>
-      </div>
+    <div className="p-6">
+      <h1 className="mb-6 text-2xl font-bold">تنظیمات مالی</h1>
 
-      <p className="mb-4 text-sm text-gray-500">
-        فایل اکسل شامل ستون‌های <b>Customer</b> (نام مشتری) و <b>Email</b>{" "}
-        (ایمیل مسئول) را آپلود کنید.
-      </p>
-
-      <div className="flex gap-3">
-        <Input
-          id="excel-upload"
-          type="file"
-          accept=".xlsx, .xls"
-          className="cursor-pointer"
-          onChange={e => setFile(e.target.files?.[0] || null)}
-        />
-        <Button
-          onClick={handleUpload}
-          disabled={uploading || !file}
-          className="bg-green-600 hover:bg-green-700"
-        >
-          {uploading ? <Loader2 className="animate-spin" /> : "آپلود و اعمال"}
-        </Button>
-      </div>
+      {/* استفاده از کامپوننت ایمپورت شده */}
+      <CustomerMappingUpload workspaceId={params.workspaceid} />
     </div>
   )
 }

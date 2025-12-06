@@ -57,7 +57,19 @@ const GENERIC_WORDS = new Set([
   "چک",
   "بابت",
   "امور",
-  "دفتر"
+  "دفتر",
+  "شیمیایی",
+  "شیمی",
+  "صنایع",
+  "تولیدی",
+  "پخش",
+  "نوید",
+  "گستر",
+  "آریا",
+  "برتر",
+  "نوین",
+  "سازه",
+  "صنعت"
 ])
 const FEE_KEYWORDS = [
   "کارمزد",
@@ -242,7 +254,7 @@ export async function auditVoucherWithAI(
 ): Promise<{ approved: boolean; reason: string }> {
   try {
     const completion = await openai.chat.completions.create({
-      model: "x-ai/grok-4.1-fast", // برای ناظر نهایی از قوی‌ترین مدل استفاده کنید
+      model: "qwen/qwen3-vl-8b-instruct", // برای ناظر نهایی از قوی‌ترین مدل استفاده کنید
       messages: [
         {
           role: "system",

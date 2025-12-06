@@ -7,7 +7,7 @@ import {
   analyzeSinglePage,
   submitGroupedTransactions,
   verifyAndSettleRequest,
-  submitDailyVoucher
+  submitDayComplete
 } from "@/app/actions/finance-actions"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -358,67 +358,94 @@ export default function ChatUploadPage() {
   }
 
   // --- 🔥 نسخه نهایی: ثبت سند تجمیعی (روزانه) 🔥 ---
+  // --- 🔥 نسخه اصلاح شده و نهایی handleConfirm 🔥 ---
+  // --- 🔥 نسخه نهایی و اصلاح شده handleConfirm 🔥 ---
   const handleConfirm = async (data: AIResult, fileUrls: string | string[]) => {
-    const toastId = toast.loading("در حال پردازش و ثبت سند تجمیعی...")
+    const toastId = toast.loading("در حال ثبت اسناد در سیستم مالی...")
     const mainUrl = Array.isArray(fileUrls) ? fileUrls[0] : fileUrls
 
-    // 1. ذخیره اولیه در دیتابیس (این بخش می‌تواند بماند یا تغییر کند، اما برای امنیت اول ذخیره می‌کنیم)
+    // 1. گروه‌بندی تراکنش‌ها
     const groups = groupTransactionsByDate(data.transactions)
+
+    // 2. آماده‌سازی پیلود
     const groupedPayload = Object.keys(groups).map(date => ({
       date,
       transactions: groups[date],
       fileUrl: mainUrl
     }))
 
+    // 3. ذخیره اولیه
     await submitGroupedTransactions(workspaceId, groupedPayload)
 
     let totalSuccessDocs = 0
 
-    // 2. حلقه روی "تاریخ‌ها" (نه تراکنش‌ها)
+    // 4. پردازش روز به روز
     for (const date of Object.keys(groups)) {
-      const txs = groups[date]
-      // تشخیص نوع (واریز یا برداشت) - فرض می‌کنیم در یک روز همه یک نوع هستند یا اولین را معیار می‌گیریم
-      const type = txs[0].type === "deposit" ? "deposit" : "withdrawal"
+      // فراخوانی تابع کامل (هم واریز هم برداشت)
+      const res = await submitDayComplete(date, workspaceId)
 
-      // فراخوانی تابع جدید "سند روزانه"
-      const res = await submitDailyVoucher(date, workspaceId, type)
-
-      if (res.success) {
+      // --- بررسی نتیجه واریز (Deposit) ---
+      if (res.deposit && res.deposit.success) {
         totalSuccessDocs++
+        const docId = res.deposit.docId || "---" // گرفتن شماره سند
 
-        // محاسبه جمع مبلغ
-        const dayTotal = txs.reduce((sum, t) => sum + Number(t.amount), 0)
-
-        // نمایش رسید تجمیعی
         setMessages(prev => [
           ...prev,
           {
-            id: `receipt-${Date.now()}`,
+            id: `receipt-dep-${Date.now()}`,
             role: "voucher-receipt",
             voucherData: {
-              docId: res.docId || "نامشخص", // ✅ اصلاح شد: اگر نبود، رشته پر میشود
-              partyName: `${txs.length} تراکنش`,
-              slCode: "چندگانه",
-              amount: dayTotal,
-              date: date,
-              description: `سند تجمیعی ${type === "deposit" ? "واریز" : "برداشت"} وجه`
+              docId: docId,
+              partyName: "تراکنش‌های واریزی",
+              slCode: "بستانکاران (211002)",
+              amount: res.deposit.totalAmount,
+              date: date, // تاریخ شمسی استرینگ
+              // ✅ اصلاح: جلوگیری از چاپ undefined
+              description: `سند تجمیعی واریز وجه (شماره ${docId})`
             }
           }
         ])
-      } else {
-        toast.error(`خطا در ثبت سند تاریخ ${date}: ${res.error}`)
+      } else if (res.deposit && res.deposit.error) {
+        console.warn(`Deposit skipped for ${date}:`, res.deposit.error)
+      }
+
+      // --- بررسی نتیجه برداشت (Withdrawal) ---
+      if (res.withdrawal && res.withdrawal.success) {
+        totalSuccessDocs++
+        const docId = res.withdrawal.docId || "---" // گرفتن شماره سند
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `receipt-wd-${Date.now()}`,
+            role: "voucher-receipt",
+            voucherData: {
+              docId: docId,
+              partyName: "تراکنش‌های برداشتی",
+              slCode: "پیش‌پرداخت (111901)",
+              amount: res.withdrawal.totalAmount,
+              date: date, // تاریخ شمسی استرینگ
+              // ✅ اصلاح: جلوگیری از چاپ undefined
+              description: `سند تجمیعی برداشت وجه (شماره ${docId})`
+            }
+          }
+        ])
+      } else if (res.withdrawal && res.withdrawal.error) {
+        console.warn(`Withdrawal skipped for ${date}:`, res.withdrawal.error)
       }
     }
 
     toast.dismiss(toastId)
+
     if (totalSuccessDocs > 0) {
-      toast.success("اسناد تجمیعی با موفقیت صادر شدند!")
-      // آپدیت وضعیت UI
+      toast.success(`${totalSuccessDocs} سند حسابداری با موفقیت صادر شد!`)
       setMessages(prev =>
         prev.map(m =>
           m.role === "ai-result" ? { ...m, isSubmitted: true } : m
         )
       )
+    } else {
+      toast.info("هیچ سند جدیدی صادر نشد (شاید قبلاً ثبت شده‌اند).")
     }
   }
   return (

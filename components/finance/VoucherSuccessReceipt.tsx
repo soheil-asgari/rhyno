@@ -38,6 +38,7 @@ export function VoucherSuccessReceipt({
 
   // فرمت‌دهی مبلغ به صورت ۳ رقم ۳ رقم
   const formattedAmount = new Intl.NumberFormat("fa-IR").format(amount)
+  const displayDate = date
 
   return (
     <div
@@ -66,7 +67,7 @@ export function VoucherSuccessReceipt({
           </span>
           <div className="flex items-center gap-2">
             <span className="font-mono text-3xl font-extrabold tracking-tight text-gray-800">
-              {docId}
+              {docId || "---"}
             </span>
             <button
               onClick={handleCopy}
@@ -103,7 +104,7 @@ export function VoucherSuccessReceipt({
           <DetailRow
             icon={<Calendar size={16} />}
             label="تاریخ سند"
-            value={new Date(date).toLocaleDateString("fa-IR")}
+            value={date} // استفاده مستقیم از رشته تاریخ
           />
         </div>
 

@@ -9,6 +9,7 @@ import Image from "next/image"
 // ⭐️ ۱. ایمپورت‌های مورد نیاز برای شمارنده و 404
 import { notFound } from "next/navigation"
 import { ViewCounter } from "./components/ViewCounter" // (مسیر را بر اساس ساختار پروژه خود تنظیم کنید)
+import { getLocalPosts } from "@/lib/posts"
 
 // Props
 type Props = {
@@ -63,7 +64,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // ✅ ساخت صفحات استاتیک
 export async function generateStaticParams() {
   // ⭐️ "await" را اینجا اضافه کنید
-  const posts = await getAllPosts()
+  const posts = getLocalPosts()
   return posts.map(post => ({ slug: post.slug }))
 }
 

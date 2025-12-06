@@ -9,7 +9,6 @@ import { kv } from "@vercel/kv"
 
 const postsDirectory = path.join(process.cwd(), "_posts")
 
-// اینترفیس‌ها بدون تغییر
 export interface Post {
   slug: string
   title: string
@@ -25,12 +24,12 @@ export interface PostFull extends Post {
   contentHtml: string
 }
 
-// ⭐️ تابع getAllPosts اصلاح شده برای خواندن از HASH
-export async function getAllPosts(): Promise<Post[]> {
+// 🟢 ۱. تابع جدید: فقط خواندن فایل‌ها (بدون اتصال به دیتابیس)
+// این تابع امن برای استفاده در generateStaticParams است
+export function getLocalPosts(): Post[] {
   const fileNames = fs.readdirSync(postsDirectory)
 
-  // ۱. دیتای استاتیک از مارک‌داون خوانده می‌شود
-  const postsFromMarkdown = fileNames
+  const posts = fileNames
     .map(fileName => {
       if (!fileName.endsWith(".md")) return null
       const slug = fileName.replace(/\.md$/, "")
@@ -45,55 +44,67 @@ export async function getAllPosts(): Promise<Post[]> {
         author: (matterResult.data.author as string) || "RhynoAI",
         image: (matterResult.data.image as string) || "",
         excerpt: (matterResult.data.excerpt as string) || "",
-        category: (matterResult.data.category as string) || ""
+        category: (matterResult.data.category as string) || "",
+        views: 0 // مقدار پیش‌فرض چون اینجا به دیتابیس وصل نمی‌شویم
       }
     })
-    .filter((post): post is Omit<Post, "views"> => post !== null)
-
-  // ۲. حالا تمام اسلاگ‌ها را برای کوئری زدن آماده می‌کنیم
-  const slugs = postsFromMarkdown.map(p => p.slug)
-  if (slugs.length === 0) {
-    return [] // اگر پستی نبود، آرایه خالی برگردان
-  }
-
-  // ۳. ⭐️ "hmget" یک آبجکت برمی‌گرداند (نه آرایه) و ممکن است null باشد
-  const allViews = await kv.hmget<Record<string, number>>("views", ...slugs)
-
-  // ۴. دیتای مارک‌داون و KV را ترکیب می‌کنیم
-  const allPostsData: Post[] = postsFromMarkdown
-    .map(post => {
-      // ⭐️ حالا به جای ایندکس، از اسلاگ برای پیدا کردن بازدید استفاده می‌کنیم
-      // و حالت null بودن allViews را هم مدیریت می‌کنیم
-      const views = allViews?.[post.slug] || 0
-      return {
-        ...post,
-        views
-      }
-    })
+    .filter((post): post is Post => post !== null)
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 
-  return allPostsData
+  return posts
 }
 
-// ⭐️ تابع getPostBySlug اصلاح شده برای خواندن از HASH
+// 🟠 ۲. تابع اصلی: دریافت پست‌ها + بازدیدها (برای استفاده در صفحات اصلی)
+export async function getAllPosts(): Promise<Post[]> {
+  // اول پست‌های لوکال را می‌گیریم
+  const posts = getLocalPosts()
+
+  if (posts.length === 0) return []
+
+  const slugs = posts.map(p => p.slug)
+
+  try {
+    // تلاش برای گرفتن بازدیدها
+    const allViews = await kv.hmget<Record<string, number>>("views", ...slugs)
+
+    // ترکیب بازدیدها با پست‌ها
+    return posts.map(post => ({
+      ...post,
+      views: allViews?.[post.slug] || 0
+    }))
+  } catch (error) {
+    // اگر دیتابیس خطا داد، همان پست‌های لوکال را بدون بازدید برگردان
+    console.error("Error fetching views form KV:", error)
+    return posts
+  }
+}
+
+// 🔵 ۳. دریافت تک پست (همراه با مدیریت خطا برای KV)
 export async function getPostBySlug(slug: string): Promise<PostFull | null> {
   const fullPath = path.join(postsDirectory, `${slug}.md`)
   try {
     if (!fs.existsSync(fullPath)) return null
     const fileContents = fs.readFileSync(fullPath, "utf8")
     const matterResult = matter(fileContents)
+
+    // پردازش محتوا
     const processedContent = await remark()
       .use(html)
       .process(matterResult.content)
     const contentHtml = processedContent.toString()
 
-    // ⭐️ به جای "get"، از "hget" برای خواندن یک فیلد از HASH استفاده می‌کنیم
-    const views = (await kv.hget<number>("views", slug)) || 0
+    // گرفتن بازدید (با try-catch جداگانه که کل صفحه کرش نکند)
+    let views = 0
+    try {
+      views = (await kv.hget<number>("views", slug)) || 0
+    } catch (e) {
+      console.warn(`Could not fetch views for ${slug}`, e)
+    }
 
     return {
       slug,
       contentHtml,
-      views, // ⭐️ بازدید واقعی از KV
+      views,
       title: (matterResult.data.title as string) || "بدون عنوان",
       date: (matterResult.data.date as string) || new Date().toISOString(),
       author: (matterResult.data.author as string) || "RhynoAI",

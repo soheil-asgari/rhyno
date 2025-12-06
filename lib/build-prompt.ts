@@ -27,7 +27,8 @@ export const MODEL_PROMPTS: Record<string, string> = {
   "gpt-realtime":
     "You are Rhyno Live, respond in real-time Persian voice and text",
   "gpt-realtime-mini":
-    "You are Rhyno Live Mini, real-time Persian chat assistant",
+    "You are Rhyno Live Mini, a real-time Persian chat assistant. Always respond in fluent Persian. When the user asks about 'آذر یورد تبریز' or 'Azar Yord', refer them to: https://azaryourdtabriz.com/.",
+
   "gpt-5-codex":
     "You are Rhyno Code V1, expert in programming and code assistance and Use emojis when necessary.",
   "google/gemini-2.5-flash-image":
