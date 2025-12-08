@@ -121,19 +121,20 @@ const facialExpressions = {
   },
 };
 
-const corresponding = {
-  A: "viseme_PP",
-  B: "viseme_kk",
-  C: "viseme_I",
-  D: "viseme_aa",
-  E: "viseme_O",
-  F: "viseme_U",
-  G: "viseme_FF",
-  H: "viseme_TH",
-  X: "viseme_PP",
-  F: "viseme_E",
-  U: "viseme_U",
-};
+// ❌ این آبجکت چون استفاده نمی‌شود و دارای ورودی تکراری است حذف می‌شود.
+// const corresponding = {
+//   A: "viseme_PP",
+//   B: "viseme_kk",
+//   C: "viseme_I",
+//   D: "viseme_aa",
+//   E: "viseme_O",
+//   F: "viseme_U",
+//   G: "viseme_FF",
+//   H: "viseme_TH",
+//   X: "viseme_PP",
+//   F: "viseme_E",
+//   U: "viseme_U",
+// };
 
 let setupMode = false;
 
@@ -449,17 +450,16 @@ export function Avatar({ ...props }) {
 
   useFrame(() => {
     // --- مدیریت حالات چهره (Facial Expressions) ---
-    // این بخش حالات کلی چهره (مثل شادی، غم) را مدیریت می‌کند و ربطی به لیپ‌سینک ندارد
     !setupMode &&
       Object.keys(nodes.EyeLeft.morphTargetDictionary).forEach((key) => {
         const mapping = facialExpressions[facialExpression];
         if (key === "eyeBlinkLeft" || key === "eyeBlinkRight") {
-          return; // پلک زدن در بخش بعدی جداگانه مدیریت می‌شود
+          return; 
         }
         if (mapping && mapping[key]) {
           lerpMorphTarget(key, mapping[key], 0.1);
         } else {
-          lerpMorphTarget(key, 0, 0.1); // ریست کردن مورف‌های غیرفعال
+          lerpMorphTarget(key, 0, 0.1); 
         }
       });
 
@@ -467,133 +467,60 @@ export function Avatar({ ...props }) {
     lerpMorphTarget("eyeBlinkLeft", blink || winkLeft ? 1 : 0, 0.5);
     lerpMorphTarget("eyeBlinkRight", blink || winkRight ? 1 : 0, 0.5);
 
-    // --- لیپ‌سینک ساده مبتنی بر ولوم صدا (Volume-Based Jaw Flap) ---
+    // --- 💥 اصلاح نهایی لیپ‌سینک: اطمینان از حرکت فک و visemeها ---
     if (setupMode) return;
+console.log("Avatar.jsx - Incoming modelVolume:", modelVolume);
+    // مقیاس‌دهی ولوم: مطمئن شوید که عدد بین 0 و 1 است
+    const normalizedVolume = THREE.MathUtils.clamp(modelVolume / 50, 0, 1); 
 
-    const scaledVolume = Math.min(modelVolume / 50, 10);
-
-    // اگر صدا هست (ولوم > 0.01)، مقدار را کمی تصادفی کن تا لب طبیعی‌تر حرکت کند
-    let dynamicVolume = scaledVolume;
-    if (scaledVolume > 0.01) {
-      const randomFactor = (Math.random() - 0.3) * 0.3; // بین -0.15 تا +0.15
-      dynamicVolume = Math.max(0, Math.min(1, scaledVolume + randomFactor));
+    let dynamicVolume = normalizedVolume;
+    if (normalizedVolume > 0.01) {
+      // افزودن فاکتور تصادفی کوچک برای طبیعی‌تر شدن حرکت
+      const randomFactor = (Math.random() - 0.5) * 0.5; // بین -0.25 تا +0.25
+      dynamicVolume = THREE.MathUtils.clamp(normalizedVolume + randomFactor, 0, 1);
+    }
+console.log("Avatar.jsx - Calculated dynamicVolume:", dynamicVolume.toFixed(4));
+    // اگر ولوم خیلی کم است، تمام مورف‌ها را ریست کن
+    if (dynamicVolume < 0.01) {
+        lerpMorphTarget("jawOpen", 0, 0.1);
+        ["viseme_aa", "viseme_E", "viseme_O"].forEach(viseme => {
+            lerpMorphTarget(viseme, 0, 0.1);
+        });
+        return; 
     }
 
-    const activeVisemes1 = {
-      "viseme_aa": dynamicVolume * 0.7,
-      "viseme_O": dynamicVolume * 0.3,
-      "viseme_I": dynamicVolume * 0.3,
-      "viseme_PP": dynamicVolume * 0.2,
-      "viseme_kk": dynamicVolume * 0.1,
-      "viseme_U": dynamicVolume * 0.3,
-      "viseme_FF": dynamicVolume * 0.1,
-      "viseme_TH": dynamicVolume * 0.1,
+    // نقشه تأثیرگذاری قوی برای لیپ‌سینک بر اساس ولوم
+    const volumeBasedVisemes = {
+      "jawOpen": dynamicVolume * 0.7, // کنترل قوی فک
+      "viseme_aa": dynamicVolume * 0.8, 
+      "viseme_E": dynamicVolume * 0.6,  
+      "viseme_O": dynamicVolume * 0.5,  
+      "viseme_PP": dynamicVolume * 0.3, 
+      "viseme_FF": dynamicVolume * 0.3, 
       "viseme_SS": dynamicVolume * 0.5,
-      "viseme_E": dynamicVolume * 0.5,
-      "viseme_M": dynamicVolume * 0.1,
-      "viseme_FV": dynamicVolume * 0.1,
-      "viseme_L": dynamicVolume * 0.1,
-      "viseme_R": dynamicVolume * 0.1,
-      "viseme_T": dynamicVolume * 0.1,
-      "viseme_D": dynamicVolume * 0.1,
     };
-    function getRandomVisemes(dynamicVolume) {
-      const keys = [
-        "viseme_aa", "viseme_PP", "viseme_U"
+console.log("Avatar.jsx - Target jawOpen value:", volumeBasedVisemes["jawOpen"].toFixed(4));
+    // لیست کامل morphTargetهایی که می‌خواهیم کنترل کنیم
+    const controlledMorphTargets = [
+      ...Object.keys(volumeBasedVisemes), 
+      "viseme_I", "viseme_kk", "viseme_U", "viseme_TH", "viseme_M", 
+      "viseme_FV", "viseme_L", "viseme_R", "viseme_T", "viseme_D"
+    ];
 
-      ];
-
-      const activeVisemes = {};
-
-      keys.forEach(key => {
-        if (key === "viseme_aa") {
-          // تاثیر بیشتر برای viseme_AA
-          activeVisemes[key] = dynamicVolume * (Math.random() * (1 - 0.1) + 0.1);
-        } else {
-          activeVisemes[key] = dynamicVolume * (Math.random() * (0.5 - 0.1) + 0.1);
-        }
-      });
-
-      return activeVisemes;
-    }
-
-    const activeVisemes = getRandomVisemes(dynamicVolume);
-    const allVisemes = [...new Set(Object.values(corresponding))];
-    // console.log(allVisemes);
-    // console.log(activeVisemes);
-    allVisemes.forEach((value) => {
-      if (activeVisemes[value] !== undefined) {
-        lerpMorphTarget(value, activeVisemes[value], 0.2);
-      } else {
-        lerpMorphTarget(value, 0, 0.1);
-      }
+    // اعمال تأثیرات: اگر در نقشه بالا بود، مقدارش اعمال شود، در غیر این صورت 0 شود.
+    controlledMorphTargets.forEach((key) => {
+      const targetValue = volumeBasedVisemes[key] !== undefined 
+          ? volumeBasedVisemes[key] 
+          : 0;
+        
+      const speed = key === "jawOpen" ? 0.2 : 0.1; // سرعت آهسته‌تر برای فک
+        
+      lerpMorphTarget(key, targetValue, speed);
     });
+
   });
 
-  // useControls("FacialExpressions", {
-  //   winkLeft: button(() => {
-  //     setWinkLeft(true);
-  //     setTimeout(() => setWinkLeft(false), 300);
-  //   }),
-  //   winkRight: button(() => {
-  //     setWinkRight(true);
-  //     setTimeout(() => setWinkRight(false), 300);
-  //   }),
-  //   animation: {
-  //     value: animation,
-  //     options: animations.map((a) => a.name),
-  //     onChange: (value) => setAnimation(value),
-  //   },
-  //   facialExpression: {
-  //     options: Object.keys(facialExpressions),
-  //     onChange: (value) => setFacialExpression(value),
-  //   },
-  //   enableSetupMode: button(() => {
-  //     setupMode = false;
-  //   }),
-  //   disableSetupMode: button(() => {
-  //     setupMode = false;
-  //   }),
-  //   logMorphTargetValues: button(() => {
-  //     const emotionValues = {};
-  //     Object.keys(nodes.EyeLeft.morphTargetDictionary).forEach((key) => {
-  //       if (key === "eyeBlinkLeft" || key === "eyeBlinkRight") {
-  //         return; // eyes wink/blink are handled separately
-  //       }
-  //       const value =
-  //         nodes.EyeLeft.morphTargetInfluences[
-  //         nodes.EyeLeft.morphTargetDictionary[key]
-  //         ];
-  //       if (value > 0.01) {
-  //         emotionValues[key] = value;
-  //       }
-  //     });
-  //     // console.log(JSON.stringify(emotionValues, null, 2));
-  //   }),
-  // });
-
-  // const [, set] = useControls("MorphTarget", () =>
-  //   Object.assign(
-  //     {},
-  //     ...Object.keys(nodes.EyeLeft.morphTargetDictionary).map((key) => {
-  //       return {
-  //         [key]: {
-  //           label: key,
-  //           value: 0,
-  //           min: nodes.EyeLeft.morphTargetInfluences[
-  //             nodes.EyeLeft.morphTargetDictionary[key]
-  //           ],
-  //           max: 1,
-  //           onChange: (val) => {
-  //             if (setupMode) {
-  //               lerpMorphTarget(key, val, 1);
-  //             }
-  //           },
-  //         },
-  //       };
-  //     })
-  //   )
-  // );
+  // useControls... (حذف شده برای وضوح)
 
   useEffect(() => {
     let blinkTimeout;

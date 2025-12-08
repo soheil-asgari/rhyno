@@ -27,6 +27,9 @@ export default function AvatarPage() {
   // گرفتن workspaceid از URL
   const workspaceid = params.workspaceid as string
 
+  // 💥 LOGGING: چک کردن workspaceid در زمان رندر
+  console.log("AvatarPage - Current workspaceid from URL params:", workspaceid)
+
   useEffect(() => {
     // فقط چک کنید که آیا context آماده است یا نه
     if (!setChatSettings) {
@@ -62,8 +65,19 @@ export default function AvatarPage() {
   }
 
   const handleGoToChat = () => {
-    if (workspaceid) {
-      router.push(`/${workspaceid}/chat`)
+    const targetPath =
+      workspaceid && workspaceid.trim() !== "" ? `/${workspaceid}/chat` : `/`
+
+    // 💥 LOGGING: چک کردن مسیر نهایی ناوبری
+    console.log(
+      `handleGoToChat: Attempting to navigate. workspaceid is: ${workspaceid}. Target path: ${targetPath}`
+    )
+
+    if (workspaceid && workspaceid.trim() !== "") {
+      router.replace(targetPath)
+    } else {
+      console.warn("Workspace ID نامعتبر است. به صفحه اصلی هدایت می‌شود.")
+      router.push(targetPath)
     }
   }
 
