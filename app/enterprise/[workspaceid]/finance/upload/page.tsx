@@ -54,6 +54,7 @@ type VoucherReceiptData = {
   amount: number
   date: string
   description: string
+  status: "success" | "duplicate" | "error"
 }
 
 type Message = {
@@ -360,6 +361,7 @@ export default function ChatUploadPage() {
   // --- 🔥 نسخه نهایی: ثبت سند تجمیعی (روزانه) 🔥 ---
   // --- 🔥 نسخه اصلاح شده و نهایی handleConfirm 🔥 ---
   // --- 🔥 نسخه نهایی و اصلاح شده handleConfirm 🔥 ---
+  // --- 🔥 نسخه نهایی و اصلاح شده handleConfirm 🔥 ---
   const handleConfirm = async (data: AIResult, fileUrls: string | string[]) => {
     const toastId = toast.loading("در حال ثبت اسناد در سیستم مالی...")
     const mainUrl = Array.isArray(fileUrls) ? fileUrls[0] : fileUrls
@@ -374,20 +376,38 @@ export default function ChatUploadPage() {
       fileUrl: mainUrl
     }))
 
-    // 3. ذخیره اولیه
-    await submitGroupedTransactions(workspaceId, groupedPayload)
+    // 3. ذخیره اولیه (اینجا چک تکراری بودن فایل انجام می‌شود)
+    // نتیجه این تابع می‌تواند تعداد رکوردهای جدید را برگرداند
+    const dbResult = await submitGroupedTransactions(
+      workspaceId,
+      groupedPayload
+    )
+
+    // اگر هیچ رکوردی اینزرت نشد (count صفر بود)، یعنی احتمالاً همه تکراری بوده‌اند
+    // اما ما فعلاً فرآیند را ادامه می‌دهیم تا submitDayComplete وضعیت دقیق را مشخص کند
 
     let totalSuccessDocs = 0
 
     // 4. پردازش روز به روز
     for (const date of Object.keys(groups)) {
-      // فراخوانی تابع کامل (هم واریز هم برداشت)
       const res = await submitDayComplete(date, workspaceId)
 
       // --- بررسی نتیجه واریز (Deposit) ---
-      if (res.deposit && res.deposit.success) {
-        totalSuccessDocs++
-        const docId = res.deposit.docId || "---" // گرفتن شماره سند
+      if (res.deposit) {
+        const isSuccess = res.deposit.success
+        // تشخیص تکراری بودن: اگر ارور شامل کلمات خاصی بود (بسته به خروجی سرور شما)
+        // فعلاً فرض می‌کنیم اگر موفق نبود و ارور داشت، ممکن است تکراری یا خطا باشد
+        // یک منطق ساده: اگر ارور "یافت نشد" باشد یعنی قبلا ثبت شده یا وجود ندارد
+        const isDuplicate =
+          res.deposit.error && res.deposit.error.includes("یافت نشد")
+
+        const status = isSuccess
+          ? "success"
+          : isDuplicate
+            ? "duplicate"
+            : "error"
+
+        if (isSuccess) totalSuccessDocs++
 
         setMessages(prev => [
           ...prev,
@@ -395,24 +415,34 @@ export default function ChatUploadPage() {
             id: `receipt-dep-${Date.now()}`,
             role: "voucher-receipt",
             voucherData: {
-              docId: docId,
-              partyName: "تراکنش‌های واریزی",
+              status: status, // ✅ ارسال وضعیت به کامپوننت
+              docId: res.deposit.docId || "---",
+              partyName: isSuccess ? "تراکنش‌های واریزی" : "ثبت ناموفق",
               slCode: "بستانکاران (211002)",
-              amount: res.deposit.totalAmount,
-              date: date, // تاریخ شمسی استرینگ
-              // ✅ اصلاح: جلوگیری از چاپ undefined
-              description: `سند تجمیعی واریز وجه (شماره ${docId})`
+              amount: res.deposit.totalAmount || 0,
+              date: date,
+              description: isSuccess
+                ? `سند تجمیعی واریز وجه (شماره ${res.deposit.docId})`
+                : res.deposit.error || "خطای ناشناخته در ثبت"
             }
           }
         ])
-      } else if (res.deposit && res.deposit.error) {
-        console.warn(`Deposit skipped for ${date}:`, res.deposit.error)
       }
 
       // --- بررسی نتیجه برداشت (Withdrawal) ---
-      if (res.withdrawal && res.withdrawal.success) {
-        totalSuccessDocs++
-        const docId = res.withdrawal.docId || "---" // گرفتن شماره سند
+      if (res.withdrawal) {
+        const isSuccess = res.withdrawal.success
+        // منطق تشخیص خطا یا تکراری
+        const isDuplicate =
+          res.withdrawal.error && res.withdrawal.error.includes("یافت نشد")
+
+        const status = isSuccess
+          ? "success"
+          : isDuplicate
+            ? "duplicate"
+            : "error"
+
+        if (isSuccess) totalSuccessDocs++
 
         setMessages(prev => [
           ...prev,
@@ -420,18 +450,18 @@ export default function ChatUploadPage() {
             id: `receipt-wd-${Date.now()}`,
             role: "voucher-receipt",
             voucherData: {
-              docId: docId,
-              partyName: "تراکنش‌های برداشتی",
+              status: status, // ✅ ارسال وضعیت
+              docId: res.withdrawal.docId || "---",
+              partyName: isSuccess ? "تراکنش‌های برداشتی" : "ثبت ناموفق",
               slCode: "پیش‌پرداخت (111901)",
-              amount: res.withdrawal.totalAmount,
-              date: date, // تاریخ شمسی استرینگ
-              // ✅ اصلاح: جلوگیری از چاپ undefined
-              description: `سند تجمیعی برداشت وجه (شماره ${docId})`
+              amount: res.withdrawal.totalAmount || 0,
+              date: date,
+              description: isSuccess
+                ? `سند تجمیعی برداشت وجه (شماره ${res.withdrawal.docId})`
+                : res.withdrawal.error || "خطای ناشناخته در ثبت"
             }
           }
         ])
-      } else if (res.withdrawal && res.withdrawal.error) {
-        console.warn(`Withdrawal skipped for ${date}:`, res.withdrawal.error)
       }
     }
 
@@ -445,7 +475,7 @@ export default function ChatUploadPage() {
         )
       )
     } else {
-      toast.info("هیچ سند جدیدی صادر نشد (شاید قبلاً ثبت شده‌اند).")
+      toast.warning("عملیات به پایان رسید اما سندی صادر نشد (بررسی کنید).")
     }
   }
   return (
