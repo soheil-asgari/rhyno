@@ -144,30 +144,43 @@ function detectBankInfoByNumber(identifier: string): {
 }
 
 export async function analyzeSinglePage(
-  imageUrl: string,
-  pageNumber: number,
-  pageText: string = ""
+  fileUrl: string, // ✅ فقط یک URL می‌گیریم (چه عکس باشد چه PDF)
+  pageNumber: number, // ✅ پارامتر دوم عدد است (این مشکل ارور شما را حل می‌کند)
+  pageText: string = "" // ✅ پارامتر سوم متن است
 ): Promise<SinglePageResult> {
   try {
+    // 1. دانلود فایل
+    const fileRes = await fetch(fileUrl, { cache: "no-store" })
+    if (!fileRes.ok) throw new Error("دانلود فایل از سرور ناموفق بود")
+
+    const fileBuffer = await fileRes.arrayBuffer()
+    const base64Data = Buffer.from(fileBuffer).toString("base64")
+
+    // 2. تشخیص نوع فایل
+    const isPdf = fileUrl.toLowerCase().includes(".pdf")
+    const mimeType = isPdf ? "application/pdf" : "image/jpeg"
+    const dataUrl = `data:${mimeType};base64,${base64Data}`
+
+    // 3. ارسال به OpenRouter
     const response = await openai.chat.completions.create({
-      model: AI_MODEL, // gemini-2.5-flash
+      model: AI_MODEL, // ✅ نام دقیق مدل در OpenRouter
       messages: [
         {
           role: "system",
-          content: `You are an expert OCR engine for Persian Banking Documents.
+          content: `You are a financial OCR engine. Extract data from this ${isPdf ? "PDF document" : "image"} into JSON.
           Your goal is to extract EVERY SINGLE transaction row with 100% precision.
+          
           TASK 1: HEADER EXTRACTION
-          Look at the top of the page.
-          - If you see "شماره سپرده" (Deposit Number), set type='deposit' and extract the number.
-          - If you see "شماره حساب" (Account Number), set type='account' and extract the number.
-          - If you see "IBAN" or "شبا", set type='iban'.
+          - Look for "شماره سپرده" (Deposit Number) -> type='deposit'
+          - Look for "شماره حساب" (Account Number) -> type='account'
+          - Look for "IBAN" or "شبا" -> type='iban'
 
           TASK 2: TRANSACTIONS
           CRITICAL RULES:
-          1. **Detached Numbers:** Sometimes text and numbers are glued together (e.g., "عددی49,000"). You MUST split them (e.g., Description: "عددی", Amount: 49000).
-          2. **Unknown Names:** If a name is "نامشخص", look at the description. Often the real name is hidden there (e.g. "به نام علی رضایی"). Extract the REAL name.
-          3. **Full List:** Do not stop after 5 items. If there are 50 items, extract 50 items.
-          4. **Amount:** Always convert Rials to integer. Remove commas.
+          1. **Detached Numbers:** Split glued text (e.g., "مانده49000" -> Amount: 49000).
+          2. **Unknown Names:** If name is "نامشخص", searching description is MANDATORY.
+          3. **Full List:** Extract ALL rows. Do not stop.
+          4. **Amount:** Integer only. No commas.
           `
         },
         {
@@ -175,30 +188,23 @@ export async function analyzeSinglePage(
           content: [
             {
               type: "text",
-              text: `Extract data from this image (Page ${pageNumber}).
-
-              **SPECIFIC INSTRUCTIONS FOR THIS DOCUMENT:**
-              - Look for rows with date, amount, and description.
-              - **Party Name:** Extract the name of the sender/receiver.
-                 - If the column says "نامشخص" or "Unknown", search the 'Description' (شرح) column for text like "به نام ..." or "بنام ...".
-                 - Example: Column="نامشخص", Desc="پایا به نام شرکت فولاد" => Party Name = "شرکت فولاد".
+              text: `Extract data from this document.
               
-              - **Amounts:** - Watch out for glued text! 
-                 - "مبلغ: 49,000" is easy.
-                 - "مانده49,000" => Amount is 49000.
-                 - "سهیل عددی49,252,796,116" => Amount is 49252796116.
+              **SPECIFIC INSTRUCTIONS:**
+              - **Party Name:** If column is "نامشخص", check Description for "به نام..." or "بنام...".
+              - **Amounts:** Convert "12,000,000" to 12000000.
               
-             Output JSON Format:
+              Output JSON Format:
               {
                 "header_info": {
-                   "raw_label": "Text found like شماره سپرده",
-                   "number": "1021.2.6116111.1",
-                   "type": "deposit" | "account"
+                   "raw_label": "Found Label",
+                   "number": "Extracted Number",
+                   "type": "deposit"
                 },
-              {
                 "transactions": [
                   { 
                     "date": "YYYY/MM/DD", 
+                    "time": "HH:MM",
                     "type": "deposit" | "withdrawal", 
                     "amount": 123456, 
                     "description": "Full text", 
@@ -210,42 +216,49 @@ export async function analyzeSinglePage(
             },
             {
               type: "image_url",
-              image_url: { url: imageUrl }
+              image_url: {
+                url: dataUrl // ✅ درست است
+              }
             }
           ]
         }
       ],
       temperature: 0,
-      response_format: { type: "json_object" },
+      // response_format: { type: "json_object" }, // ⚠️ این خط را حذف کردم چون گاهی با جمینای ناسازگار است
       max_tokens: 8000
     })
 
     if (!response.choices || response.choices.length === 0)
-      throw new Error("Empty response")
+      throw new Error("Empty response from AI")
 
+    // 4. دریافت و تمیزکاری JSON
     let rawContent = response.choices[0].message.content || "{}"
     rawContent = rawContent
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim()
 
-    if (!rawContent.endsWith("}")) rawContent += "}"
+    // اطمینان از بسته شدن JSON
+    if (!rawContent.endsWith("}")) {
+      const lastBracket = rawContent.lastIndexOf("}")
+      if (lastBracket !== -1)
+        rawContent = rawContent.substring(0, lastBracket + 1)
+      else rawContent += "}"
+    }
 
     const data = JSON.parse(rawContent)
+
+    // 5. تشخیص بانک از روی شماره حساب (لاجیک قبلی شما)
     let bankInfo = { slCode: "", dlCode: "", bankName: "" }
     if (data.header_info?.number) {
       bankInfo = detectBankInfoByNumber(data.header_info.number)
     }
-
-    // اضافه کردن به دیتای نهایی
     data.bank_details = bankInfo
-    // 🛡️ لایه پاکسازی نهایی (Final Cleanup Layer) 🛡️
-    // این کد اطمینان می‌دهد که حتی اگر هوش مصنوعی اشتباه کند، ما آن را اصلاح می‌کنیم
+
+    // 6. پاکسازی نهایی نام‌ها
     if (data.transactions) {
       data.transactions = data.transactions.map((tx: any) => {
         let cleanName = tx.partyName || ""
-
-        // 1. حذف کلمه "نامشخص" و "نا مشخص" از اسم
         cleanName = cleanName
           .replace(/نامشخص/g, "")
           .replace(/نا مشخص/g, "")
@@ -253,24 +266,26 @@ export async function analyzeSinglePage(
 
         return {
           ...tx,
-          // اگر بعد از پاکسازی اسم خالی شد، برگردان به "نامشخص" (چون واقعا نامشخص بوده)
-          // اگر اسم ماند (مثل "مرجانی بهرام")، همان را استفاده کن
           partyName: cleanName || "نامشخص"
         }
       })
     }
 
-    console.log(
-      `✅ Gemini Pro Extracted: ${data.transactions?.length || 0} items`
-    )
+    console.log(`✅ Gemini Extracted: ${data.transactions?.length || 0} items`)
 
     return { success: true, data }
   } catch (error: any) {
-    console.error(`Page ${pageNumber} OCR Error:`, error)
+    console.error(`OCR Error:`, error)
+    // هندل کردن خطای 400 معروف
+    if (error.message && error.message.includes("400")) {
+      return {
+        success: false,
+        error: "فرمت فایل پشتیبانی نمی‌شود یا فایل خراب است."
+      }
+    }
     return { success: false, error: error.message }
   }
 }
-
 function getSafeDate(inputDate: string | undefined): string {
   const today = new Date().toISOString().split("T")[0]
   if (!inputDate) return today

@@ -209,9 +209,10 @@ export default function ChatUploadPage() {
       )
     )
 
-    const fileName = `${Date.now()}_${file.name}`
-    await supabase.storage.from("finance_docs").upload(fileName, file)
-    const url = supabase.storage.from("finance_docs").getPublicUrl(fileName)
+    const fileExt = file.name.split(".").pop()
+    const safeName = `${Date.now()}_img_${Math.random().toString(36).substring(7)}.${fileExt}`
+    await supabase.storage.from("finance_docs").upload(safeName, file)
+    const url = supabase.storage.from("finance_docs").getPublicUrl(safeName)
       .data.publicUrl
 
     await autoSaveToDatabase(url, file.name)
@@ -228,59 +229,39 @@ export default function ChatUploadPage() {
   }
 
   const processPdf = async (file: File, msgId: string) => {
-    const pageUrls: string[] = []
-    const extractedText = await extractTextFromPdf(file)
+    // ۱. ساخت نام فایل رندوم و انگلیسی (برای حل ارور Invalid Key)
+    const fileExt = file.name.split(".").pop()
+    const safeName = `${Date.now()}_doc_${Math.random().toString(36).substring(7)}.${fileExt}`
 
-    const images = await convertPdfToImages(file, (current, total) => {
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === msgId
-            ? {
-                ...m,
-                progress: Math.round((current / total) * 40),
-                status: "converting"
-              }
-            : m
-        )
-      )
-    })
-
+    // ۲. آپلود مستقیم خود فایل PDF در Supabase
+    // شبیه‌سازی پروگرس بار
     setMessages(prev =>
-      prev.map(m => (m.id === msgId ? { ...m, status: "uploading" } : m))
+      prev.map(m => (m.id === msgId ? { ...m, progress: 50 } : m))
     )
 
-    for (let i = 0; i < images.length; i++) {
-      const fileName = `${Date.now()}_page_${i}.png`
-      await supabase.storage.from("finance_docs").upload(fileName, images[i])
-      const url = supabase.storage.from("finance_docs").getPublicUrl(fileName)
-        .data.publicUrl
-      pageUrls.push(url)
-      await autoSaveToDatabase(url, `صفحه ${i + 1} از ${file.name}`)
+    const { error } = await supabase.storage
+      .from("finance_docs")
+      .upload(safeName, file)
+    if (error) throw new Error("آپلود ناموفق بود: " + error.message)
 
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === msgId
-            ? {
-                ...m,
-                progress: 40 + Math.round(((i + 1) / images.length) * 60)
-              }
-            : m
-        )
-      )
-    }
+    const url = supabase.storage.from("finance_docs").getPublicUrl(safeName)
+      .data.publicUrl
+
+    // ۳. ذخیره رکورد در دیتابیس
+    await autoSaveToDatabase(url, file.name)
 
     setMessages(prev =>
       prev.map(m =>
         m.id === msgId
-          ? { ...m, fileUrl: pageUrls, progress: 100, status: "done" }
+          ? { ...m, fileUrl: [url], progress: 100, status: "done" }
           : m
       )
     )
     setIsUploading(false)
-    startPageByPageAnalysis(
-      pageUrls,
-      Array(pageUrls.length).fill(extractedText)
-    )
+
+    // ۴. ارسال لینک PDF به سرور اکشن
+    // آرایه تک‌عضوی می‌فرستیم چون کل فایل یک‌جاست و جمینای آن را می‌خواند
+    startPageByPageAnalysis([url], [""])
   }
 
   const startPageByPageAnalysis = async (urls: string[], texts: string[]) => {
