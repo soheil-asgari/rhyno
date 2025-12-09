@@ -175,7 +175,8 @@ interface SyncPayload {
   description: string
   totalAmount: number
   branchId?: number
-  workspaceId: string // ✅ اضافه شد: برای ثبت در کارتابل مدیر
+  workspaceId: string // ✅ اضافه شد: برای ثبت در کارتابل مدیر.
+  bankDLCode?: string | null
   items: {
     partyName: string
     amount: number
@@ -191,6 +192,32 @@ const supabaseService = createClient(
 )
 
 const EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
+
+function isBankFee(
+  description: string,
+  partyName: string,
+  amount: number
+): boolean {
+  const normalizedDesc = description
+    .replace(/[يك]/g, char => (char === "ي" ? "ی" : "ک"))
+    .toLowerCase()
+
+  // شرط 1: اگر مبلغ خیلی کم باشد (زیر 1000 تومان) و توضیحات مشکوک نباشد
+  if (amount < 10000 && (partyName === "نامشخص" || partyName === "Unknown"))
+    return true
+
+  // شرط 2: وجود کلمات کلیدی در توضیحات
+  if (FEE_KEYWORDS.some(k => normalizedDesc.includes(k))) return true
+
+  // شرط 3: اگر طرف حساب دقیقاً کلمه "بانک" یا "کارمزد" باشد
+  if (
+    partyName.includes("کارمزد") ||
+    (partyName.includes("بانک") && amount < 500000)
+  )
+    return true
+
+  return false
+}
 
 async function findAccountCode(partyName: string): Promise<{
   dlCode?: string
@@ -272,7 +299,7 @@ async function findAccountCode(partyName: string): Promise<{
             foundName: best.title
           }
         }
-        if (best.similarity < 0.5) continue
+        if (best.similarity < 0.55) continue
         const isVerified = await verifyWithAI(cleanName, best.title)
         if (isVerified) {
           console.log(
@@ -437,53 +464,89 @@ async function generateHumanHeader(date: string): Promise<string> {
   }
 }
 
-function detectBankInfo(description: string): {
+function detectBankInfoByNumber(identifier: string): {
   slCode: string
   dlCode: string
   bankName: string
 } {
-  // پیش‌فرض: معین موجودی بانک (111005) - تفصیلی نامشخص (مثلاً کد اول لیست یا نال)
-  const DEFAULT = { slCode: "111005", dlCode: "200001", bankName: "بانک" }
-
-  if (!description) return DEFAULT
-
-  const normalizedDesc = description.replace(/\s/g, "")
-
-  // نگاشت شماره حساب‌ها به کدهای تفصیلی (DL) طبق عکس ارسالی شما
-  // ⚠️ نکته: لطفاً کدهای سمت راست (dlCode) را با سیستم خود چک کنید اگر مغایرت داشت تغییر دهید
-  const BANK_MAPPINGS: Record<string, { dl: string; name: string }> = {
-    // بانک ملی (طبق عکس: 200001 و 200026 و ...)
-    "0104813180001": { dl: "200001", name: "بانک ملی مرکزی" },
-    "۰۱۰۴۸۱۳۱۸۰۰۰۱": { dl: "200001", name: "بانک ملی مرکزی" },
-
-    // اقتصاد نوین (طبق عکس: 200002)
-    "1021261161111": { dl: "200002", name: "بانک اقتصاد نوین" },
-
-    // پاسارگاد (طبق عکس: 200004)
-    IR750570032080013698864101: { dl: "200004", name: "بانک پاسارگاد" },
-    "100425641": { dl: "200004", name: "بانک پاسارگاد" }, // بخشی از شبا برای اطمینان
-
-    // تجارت (طبق عکس: 200005)
-    "546093999": { dl: "200005", name: "بانک تجارت" },
-    "57018000000000502063499": { dl: "200005", name: "بانک تجارت" },
-
-    // سپه (طبق عکس: 200006)
-    "16692": { dl: "200006", name: "بانک سپه" },
-    IR030150000186643114095731: { dl: "200006", name: "بانک سپه" },
-
-    // ملت (طبق عکس: 200034 یا 200040)
-    "9880346828": { dl: "200034", name: "بانک ملت شعبه بهشتی" },
-    "139012000000009570662601": { dl: "200034", name: "بانک ملت" },
-
-    // کارآفرین (طبق عکس: 200035)
-    "0101684239601": { dl: "200035", name: "بانک کارآفرین" }
+  const DEFAULT = {
+    slCode: "111005",
+    dlCode: "200001",
+    bankName: "بانک نامشخص"
   }
 
-  for (const [accNum, info] of Object.entries(BANK_MAPPINGS)) {
-    if (normalizedDesc.includes(accNum)) {
-      return { slCode: "111005", dlCode: info.dl, bankName: info.name }
+  if (!identifier) return DEFAULT
+
+  // ۱. نرمال‌سازی ورودی: فقط اعداد بمانند (مثلاً 1021.2.611... می‌شود 10212611...)
+  const inputNum = identifier.replace(/[^0-9]/g, "")
+
+  // ۲. لیست کامل بانک‌ها طبق عکس دیتابیس شما
+  const DATABASE_MAPPINGS = [
+    // --- بانک اقتصاد نوین ---
+    {
+      raw: "1021-850-6119111-1",
+      dl: "200003",
+      name: "بانک اقتصاد نوین (کوتاه مدت)"
+    },
+    {
+      raw: "1021-750-6116111-1",
+      dl: "200039",
+      name: "بانک اقتصاد نوین (سپرده)"
+    },
+    { raw: "1021-2-6116111-1", dl: "200002", name: "بانک اقتصاد نوین (جاری)" }, // شماره احتمالی شما
+
+    // --- بانک ملی ---
+    { raw: "0104813180001", dl: "200001", name: "بانک ملی (مرکزی)" },
+    { raw: "0223789681001", dl: "200026", name: "بانک ملی (مراغه)" },
+    { raw: "0364507742001", dl: "200036", name: "بانک ملی (مهربانی)" },
+    { raw: "0233196989007", dl: "200038", name: "بانک ملی (جدید)" },
+
+    // --- سایر بانک‌ها ---
+    { raw: "9880346828", dl: "200034", name: "بانک ملت (جام)" },
+    { raw: "2324874267", dl: "200040", name: "بانک ملت (سردار جنگل)" },
+    { raw: "1604.810.010042564.1", dl: "200004", name: "بانک پاسارگاد" },
+    { raw: "546093999", dl: "200005", name: "بانک تجارت" },
+    { raw: "540947", dl: "200007", name: "بانک سپه" },
+    { raw: "0100127174001", dl: "200019", name: "بانک آینده" },
+    { raw: "14005303749", dl: "200033", name: "بانک مسکن" },
+    { raw: "0101684239601", dl: "200035", name: "بانک کارآفرین" },
+    { raw: "1102009952609", dl: "200042", name: "بانک کشاورزی" }
+  ]
+
+  // ۳. جستجوی بهترین تطابق (Best Match Strategy)
+  // ما دنبال حالتی هستیم که بیشترین تعداد ارقامش با ورودی یکی باشد.
+
+  let bestMatch = null
+  let maxOverlap = 0
+
+  for (const map of DATABASE_MAPPINGS) {
+    // حذف هر کاراکتر غیر عددی از شماره دیتابیس
+    const dbNum = map.raw.replace(/[^0-9]/g, "")
+
+    // حالت A: شماره ورودی دقیقاً داخل شماره دیتابیس باشد (مثلاً ورودی کوتاهتر است)
+    // حالت B: شماره دیتابیس دقیقاً داخل شماره ورودی باشد (مثلاً ورودی بلندتر است)
+    if (dbNum.includes(inputNum) || inputNum.includes(dbNum)) {
+      // محاسبه طول تطابق (هر کدام کوتاه‌تر است، طول آن ملاک است)
+      const overlapLength = Math.min(dbNum.length, inputNum.length)
+
+      // اگر این تطابق از قبلی بهتر بود، این را انتخاب کن
+      // شرط مهم: باید حداقل ۶ رقم یکی باشد تا اشتباه با کدهای کوتاه پیش نیاید
+      if (overlapLength > maxOverlap && overlapLength > 5) {
+        maxOverlap = overlapLength
+        bestMatch = map
+      }
     }
   }
+
+  if (bestMatch) {
+    return { slCode: "111005", dlCode: bestMatch.dl, bankName: bestMatch.name }
+  }
+
+  // اگر هیچ تطابق قوی پیدا نشد، به سراغ حدس‌های کلی می‌رویم (مثل شروع با ۱۰۲۱)
+  if (inputNum.startsWith("1021"))
+    return { slCode: "111005", dlCode: "200002", bankName: "بانک اقتصاد نوین" }
+  if (inputNum.startsWith("0104"))
+    return { slCode: "111005", dlCode: "200001", bankName: "بانک ملی" }
 
   return DEFAULT
 }
@@ -493,11 +556,12 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
     console.log("\n---------------------------------------------------")
     console.log("🚀 STARTING PIPELINE (ISOLATED VOUCHER TYPE)")
     console.log("---------------------------------------------------")
+    const successfulTrackingCodes: string[] = []
 
-    const { mode, items, workspaceId } = payload
+    const { mode, items, workspaceId, bankDLCode } = payload
     const isDeposit = mode === "deposit"
     const resultsTable = []
-
+    const FIXED_BANK_DL = bankDLCode
     // ************************************************************
     // 👇👇👇 تنظیمات را اینجا انجام دهید 👇👇👇
     // ************************************************************
@@ -511,8 +575,9 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
     const FIXED_BANK_SL = "111005" // معین بانک
     const DEPOSIT_SL_CODE = "211002" // معین واریز
     const WITHDRAWAL_SL_CODE = "111901" // معین برداشت
+    const SL_EXPENSE = "921145"
     // ************************************************************
-
+    const debugDecisions = []
     const safeDate = payload.date
     const dateMatch = payload.description?.match(/\d{4}\/\d{2}\/\d{2}/)
     const jalaliDate = dateMatch ? dateMatch[0] : safeDate
@@ -526,7 +591,7 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
     for (const item of items) {
       const partyName = item.partyName || "نامشخص"
       const rawDesc = item.desc || ""
-      const bankInfo = detectBankInfo(rawDesc)
+      // const bankInfo = detectBankInfoByAccount(rawDesc)
       const humanDesc = await humanizeDescription(
         rawDesc,
         partyName,
@@ -534,7 +599,12 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
       )
       const safeDesc = escapeSql(humanDesc)
 
-      const decision = { dlCode: null as string | null, isFee: false }
+      // ✅ اصلاح شده: اضافه کردن foundName به تعریف اولیه
+      const decision = {
+        dlCode: null as string | null,
+        isFee: false,
+        foundName: "نامشخص"
+      }
       const feeCheck = detectFee(partyName, rawDesc, item.amount)
 
       if (feeCheck.isFee) {
@@ -542,13 +612,47 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
       } else {
         const searchResult = await findAccountCode(partyName)
         decision.dlCode = searchResult.dlCode || null
+        decision.foundName = searchResult.foundName || "نامشخص" // نام پیدا شده
       }
+      if (decision.dlCode || decision.isFee) {
+        console.log(`🕵️ Auditing transaction: ${partyName} (${item.amount})`)
 
+        const auditResult = await auditVoucherWithAI({
+          inputName: partyName,
+          inputDesc: rawDesc,
+          amount: item.amount,
+          selectedAccountName: decision.foundName, // نامی که سیستم پیدا کرده
+          selectedAccountCode: decision.dlCode || "Fee/Cost",
+          isFee: decision.isFee
+        })
+
+        if (!auditResult.approved) {
+          console.warn(`❌ Audit REJECTED: ${auditResult.reason}`)
+          // تصمیم را باطل کن تا ثبت نشود (یا به عنوان نامشخص ثبت شود)
+          decision.dlCode = null
+          decision.isFee = false
+          // اختیاری: می‌توانید اینجا continue بزنید تا کلا رد شود
+          // continue;
+        } else {
+          console.log(`✅ Audit PASSED: ${auditResult.reason}`)
+        }
+      }
+      debugDecisions.push({
+        OriginalName: partyName,
+        Amount: item.amount,
+        IsFee: decision.isFee,
+        DetectedCode:
+          decision.dlCode || (decision.isFee ? "621105 (Fee)" : "❌ NOT FOUND"),
+        MappedName: decision.foundName,
+        Description: humanDesc
+      })
       if (decision.isFee || decision.dlCode !== null) {
         const slCode = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
-        const finalSL = decision.isFee ? "921145" : slCode
+        const finalSL = decision.isFee ? "621105" : slCode
         const dlValue = decision.dlCode ? `N'${decision.dlCode}'` : "NULL"
-
+        console.log(
+          `🏦 Main Bank Detected: ${FIXED_BANK_DL} (DL: ${FIXED_BANK_DL})`
+        )
         sqlItemsBuffer += `
         -- ITEM ROW: ${currentRowIndex} (${escapeSql(partyName)})
         SET @Amount = ${item.amount};
@@ -557,7 +661,7 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
         SET @Str_PartySLCode = N'${finalSL}'; 
         SET @Str_PartyDLCode = ${dlValue}; 
         SET @Str_BankSLCode = N'${FIXED_BANK_SL}'; 
-        SET @Str_BankDLCode = N'${bankInfo.dlCode}';
+        SET @Str_BankDLCode = N'${FIXED_BANK_DL}';
 
         -- A. طرف حساب
         SET @Ref_SL = NULL; 
@@ -614,6 +718,12 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
     }
 
     if (validItemsCount > 0) {
+      console.log(
+        "📋 DECISION REPORT JSON:",
+        JSON.stringify(debugDecisions, null, 2)
+      )
+
+      console.log("⚠️ SQL generated but NOT executed due to Test Mode.")
       console.log(`🟢 Executing SQL for ${validItemsCount} items...`)
 
       const finalSql = `
@@ -624,7 +734,6 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
       DECLARE @Success BIT = 0;
       DECLARE @ErrorMessage NVARCHAR(4000);
       
-      -- تعریف متغیرهای مورد نیاز
       DECLARE @VoucherID BIGINT;
       DECLARE @FiscalYearRef BIGINT;
       DECLARE @VoucherNumber BIGINT; 
@@ -640,11 +749,6 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
       DECLARE @UserRef INT = 1; 
       DECLARE @Date NVARCHAR(20) = N'${safeDate}';
       
-      -- متغیرهای آفست برای جلوگیری از تداخل با کاربر
-      -- این عدد باعث می‌شود عطف ربات از 9 میلیون شروع شود و با کاربر (1, 2, 3) قاطی نشود
-      DECLARE @Offset BIGINT = 9000000; 
-
-      -- متغیرهای آیتم‌ها
       DECLARE @Amount DECIMAL(18,0);
       DECLARE @Desc NVARCHAR(MAX);
       DECLARE @Str_PartySLCode NVARCHAR(50); 
@@ -679,12 +783,13 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
 
             IF @VoucherNumber IS NULL SET @VoucherNumber = 1;
 
-            -- 4. محاسبه شماره عطف و Sequence (با آفست 9 میلیونی)
-            -- این بخش حیاتی است: عطف می‌شود 9000001 و با عطف کاربر (1) تداخل نمی‌کند
-            SET @Sequence = @Offset + @VoucherNumber;
-            SET @RefNumStr = CAST(@Sequence AS NVARCHAR(50));
+            -- 4. محاسبه شماره عطف و Sequence
+            -- تغییر مهم: اینجا عطف دقیقا برابر شماره سند قرار داده شد
+            SET @Sequence = @VoucherNumber;
+            SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
 
-            -- چک کردن نهایی برای اطمینان از یکتایی (محض احتیاط)
+            -- چک کردن نهایی برای اطمینان از یکتایی
+            -- اگر شماره عطف تکراری بود، شماره سند را بالا می‌بریم تا هر دو با هم تغییر کنند
             WHILE EXISTS (
                 SELECT 1 FROM [FIN3].[Voucher] 
                 WHERE FiscalYearRef = @FiscalYearRef 
@@ -693,8 +798,9 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
             )
             BEGIN
                 SET @VoucherNumber = @VoucherNumber + 1;
-                SET @Sequence = @Offset + @VoucherNumber;
-                SET @RefNumStr = CAST(@Sequence AS NVARCHAR(50));
+                -- آپدیت کردن عطف و Sequence همگام با شماره سند
+                SET @Sequence = @VoucherNumber;
+                SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
             END
 
             -- محاسبه شماره روزانه
@@ -707,16 +813,16 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
 
             -- اینزرت هدر سند
             INSERT INTO [FIN3].[Voucher] (
-                 VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
-                 Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
-                 Description, Description_En, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields,
-                 DailyNumber, Sequence, ReferenceNumber, IsReadonly, AuxiliaryNumber
+                  VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
+                  Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
+                  Description, Description_En, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields,
+                  DailyNumber, Sequence, ReferenceNumber, IsReadonly, AuxiliaryNumber
             ) VALUES (
-                 @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, 
-                 @VoucherNumber, @Date, @VoucherTypeRef, 
-                 @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
-                 N'${safeHeaderDesc}', N'', 0, 0, 0, 0, 
-                 @DailyNumber, @Sequence, @RefNumStr, 0, N''
+                  @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, 
+                  @VoucherNumber, @Date, @VoucherTypeRef, 
+                  @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
+                  N'${safeHeaderDesc}', N'', 0, 0, 0, 0, 
+                  @DailyNumber, @Sequence, @RefNumStr, 0, N''
             );
 
             -- افزودن آیتم‌ها
@@ -737,23 +843,39 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
             THROW 51000, @ErrorMessage, 1;
       END CATCH
 `
+
       const sqlRes = await executeSql(finalSql)
+
       if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
-        console.log(`🎉 SUCCESS! Voucher Created: #${sqlRes[0].VoucherNum}`)
+        const voucherNum = sqlRes[0].VoucherNum
+        console.log(`🎉 SUCCESS! Voucher Created: #${voucherNum}`)
+
+        // (اختیاری: آپدیت کردن نتایج برای لاگ)
         resultsTable.forEach(row => {
           if (row.Result === "Batched 🟢")
-            row.Result = `Saved #${sqlRes[0].VoucherNum} 🟢`
+            row.Result = `Saved #${voucherNum} 🟢`
         })
+
+        // ✅ خروجی موفقیت آمیز
         return {
           success: true,
-          docId: sqlRes[0].VoucherNum.toString(),
-          results: resultsTable
+          docId: voucherNum.toString(), // شماره سند واقعی را برمی‌گرداند
+          message: `سند با شماره ${voucherNum} با موفقیت ثبت شد.`,
+          processedTrackingCodes: successfulTrackingCodes // باید این را در مرحله ۱ اضافه کنید.
         }
+      } else {
+        // ✅ هندل کردن خطای SQL
+        throw new Error(
+          sqlRes && sqlRes[0]
+            ? sqlRes[0].ErrMsg
+            : "خطای ناشناخته در زمان اجرای SQL"
+        )
       }
     }
-    return { success: true, message: "No Items", results: resultsTable }
+
+    return { success: true, message: "No Items Matched", results: [] }
   } catch (error: any) {
-    console.error(error)
+    console.error("🔥 FATAL:", error)
     return { success: false, error: error.message }
   }
 }

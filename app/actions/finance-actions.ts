@@ -56,6 +56,93 @@ function toEnglishDigits(str: string) {
     .replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString())
 }
 
+function detectBankInfoByNumber(identifier: string): {
+  slCode: string
+  dlCode: string
+  bankName: string
+} {
+  const DEFAULT = {
+    slCode: "111005",
+    dlCode: "200001",
+    bankName: "بانک نامشخص"
+  }
+
+  if (!identifier) return DEFAULT
+
+  // ۱. نرمال‌سازی ورودی: فقط اعداد بمانند (مثلاً 1021.2.611... می‌شود 10212611...)
+  const inputNum = identifier.replace(/[^0-9]/g, "")
+
+  // ۲. لیست کامل بانک‌ها طبق عکس دیتابیس شما
+  const DATABASE_MAPPINGS = [
+    // --- بانک اقتصاد نوین ---
+    {
+      raw: "1021-850-6119111-1",
+      dl: "200003",
+      name: "بانک اقتصاد نوین (کوتاه مدت)"
+    },
+    {
+      raw: "1021-750-6116111-1",
+      dl: "200039",
+      name: "بانک اقتصاد نوین (سپرده)"
+    },
+    { raw: "1021-2-6116111-1", dl: "200002", name: "بانک اقتصاد نوین (جاری)" }, // شماره احتمالی شما
+
+    // --- بانک ملی ---
+    { raw: "0104813180001", dl: "200001", name: "بانک ملی (مرکزی)" },
+    { raw: "0223789681001", dl: "200026", name: "بانک ملی (مراغه)" },
+    { raw: "0364507742001", dl: "200036", name: "بانک ملی (مهربانی)" },
+    { raw: "0233196989007", dl: "200038", name: "بانک ملی (جدید)" },
+
+    // --- سایر بانک‌ها ---
+    { raw: "9880346828", dl: "200034", name: "بانک ملت (جام)" },
+    { raw: "2324874267", dl: "200040", name: "بانک ملت (سردار جنگل)" },
+    { raw: "1604.810.010042564.1", dl: "200004", name: "بانک پاسارگاد" },
+    { raw: "546093999", dl: "200005", name: "بانک تجارت" },
+    { raw: "540947", dl: "200007", name: "بانک سپه" },
+    { raw: "0100127174001", dl: "200019", name: "بانک آینده" },
+    { raw: "14005303749", dl: "200033", name: "بانک مسکن" },
+    { raw: "0101684239601", dl: "200035", name: "بانک کارآفرین" },
+    { raw: "1102009952609", dl: "200042", name: "بانک کشاورزی" }
+  ]
+
+  // ۳. جستجوی بهترین تطابق (Best Match Strategy)
+  // ما دنبال حالتی هستیم که بیشترین تعداد ارقامش با ورودی یکی باشد.
+
+  let bestMatch = null
+  let maxOverlap = 0
+
+  for (const map of DATABASE_MAPPINGS) {
+    // حذف هر کاراکتر غیر عددی از شماره دیتابیس
+    const dbNum = map.raw.replace(/[^0-9]/g, "")
+
+    // حالت A: شماره ورودی دقیقاً داخل شماره دیتابیس باشد (مثلاً ورودی کوتاهتر است)
+    // حالت B: شماره دیتابیس دقیقاً داخل شماره ورودی باشد (مثلاً ورودی بلندتر است)
+    if (dbNum.includes(inputNum) || inputNum.includes(dbNum)) {
+      // محاسبه طول تطابق (هر کدام کوتاه‌تر است، طول آن ملاک است)
+      const overlapLength = Math.min(dbNum.length, inputNum.length)
+
+      // اگر این تطابق از قبلی بهتر بود، این را انتخاب کن
+      // شرط مهم: باید حداقل ۶ رقم یکی باشد تا اشتباه با کدهای کوتاه پیش نیاید
+      if (overlapLength > maxOverlap && overlapLength > 5) {
+        maxOverlap = overlapLength
+        bestMatch = map
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return { slCode: "111005", dlCode: bestMatch.dl, bankName: bestMatch.name }
+  }
+
+  // اگر هیچ تطابق قوی پیدا نشد، به سراغ حدس‌های کلی می‌رویم (مثل شروع با ۱۰۲۱)
+  if (inputNum.startsWith("1021"))
+    return { slCode: "111005", dlCode: "200002", bankName: "بانک اقتصاد نوین" }
+  if (inputNum.startsWith("0104"))
+    return { slCode: "111005", dlCode: "200001", bankName: "بانک ملی" }
+
+  return DEFAULT
+}
+
 export async function analyzeSinglePage(
   imageUrl: string,
   pageNumber: number,
@@ -69,7 +156,13 @@ export async function analyzeSinglePage(
           role: "system",
           content: `You are an expert OCR engine for Persian Banking Documents.
           Your goal is to extract EVERY SINGLE transaction row with 100% precision.
-          
+          TASK 1: HEADER EXTRACTION
+          Look at the top of the page.
+          - If you see "شماره سپرده" (Deposit Number), set type='deposit' and extract the number.
+          - If you see "شماره حساب" (Account Number), set type='account' and extract the number.
+          - If you see "IBAN" or "شبا", set type='iban'.
+
+          TASK 2: TRANSACTIONS
           CRITICAL RULES:
           1. **Detached Numbers:** Sometimes text and numbers are glued together (e.g., "عددی49,000"). You MUST split them (e.g., Description: "عددی", Amount: 49000).
           2. **Unknown Names:** If a name is "نامشخص", look at the description. Often the real name is hidden there (e.g. "به نام علی رضایی"). Extract the REAL name.
@@ -95,7 +188,13 @@ export async function analyzeSinglePage(
                  - "مانده49,000" => Amount is 49000.
                  - "سهیل عددی49,252,796,116" => Amount is 49252796116.
               
-              - **Output JSON:**
+             Output JSON Format:
+              {
+                "header_info": {
+                   "raw_label": "Text found like شماره سپرده",
+                   "number": "1021.2.6116111.1",
+                   "type": "deposit" | "account"
+                },
               {
                 "transactions": [
                   { 
@@ -133,7 +232,13 @@ export async function analyzeSinglePage(
     if (!rawContent.endsWith("}")) rawContent += "}"
 
     const data = JSON.parse(rawContent)
+    let bankInfo = { slCode: "", dlCode: "", bankName: "" }
+    if (data.header_info?.number) {
+      bankInfo = detectBankInfoByNumber(data.header_info.number)
+    }
 
+    // اضافه کردن به دیتای نهایی
+    data.bank_details = bankInfo
     // 🛡️ لایه پاکسازی نهایی (Final Cleanup Layer) 🛡️
     // این کد اطمینان می‌دهد که حتی اگر هوش مصنوعی اشتباه کند، ما آن را اصلاح می‌کنیم
     if (data.transactions) {
@@ -239,35 +344,41 @@ async function findOfficerForCustomer(
 // در فایل app/actions/finance-actions.ts
 
 // ✅ تابع جدید: ثبت کامل واریز و برداشت یک روز به صورت همزمان
-export async function submitDayComplete(date: string, workspaceId: string) {
-  console.log(`🚀 STARTING FULL PROCESS FOR DATE: ${date}`)
+export async function submitDayComplete(
+  date: string,
+  workspaceId: string,
+  hostBankDL: string | null // <--- ✅ آرگومان جدید
+) {
+  console.log(
+    `🚀 STARTING FULL PROCESS FOR DATE: ${date} | BankDL: ${hostBankDL}`
+  )
 
-  const results = {
-    deposit: null as any,
-    withdrawal: null as any
-  }
+  const results = { deposit: null as any, withdrawal: null as any }
 
-  // 1. اول واریزها را ثبت کن
   try {
-    console.log(`--- Processing DEPOSITS for ${date} ---`)
-    results.deposit = await submitDailyVoucher(date, workspaceId, "deposit")
+    // ارسال کد بانک به تابع بعدی
+    results.deposit = await submitDailyVoucher(
+      date,
+      workspaceId,
+      "deposit",
+      hostBankDL
+    )
   } catch (e) {
-    console.error(`Error processing deposits for ${date}:`, e)
+    console.error(`Error processing deposits:`, e)
   }
 
-  // 2. بلافاصله برداشت‌ها را ثبت کن (چسب پارس اینجاست!)
   try {
-    console.log(`--- Processing WITHDRAWALS for ${date} ---`)
+    // ارسال کد بانک به تابع بعدی
     results.withdrawal = await submitDailyVoucher(
       date,
       workspaceId,
-      "withdrawal"
+      "withdrawal",
+      hostBankDL
     )
   } catch (e) {
-    console.error(`Error processing withdrawals for ${date}:`, e)
+    console.error(`Error processing withdrawals:`, e)
   }
 
-  console.log(`🏁 FULL PROCESS FINISHED FOR ${date}`)
   return results
 }
 
@@ -436,14 +547,15 @@ export async function submitGroupedTransactions(
 export async function submitDailyVoucher(
   date: string,
   workspaceId: string,
-  type: "deposit" | "withdrawal"
+  type: "deposit" | "withdrawal",
+  hostBankDL: string | null
 ) {
   console.log(
     `🔄 [FINANCE_ACTION] submitDailyVoucher called. Input Date: ${date}, Type: ${type}`
   )
   const cookieStore = cookies()
   const supabase = createClient(cookieStore)
-
+  const finalBankDL = hostBankDL
   try {
     // ✅ اصلاح مهم: تبدیل تاریخ ورودی (که احتمالا شمسی است) به میلادی
     // چون در دیتابیس تاریخ‌ها میلادی ذخیره شده‌اند
@@ -476,6 +588,7 @@ export async function submitDailyVoucher(
       totalAmount: totalAmount,
       date: searchDate,
       workspaceId: workspaceId, // ✅✅✅ این خط را اضافه کنید
+      bankDLCode: finalBankDL,
       items: requests.map(r => ({
         partyName: r.counterparty || r.supplier_name || "نامشخص",
         amount: Number(r.amount),
@@ -864,7 +977,11 @@ export async function approveUnspecifiedDocument(
 }
 
 // app/actions/finance-actions.ts
-
+function sanitizeSql(text: string | null): string {
+  if (!text) return ""
+  // تبدیل ' به '' (استاندارد SQL Server)
+  return text.replace(/'/g, "''")
+}
 // ------------------------------------------------------------------
 // تابع هوشمند SQL (نسخه با قابلیت ساخت خودکار تفصیلی + رفع باگ‌ها)
 // ------------------------------------------------------------------
@@ -880,7 +997,7 @@ async function insertVoucherWithDL(params: {
     return { success: false, error: "تنظیمات پروکسی موجود نیست" }
 
   const bankSL = "111005"
-  const safeDesc = params.description.replace(/'/g, "''")
+  const safeDesc = sanitizeSql(params.description)
 
   // اگر DL انتخاب نشده بود، NULL بفرست
   const dlCodeValue = params.dlCode ? `'${params.dlCode}'` : "NULL"
@@ -995,132 +1112,6 @@ async function insertVoucherWithDL(params: {
       return {
         success: false,
         error: resultRow ? resultRow.ErrMsg : "خطای SQL"
-      }
-    }
-  } catch (e: any) {
-    return { success: false, error: e.message }
-  }
-}
-// ------------------------------------------------------------------
-// 3. تابع کمکی: اجرای کوئری SQL اینسرت (هسته اصلی)
-// ------------------------------------------------------------------
-async function insertManualVoucherToRahkaran(params: {
-  slCode: string
-  amount: number
-  description: string
-  isDeposit: boolean
-  date: string
-}) {
-  if (!PROXY_URL || !PROXY_KEY)
-    return { success: false, error: "تنظیمات پروکسی موجود نیست" }
-
-  // منطق بدهکار/بستانکار
-  // اگر واریز است: بانک (111005) بدهکار، طرف حساب (slCode) بستانکار
-  // اگر برداشت است: طرف حساب (slCode) بدهکار، بانک (111005) بستانکار
-  const bankSL = "111005"
-
-  // تبدیل تاریخ (اگر نیاز به تبدیل میلادی به شمسی در سمت SQL دارید، اینجا پیچیده می‌شود)
-  // فعلا فرض بر این است که تاریخ میلادی می‌فرستیم و راهکاران هندل می‌کند یا تاریخ امروز
-  const dateStr = params.date
-
-  const sql = `
-    BEGIN TRY
-        BEGIN TRANSACTION;
-
-        DECLARE @VoucherID BIGINT;
-        DECLARE @VoucherNumber BIGINT;
-        DECLARE @BranchRef BIGINT = 1; -- کد شعبه پیش‌فرض
-        DECLARE @LedgerRef BIGINT = 1; -- دفتر کل پیش‌فرض
-        DECLARE @UserRef INT = 1; -- کاربر سیستم
-        DECLARE @FiscalYearRef BIGINT;
-        
-        -- 1. پیدا کردن سال مالی
-        SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
-
-        -- 2. ساخت هدر سند
-        EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
-        
-        SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 FROM [FIN3].[Voucher] 
-        WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef;
-
-        INSERT INTO [FIN3].[Voucher] (
-            VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
-            Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
-            Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields, DailyNumber, Sequence
-        ) VALUES (
-            @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, @VoucherNumber,
-            '${dateStr}', 1, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
-            N'${params.description}', 0, 0, 0, 0, @VoucherNumber, @VoucherNumber
-        );
-
-        -- متغیرهای کمکی آیتم
-        DECLARE @BankSLRef BIGINT, @PartySLRef BIGINT;
-        DECLARE @BankGLRef BIGINT, @PartyGLRef BIGINT;
-        DECLARE @BankAG BIGINT, @PartyAG BIGINT;
-        DECLARE @ItemID1 BIGINT, @ItemID2 BIGINT;
-
-        -- پیدا کردن رفرنس‌های بانک
-        SELECT TOP 1 @BankSLRef = SLID, @BankGLRef = GLRef FROM [FIN3].[SL] WHERE Code = '${bankSL}';
-        SELECT TOP 1 @BankAG = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @BankGLRef;
-
-        -- پیدا کردن رفرنس‌های حساب انتخابی کاربر
-        SELECT TOP 1 @PartySLRef = SLID, @PartyGLRef = GLRef FROM [FIN3].[SL] WHERE Code = '${params.slCode}';
-        SELECT TOP 1 @PartyAG = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @PartyGLRef;
-
-        IF @PartySLRef IS NULL THROW 51000, 'کد معین انتخاب شده در سیستم یافت نشد', 1;
-
-        -- 3. آیتم اول: طرف حساب (کاربر)
-        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID1 OUTPUT;
-        INSERT INTO [FIN3].[VoucherItem] (
-            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
-            Debit, Credit, Description, RowNumber
-        ) VALUES (
-            @ItemID1, @VoucherID, @BranchRef, @PartySLRef, '${params.slCode}', @PartyGLRef, @PartyAG,
-            ${params.isDeposit ? 0 : params.amount}, -- بدهکار (در برداشت)
-            ${params.isDeposit ? params.amount : 0}, -- بستانکار (در واریز)
-            N'${params.description}', 1
-        );
-
-        -- 4. آیتم دوم: بانک
-        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID2 OUTPUT;
-        INSERT INTO [FIN3].[VoucherItem] (
-            VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
-            Debit, Credit, Description, RowNumber
-        ) VALUES (
-            @ItemID2, @VoucherID, @BranchRef, @BankSLRef, '${bankSL}', @BankGLRef, @BankAG,
-            ${params.isDeposit ? params.amount : 0}, -- بدهکار (در واریز)
-            ${params.isDeposit ? 0 : params.amount}, -- بستانکار (در برداشت)
-            N'بانک - ${params.description}', 2
-        );
-
-        -- پایان
-        UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID; -- موقت
-        
-        COMMIT TRANSACTION;
-        SELECT 'Success' as Status, @VoucherNumber as VoucherNum;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        SELECT 'Error' as Status, ERROR_MESSAGE() as ErrMsg;
-    END CATCH
-  `
-
-  try {
-    const res = await fetch(PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY },
-      body: JSON.stringify({ query: sql }),
-      cache: "no-store"
-    })
-    const json = await res.json()
-    const resultRow = json.recordset ? json.recordset[0] : null
-
-    if (resultRow && resultRow.Status === "Success") {
-      return { success: true, docNumber: resultRow.VoucherNum }
-    } else {
-      return {
-        success: false,
-        error: resultRow ? resultRow.ErrMsg : "خطای ناشناخته در SQL"
       }
     }
   } catch (e: any) {

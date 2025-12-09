@@ -44,6 +44,7 @@ type AIResult = {
   bank_name?: string
   account_number?: string
   transactions: Transaction[]
+  dl_code?: string
 }
 
 // ✅ اضافه کردن تایپ برای دیتای رسید
@@ -296,6 +297,7 @@ export default function ChatUploadPage() {
     const finalResult: AIResult = {
       bank_name: "",
       account_number: "",
+      dl_code: "",
       transactions: []
     }
     for (let i = 0; i < urls.length; i++) {
@@ -316,6 +318,11 @@ export default function ChatUploadPage() {
           finalResult.account_number = res.data.account_number
         if (res.data.transactions)
           finalResult.transactions.push(...res.data.transactions)
+
+        // ✅ تغییر: این خط را آوردیم داخل بلوک if
+        if (res.data.bank_details?.dlCode) {
+          finalResult.dl_code = res.data.bank_details.dlCode
+        }
       }
     }
     setMessages(prev => prev.filter(m => m.id !== analyzingMsgId))
@@ -365,7 +372,7 @@ export default function ChatUploadPage() {
   const handleConfirm = async (data: AIResult, fileUrls: string | string[]) => {
     const toastId = toast.loading("در حال ثبت اسناد در سیستم مالی...")
     const mainUrl = Array.isArray(fileUrls) ? fileUrls[0] : fileUrls
-
+    const hostBankDL = data.dl_code
     // 1. گروه‌بندی تراکنش‌ها
     const groups = groupTransactionsByDate(data.transactions)
 
@@ -390,7 +397,7 @@ export default function ChatUploadPage() {
 
     // 4. پردازش روز به روز
     for (const date of Object.keys(groups)) {
-      const res = await submitDayComplete(date, workspaceId)
+      const res = await submitDayComplete(date, workspaceId, hostBankDL || null)
 
       // --- بررسی نتیجه واریز (Deposit) ---
       if (res.deposit) {
