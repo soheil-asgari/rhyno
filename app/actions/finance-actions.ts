@@ -9,7 +9,7 @@ import persian from "react-date-object/calendars/persian"
 import gregorian from "react-date-object/calendars/gregorian"
 import persian_fa from "react-date-object/locales/persian_fa"
 import { syncToRahkaranSystem } from "@/lib/services/rahkaran"
-import { sendCompletionSMS } from "@/lib/sms-service"
+import { sendAssignmentSMS, sendCompletionSMS } from "@/lib/sms-service"
 
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
@@ -422,6 +422,10 @@ export async function submitGroupedTransactions(
     console.log(`🚀 START Submitting ${groupedData.length} groups...`)
     console.log("📄 EXTRACTED DATA:", JSON.stringify(groupedData, null, 2))
 
+    const twoDaysLater = new Date()
+    twoDaysLater.setDate(twoDaysLater.getDate() + 2)
+    const deadlineISO = twoDaysLater.toISOString()
+
     for (const group of groupedData) {
       const transactions = Array.isArray(group.transactions)
         ? group.transactions
@@ -491,6 +495,12 @@ export async function submitGroupedTransactions(
             if (t === "deposit" || t === "واریز" || t.includes("dep"))
               transactionType = "deposit"
           }
+          const officerInfo = await findOfficerForCustomer(
+            supabase,
+            workspaceId,
+            finalSupplierName
+          )
+          const assignedUserId = officerInfo?.officerId || user?.id // اگر پیدا نشد، به خود مدیر تخصیص بده
 
           const insertData = {
             workspace_id: workspaceId,
@@ -503,8 +513,9 @@ export async function submitGroupedTransactions(
             type: transactionType,
             counterparty: finalSupplierName,
             status: "pending_docs" as "pending_docs",
-            assigned_user_id: user?.id || null,
-            customer_group: "General",
+            assigned_user_id: assignedUserId,
+            deadline: deadlineISO,
+            customer_group: officerInfo?.groupName || "General",
             ai_verification_status: "pending" as "pending"
           }
 
@@ -517,6 +528,20 @@ export async function submitGroupedTransactions(
             })
             .select("id")
             .maybeSingle()
+
+          if (data && assignedUserId !== user?.id) {
+            // دریافت شماره موبایل کارشناس برای ارسال پیامک
+            const { data: officerProfile } = await supabase
+              .from("profiles")
+              .select("phone")
+              .eq("user_id", assignedUserId)
+              .single()
+
+            if (officerProfile?.phone) {
+              // متن: مبلغ X به Y پرداخت شد و در کارتابل شما قرار گرفت
+              await sendAssignmentSMS(officerProfile.phone, finalSupplierName)
+            }
+          }
 
           if (error) {
             console.error("❌ Database Insert Error:", error) // لاگ خطا را ببینیم
@@ -675,7 +700,28 @@ export async function verifyAndSettleRequest(
       .single()
 
     if (!request) throw new Error("رکورد پیدا نشد")
+    console.log("🔍 AI Checking Invoice...")
+    const aiResult = await analyzeInvoice(invoiceUrl)
 
+    if (!aiResult.success) {
+      // اگر هوش مصنوعی نتوانست بخواند، فعلا فقط وارنینگ می‌دهیم یا می‌توانیم رد کنیم
+      console.warn("AI could not read invoice:", aiResult.error)
+    } else {
+      const invoiceAmount = Number(aiResult.data.total_amount) || 0
+      const dbAmount = Number(request.amount) || 0
+
+      // محاسبه اختلاف (مثلاً اگر اختلاف بیشتر از ۱۰۰۰ تومان بود خطا بده)
+      const diff = Math.abs(invoiceAmount - dbAmount)
+
+      if (invoiceAmount > 0 && diff > 50000) {
+        // تلورانس ۵۰ هزار تومان
+        return {
+          success: false,
+          approved: false,
+          reason: `مبلغ فاکتور (${invoiceAmount.toLocaleString()}) با مبلغ واریزی (${dbAmount.toLocaleString()}) همخوانی ندارد.`
+        }
+      }
+    }
     // --- بخش AI Audit ---
     // (اینجا کد audit شما می‌تواند فعال باشد)
 
@@ -747,6 +793,19 @@ export async function verifyAndSettleRequest(
       .eq("id", requestId)
 
     console.log("✅ [FINANCE_ACTION] Request successfully settled.")
+
+    if (request.assigned_user_id) {
+      const { data: officerProfile } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("user_id", request.assigned_user_id)
+        .single()
+
+      if (officerProfile?.phone) {
+        // متن: شماره سند X بسته شد
+        await sendCompletionSMS(officerProfile.phone, partyName)
+      }
+    }
 
     // ✅ Correction: Return full details for UI
     return {
@@ -1178,5 +1237,53 @@ export async function getRahkaranDLs() {
   } catch (e) {
     console.error("Fetch DL Error:", e)
     return []
+  }
+}
+
+// اضافه کردن در app/actions/finance-actions.ts
+
+export async function analyzeInvoice(fileUrl: string) {
+  try {
+    const fileRes = await fetch(fileUrl, { cache: "no-store" })
+    if (!fileRes.ok) throw new Error("دانلود فایل ناموفق بود")
+
+    const fileBuffer = await fileRes.arrayBuffer()
+    const base64Data = Buffer.from(fileBuffer).toString("base64")
+    const mimeType = fileUrl.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : "image/jpeg"
+
+    const response = await openai.chat.completions.create({
+      model: "google/gemini-2.5-flash", // مدل مناسب و سریع
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert accountant AI. Extract the 'Total Amount' (مبلغ قابل پرداخت/جمع کل) and 'Seller Name' (فروشنده) from this invoice image/pdf. Return JSON only."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Extract data. Return JSON: { "total_amount": 123000, "seller_name": "string", "invoice_date": "YYYY/MM/DD" }. Ignore commas in numbers.`
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${base64Data}` }
+            }
+          ]
+        }
+      ],
+      response_format: { type: "json_object" }
+    })
+
+    const content = response.choices[0].message.content
+    const data = JSON.parse(content || "{}")
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error("Invoice OCR Error:", error)
+    return { success: false, error: error.message }
   }
 }
