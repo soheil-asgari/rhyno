@@ -62,83 +62,103 @@ function detectBankInfoByNumber(identifier: string): {
   bankName: string
 } {
   const DEFAULT = {
-    slCode: "111005",
-    dlCode: "200001",
-    bankName: "بانک نامشخص"
+    slCode: "",
+    dlCode: "",
+    bankName: "بانک نامشخص (انتخاب دستی)"
   }
 
-  if (!identifier) return DEFAULT
+  if (!identifier || identifier.length < 5) return DEFAULT
 
-  // ۱. نرمال‌سازی ورودی: فقط اعداد بمانند (مثلاً 1021.2.611... می‌شود 10212611...)
-  const inputNum = identifier.replace(/[^0-9]/g, "")
+  // ۱. نرمال‌سازی ورودی: فقط اعداد بمانند
+  // مثال: "۱۰۲۱.۲.۶۱۱..." -> "10212611..."
+  const inputNum = identifier
+    .toString()
+    .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString()) // تبدیل فارسی به انگلیسی
+    .replace(/[^0-9]/g, "") // حذف غیر عدد
 
-  // ۲. لیست کامل بانک‌ها طبق عکس دیتابیس شما
+  // ۲. لیست کامل بانک‌ها (اینجا منبع حقیقت است)
   const DATABASE_MAPPINGS = [
     // --- بانک اقتصاد نوین ---
+
     {
       raw: "1021-850-6119111-1",
+
       dl: "200003",
+
       name: "بانک اقتصاد نوین (کوتاه مدت)"
     },
+
     {
       raw: "1021-750-6116111-1",
+
       dl: "200039",
+
       name: "بانک اقتصاد نوین (سپرده)"
     },
+
     { raw: "1021-2-6116111-1", dl: "200002", name: "بانک اقتصاد نوین (جاری)" }, // شماره احتمالی شما
 
     // --- بانک ملی ---
+
     { raw: "0104813180001", dl: "200001", name: "بانک ملی (مرکزی)" },
+
     { raw: "0223789681001", dl: "200026", name: "بانک ملی (مراغه)" },
+
     { raw: "0364507742001", dl: "200036", name: "بانک ملی (مهربانی)" },
+
     { raw: "0233196989007", dl: "200038", name: "بانک ملی (جدید)" },
 
     // --- سایر بانک‌ها ---
+
     { raw: "9880346828", dl: "200034", name: "بانک ملت (جام)" },
+
     { raw: "2324874267", dl: "200040", name: "بانک ملت (سردار جنگل)" },
+
     { raw: "1604.810.010042564.1", dl: "200004", name: "بانک پاسارگاد" },
+
     { raw: "546093999", dl: "200005", name: "بانک تجارت" },
+
     { raw: "540947", dl: "200007", name: "بانک سپه" },
+
     { raw: "0100127174001", dl: "200019", name: "بانک آینده" },
+
     { raw: "14005303749", dl: "200033", name: "بانک مسکن" },
+
     { raw: "0101684239601", dl: "200035", name: "بانک کارآفرین" },
+
     { raw: "1102009952609", dl: "200042", name: "بانک کشاورزی" }
   ]
-
-  // ۳. جستجوی بهترین تطابق (Best Match Strategy)
-  // ما دنبال حالتی هستیم که بیشترین تعداد ارقامش با ورودی یکی باشد.
 
   let bestMatch = null
   let maxOverlap = 0
 
   for (const map of DATABASE_MAPPINGS) {
-    // حذف هر کاراکتر غیر عددی از شماره دیتابیس
+    // نرمال‌سازی شماره دیتابیس (حذف خط تیره و ...)
     const dbNum = map.raw.replace(/[^0-9]/g, "")
 
-    // حالت A: شماره ورودی دقیقاً داخل شماره دیتابیس باشد (مثلاً ورودی کوتاهتر است)
-    // حالت B: شماره دیتابیس دقیقاً داخل شماره ورودی باشد (مثلاً ورودی بلندتر است)
-    if (dbNum.includes(inputNum) || inputNum.includes(dbNum)) {
-      // محاسبه طول تطابق (هر کدام کوتاه‌تر است، طول آن ملاک است)
-      const overlapLength = Math.min(dbNum.length, inputNum.length)
+    // بررسی تطابق دو طرفه (شامل بودن)
+    // حالت ۱: شماره ورودی کامل است و شماره دیتابیس بخشی از آن است
+    // حالت ۲: شماره دیتابیس کامل است و شماره ورودی بخشی از آن است (مثلا OCR ناقص خوانده)
+    if (inputNum.includes(dbNum) || dbNum.includes(inputNum)) {
+      // طول رشته مشترک را پیدا می‌کنیم
+      const matchLength = Math.min(inputNum.length, dbNum.length)
 
-      // اگر این تطابق از قبلی بهتر بود، این را انتخاب کن
-      // شرط مهم: باید حداقل ۶ رقم یکی باشد تا اشتباه با کدهای کوتاه پیش نیاید
-      if (overlapLength > maxOverlap && overlapLength > 5) {
-        maxOverlap = overlapLength
+      // امتیازدهی: هرچه طول تطابق بیشتر، یعنی بانک را دقیق‌تر پیدا کردیم
+      // نکته: شرط matchLength > 6 باعث می‌شود کدهای کوتاه ۳-۴ رقمی باعث خطای تشخیص نشوند
+      if (matchLength > maxOverlap && matchLength > 6) {
+        maxOverlap = matchLength
         bestMatch = map
       }
     }
   }
 
   if (bestMatch) {
-    return { slCode: "111005", dlCode: bestMatch.dl, bankName: bestMatch.name }
+    return {
+      slCode: "111005", // کد کل (معین) بانک‌ها
+      dlCode: bestMatch.dl,
+      bankName: bestMatch.name
+    }
   }
-
-  // اگر هیچ تطابق قوی پیدا نشد، به سراغ حدس‌های کلی می‌رویم (مثل شروع با ۱۰۲۱)
-  if (inputNum.startsWith("1021"))
-    return { slCode: "111005", dlCode: "200002", bankName: "بانک اقتصاد نوین" }
-  if (inputNum.startsWith("0104"))
-    return { slCode: "111005", dlCode: "200001", bankName: "بانک ملی" }
 
   return DEFAULT
 }
@@ -163,24 +183,29 @@ export async function analyzeSinglePage(
 
     // 3. ارسال به OpenRouter
     const response = await openai.chat.completions.create({
-      model: AI_MODEL, // ✅ نام دقیق مدل در OpenRouter
+      model: AI_MODEL,
       messages: [
         {
           role: "system",
-          content: `You are a financial OCR engine. Extract data from this ${isPdf ? "PDF document" : "image"} into JSON.
-          Your goal is to extract EVERY SINGLE transaction row with 100% precision.
+          content: `You are a professional Financial OCR engine for Persian Bank Statements.
           
-          TASK 1: HEADER EXTRACTION
-          - Look for "شماره سپرده" (Deposit Number) -> type='deposit'
-          - Look for "شماره حساب" (Account Number) -> type='account'
-          - Look for "IBAN" or "شبا" -> type='iban'
+          YOUR TASKS:
+          1. HEADER DATA:
+             - Find the **Bank Name** exactly as written (e.g., "بانک اقتصاد نوین", "بانک ملی").
+             - Find the **Account/Deposit Number** (شماره حساب / شماره سپرده). It is usually at the top right or left.
+             - Ignore page numbers or dates for the account number.
+          
+          2. TRANSACTION EXTRACTION:
+             - Extract every single row from the table.
+             - **CRITICAL - COLUMN MAPPING:**
+               - Numbers in **"بدهکار"** (Debtor) column = **"withdrawal"** (Money OUT).
+               - Numbers in **"بستانکار"** (Creditor) column = **"deposit"** (Money IN).
+             - Do NOT assume based on description; rely ONLY on the column placement.
+             - If description says "کارمزد" (Fee), it MUST be a "withdrawal" (unless reversed).
 
-          TASK 2: TRANSACTIONS
-          CRITICAL RULES:
-          1. **Detached Numbers:** Split glued text (e.g., "مانده49000" -> Amount: 49000).
-          2. **Unknown Names:** If name is "نامشخص", searching description is MANDATORY.
-          3. **Full List:** Extract ALL rows. Do not stop.
-          4. **Amount:** Integer only. No commas.
+          3. CLEANING:
+             - Remove separators (commas) from numbers.
+             - Convert Persian digits to English.
           `
         },
         {
@@ -188,18 +213,14 @@ export async function analyzeSinglePage(
           content: [
             {
               type: "text",
-              text: `Extract data from this document.
+              text: `Analyze this image and return JSON.
               
-              **SPECIFIC INSTRUCTIONS:**
-              - **Party Name:** If column is "نامشخص", check Description for "به نام..." or "بنام...".
-              - **Amounts:** Convert "12,000,000" to 12000000.
-              
-              Output JSON Format:
+              Output Format:
               {
                 "header_info": {
-                   "raw_label": "Found Label",
-                   "number": "Extracted Number",
-                   "type": "deposit"
+                   "bank_name": "نام بانک پیدا شده",
+                   "number": "شماره حساب یا سپرده پیدا شده (فقط عدد)",
+                   "owner": "نام صاحب حساب (اگر بود)"
                 },
                 "transactions": [
                   { 
@@ -207,24 +228,21 @@ export async function analyzeSinglePage(
                     "time": "HH:MM",
                     "type": "deposit" | "withdrawal", 
                     "amount": 123456, 
-                    "description": "Full text", 
-                    "partyName": "Clean Name", 
-                    "tracking_code": "..." 
+                    "description": "شرح کامل تراکنش", 
+                    "partyName": "نام طرف حساب یا گیرنده/فرستنده", 
+                    "tracking_code": "شماره سند یا پیگیری" 
                   }
                 ]
               }`
             },
             {
               type: "image_url",
-              image_url: {
-                url: dataUrl // ✅ درست است
-              }
+              image_url: { url: dataUrl }
             }
           ]
         }
       ],
       temperature: 0,
-      // response_format: { type: "json_object" }, // ⚠️ این خط را حذف کردم چون گاهی با جمینای ناسازگار است
       max_tokens: 8000
     })
 
@@ -238,7 +256,6 @@ export async function analyzeSinglePage(
       .replace(/```/g, "")
       .trim()
 
-    // اطمینان از بسته شدن JSON
     if (!rawContent.endsWith("}")) {
       const lastBracket = rawContent.lastIndexOf("}")
       if (lastBracket !== -1)
@@ -252,6 +269,16 @@ export async function analyzeSinglePage(
     let bankInfo = { slCode: "", dlCode: "", bankName: "" }
     if (data.header_info?.number) {
       bankInfo = detectBankInfoByNumber(data.header_info.number)
+    }
+    if (bankInfo.bankName === "بانک نامشخص" && data.header_info?.bank_name) {
+      if (data.header_info.bank_name.includes("اقتصاد")) {
+        bankInfo = {
+          slCode: "111005",
+          dlCode: "200002",
+          bankName: "بانک اقتصاد نوین"
+        }
+      }
+      // می‌توان شرط‌های دیگر هم اضافه کرد
     }
     data.bank_details = bankInfo
 
