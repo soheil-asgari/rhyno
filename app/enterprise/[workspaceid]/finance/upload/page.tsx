@@ -29,7 +29,7 @@ import Script from "next/script"
 import Image from "next/image"
 // ✅ ایمپورت کامپوننت رسید جدید (مسیر را چک کنید)
 import VoucherSuccessReceipt from "@/components/finance/VoucherSuccessReceipt"
-
+import { CustomerMappingUpload } from "@/components/CustomerMappingUpload"
 // --- تایپ‌ها ---
 type Transaction = {
   date: string

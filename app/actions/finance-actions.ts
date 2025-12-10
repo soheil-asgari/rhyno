@@ -326,29 +326,28 @@ async function findOfficerForCustomer(
   workspaceId: string,
   customerName: string
 ) {
-  try {
-    const { data: customerData } = await supabase
-      .from("customer_directory")
-      .select("group_name")
-      .eq("workspace_id", workspaceId)
-      .eq("customer_name", customerName)
-      .maybeSingle()
+  // ۱. دریافت اطلاعات از جدول مپینگ (شامل موبایل اکسل)
+  const { data: mapping } = await supabase
+    .from("customer_mappings")
+    .select("officer_email, officer_phone, group_name") // ✅ دریافت officer_phone
+    .eq("workspace_id", workspaceId)
+    .ilike("customer_name", customerName)
+    .maybeSingle()
 
-    if (!customerData?.group_name) return null
+  if (!mapping?.officer_email) return null
 
-    const { data: officerData } = await supabase
-      .from("group_officers")
-      .select("officer_id")
-      .eq("workspace_id", workspaceId)
-      .eq("group_name", customerData.group_name)
-      .maybeSingle()
+  // ۲. پیدا کردن ID کاربر از روی ایمیل
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id, phone") // دریافت تلفن پروفایل هم برای احتیاط
+    .eq("username", mapping.officer_email)
+    .maybeSingle()
 
-    return {
-      officerId: officerData?.officer_id || null,
-      groupName: customerData.group_name
-    }
-  } catch (e) {
-    return null
+  return {
+    officerId: profile?.user_id,
+    groupName: mapping.group_name,
+    // ✅ اولویت با شماره اکسل است، اگر نبود شماره پروفایل
+    officerPhone: mapping.officer_phone || profile?.phone
   }
 }
 
@@ -495,13 +494,13 @@ export async function submitGroupedTransactions(
             if (t === "deposit" || t === "واریز" || t.includes("dep"))
               transactionType = "deposit"
           }
+
           const officerInfo = await findOfficerForCustomer(
             supabase,
             workspaceId,
             finalSupplierName
           )
-          const assignedUserId = officerInfo?.officerId || user?.id // اگر پیدا نشد، به خود مدیر تخصیص بده
-
+          const assignedUserId = officerInfo?.officerId || user?.id
           const insertData = {
             workspace_id: workspaceId,
             supplier_name: finalSupplierName,
@@ -528,18 +527,20 @@ export async function submitGroupedTransactions(
             })
             .select("id")
             .maybeSingle()
-
           if (data && assignedUserId !== user?.id) {
-            // دریافت شماره موبایل کارشناس برای ارسال پیامک
-            const { data: officerProfile } = await supabase
-              .from("profiles")
-              .select("phone")
-              .eq("user_id", assignedUserId)
-              .single()
-
-            if (officerProfile?.phone) {
-              // متن: مبلغ X به Y پرداخت شد و در کارتابل شما قرار گرفت
-              await sendAssignmentSMS(officerProfile.phone, finalSupplierName)
+            // اگر شماره موبایلی پیدا کردیم (چه از اکسل چه پروفایل)
+            if (officerInfo?.officerPhone) {
+              await sendAssignmentSMS(
+                officerInfo.officerPhone,
+                finalSupplierName
+              )
+              console.log(
+                `📨 SMS sent to ${officerInfo.officerPhone} for ${finalSupplierName}`
+              )
+            } else {
+              console.warn(
+                `⚠️ No phone number found for officer of ${finalSupplierName}`
+              )
             }
           }
 

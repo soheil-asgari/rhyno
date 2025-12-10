@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+// ✅ استفاده از کلاینت سوپابیس (طبق اصلاحات قبلی)
 import { supabase } from "@/lib/supabase/browser-client"
 import { uploadCustomerExcel } from "@/app/actions/mapping-actions"
 import { Button } from "@/components/ui/button"
@@ -110,21 +111,23 @@ export function GroupSettings({
   }
 
   return (
+    // ✅ اضافه کردن text-gray-900 برای اطمینان از رنگ متن تیره در کل این بخش
     <div className="grid gap-6 text-gray-900 md:grid-cols-2">
       {/* کارت ۱: آپلود اکسل */}
-      <Card className="h-fit border-t-4 border-t-blue-600 bg-white text-gray-900 shadow-sm">
+      <Card className="h-fit border-t-4 border-t-blue-600 bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
             <FileSpreadsheet className="size-5 text-blue-600" />
             بارگذاری فایل اکسل مشتریان
           </CardTitle>
           <CardDescription className="text-gray-500">
-            فایل اکسل شامل ستون‌های <b>Customer</b> (مشتری)، <b>Officer</b>{" "}
-            (ایمیل) و <b>Mobile</b> (موبایل - اختیاری) را آپلود کنید.
+            فایل اکسل شامل ستون‌های <b>Customer</b> (نام مشتری) و{" "}
+            <b>Officer Email</b> (ایمیل مسئول) را آپلود کنید.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid w-full max-w-sm items-center gap-1.5">
+            {/* ✅ اجبار رنگ سفید برای اینپوت */}
             <Input
               id="excel-upload"
               type="file"
@@ -153,7 +156,7 @@ export function GroupSettings({
       </Card>
 
       {/* کارت ۲: مشاهده لیست */}
-      <Card className="h-fit border-t-4 border-t-green-600 bg-white text-gray-900 shadow-sm">
+      <Card className="h-fit border-t-4 border-t-green-600 bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
             <UserCheck className="size-5 text-green-600" />
@@ -168,7 +171,7 @@ export function GroupSettings({
             <label className="text-xs font-medium text-gray-700">
               انتخاب مسئول پیگیری:
             </label>
-
+            {/* ✅ اجبار استایل روشن برای Select */}
             <Select
               onValueChange={setSelectedOfficer}
               value={selectedOfficer || ""}
@@ -186,7 +189,7 @@ export function GroupSettings({
                     <SelectItem
                       key={email}
                       value={email}
-                      className="cursor-pointer text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:text-gray-900"
+                      className="cursor-pointer text-gray-900 hover:bg-gray-100 focus:bg-gray-100"
                     >
                       {email}
                     </SelectItem>
@@ -196,6 +199,7 @@ export function GroupSettings({
             </Select>
           </div>
 
+          {/* کانتینر لیست مشتریان */}
           <div className="min-h-[150px] rounded-md border border-gray-200 bg-gray-50 p-4">
             {loadingList ? (
               <div className="flex h-full items-center justify-center text-gray-500">
@@ -222,7 +226,7 @@ export function GroupSettings({
                 </div>
                 <div className="flex max-h-[300px] flex-wrap gap-2 overflow-y-auto pr-1">
                   {customers.map((customer, idx) => (
-                    // استفاده از تگ span معمولی با استایل روشن
+                    // ✅ استفاده از استایل کاملاً دستی و روشن برای نمایش اسم مشتری
                     <span
                       key={idx}
                       className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-black shadow-sm"
