@@ -506,8 +506,8 @@ export async function submitGroupedTransactions(
             const namePart = finalSupplierName
               .replace(/\s/g, "")
               .substring(0, 8) // ۸ حرف اول نام بدون فاصله
-
-            finalTrackingCode = `NO-REF-${safeAmount}-${datePart}-${namePart}`
+            const uniqueSuffix = Math.random().toString(36).substring(2, 7)
+            finalTrackingCode = `NO-REF-${safeAmount}-${datePart}-${namePart}-${uniqueSuffix}`
 
             console.log(
               `🔹 Generated Smart-ID for ${finalSupplierName}: ${finalTrackingCode}`
