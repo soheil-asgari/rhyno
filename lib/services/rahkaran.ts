@@ -125,7 +125,7 @@ const openai = new OpenAI({
   }
 })
 
-const AI_MODEL = "google/gemini-2.5-flash"
+const AI_MODEL = "openai/gpt-5.2-chat"
 
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
@@ -617,12 +617,21 @@ export async function syncToRahkaranSystem(payload: SyncPayload): Promise<any> {
       if (decision.dlCode || decision.isFee) {
         console.log(`🕵️ Auditing transaction: ${partyName} (${item.amount})`)
 
+        const slCode = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
+        const finalSL = decision.isFee ? "621105" : slCode
+        const dlCodeForSql = decision.dlCode ? `'${decision.dlCode}'` : "NULL"
+        const proposedSql = `
+  INSERT INTO [FIN3].[VoucherItem] (SLCode, DLLevel4, Debit, Credit)
+  VALUES ('${finalSL}', ${dlCodeForSql}, ${isDeposit ? 0 : item.amount}, ${isDeposit ? item.amount : 0});
+`
         const auditResult = await auditVoucherWithAI({
           inputName: partyName,
           inputDesc: rawDesc,
           amount: item.amount,
-          selectedAccountName: decision.foundName, // نامی که سیستم پیدا کرده
-          selectedAccountCode: decision.dlCode || "Fee/Cost",
+          selectedAccountName: decision.foundName,
+          selectedAccountCode: decision.dlCode,
+          selectedSLCode: finalSL,
+          generatedSqlSnippet: proposedSql, // <--- کد SQL را هم چک می‌کند
           isFee: decision.isFee
         })
 

@@ -254,7 +254,7 @@ export async function auditVoucherWithAI(
 ): Promise<{ approved: boolean; reason: string }> {
   try {
     const completion = await openai.chat.completions.create({
-      model: "openai/o3-mini-high", // برای ناظر نهایی از قوی‌ترین مدل استفاده کنید
+      model: "openai/gpt-5.2", // برای ناظر نهایی از قوی‌ترین مدل استفاده کنید
       messages: [
         {
           role: "system",

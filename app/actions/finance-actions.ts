@@ -1136,19 +1136,25 @@ async function insertVoucherWithDL(params: {
 
         -- 3. هدر سند
         DECLARE @BranchRef BIGINT = 1, @LedgerRef BIGINT = 1, @UserRef INT = 1;
+        DECLARE @VoucherTypeRef BIGINT = 30;
         DECLARE @FiscalYearRef BIGINT;
         SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
 
         EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
-        SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 FROM [FIN3].[Voucher] WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef;
+      SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 
+        FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
+        WHERE FiscalYearRef = @FiscalYearRef 
+          AND LedgerRef = @LedgerRef 
+          AND VoucherTypeRef = @VoucherTypeRef;
 
-        INSERT INTO [FIN3].[Voucher] (
+
+       INSERT INTO [FIN3].[Voucher] (
             VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
             Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
             Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields, DailyNumber, Sequence
         ) VALUES (
             @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, @VoucherNumber,
-            @Date, 1, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
+            @Date, @VoucherTypeRef, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
             @Desc, 0, 0, 0, 0, @VoucherNumber, @VoucherNumber
         );
 
