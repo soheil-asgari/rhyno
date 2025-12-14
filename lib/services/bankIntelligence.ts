@@ -1,17 +1,155 @@
 import OpenAI from "openai"
 
-// تنظیمات کلاینت OpenAI
 const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: { "X-Title": "Rhyno Automation" }
+  defaultHeaders: {
+    "HTTP-Referer": "https://rhyno.ir",
+    "X-Title": "Rhyno Automation"
+  }
 })
+
 export interface FeeResult {
   isFee: boolean
   reason: string
 }
 
-// لیست کلمات عمومی و کارمزد
+export const INTERNAL_BANK_ACCOUNTS = [
+  // --- بانک ملی (تفکیک دقیق) ---
+  {
+    // حساب مهربانی
+    keywords: ["0364507742001", "364507742", "364507"],
+    dl: "200036",
+    title: "بانک ملی (مهربانی)"
+  },
+  {
+    // حساب مرکزی
+    keywords: ["0104813180001", "104813180", "104813"],
+    dl: "200001",
+    title: "بانک ملی (مرکزی)"
+  },
+  {
+    // حساب مراغه
+    keywords: ["0223789681001", "223789681", "223789"],
+    dl: "200026",
+    title: "بانک ملی (مراغه)"
+  },
+  {
+    // حساب جدید
+    keywords: ["0233196989007", "233196989"],
+    dl: "200038",
+    title: "بانک ملی (جدید)"
+  },
+
+  // --- بانک اقتصاد نوین ---
+  {
+    keywords: ["26116111", "1021.261"],
+    dl: "200002",
+    title: "بانک اقتصاد نوین (جاری)"
+  },
+  {
+    keywords: ["6119111", "850.611"],
+    dl: "200003",
+    title: "بانک اقتصاد نوین (کوتاه مدت)"
+  },
+  {
+    keywords: ["61161111", "750.611"],
+    dl: "200039",
+    title: "بانک اقتصاد نوین (سپرده)"
+  },
+
+  // --- سایر بانک‌ها ---
+  { keywords: ["9880346828"], dl: "200034", title: "بانک ملت (جام)" },
+  { keywords: ["2324874267"], dl: "200040", title: "بانک ملت (سردار جنگل)" },
+  {
+    keywords: ["16048100100425641", "10042564"],
+    dl: "200004",
+    title: "بانک پاسارگاد"
+  },
+  { keywords: ["546093999"], dl: "200005", title: "بانک تجارت" },
+  { keywords: ["540947"], dl: "200007", title: "بانک سپه" },
+  {
+    keywords: ["0100127174001", "127174001"],
+    dl: "200019",
+    title: "بانک آینده"
+  },
+  { keywords: ["14005303749"], dl: "200033", title: "بانک مسکن" },
+  {
+    keywords: ["0101684239601", "1684239601"],
+    dl: "200035",
+    title: "بانک کارآفرین"
+  },
+  {
+    keywords: ["1102009952609", "2009952609"],
+    dl: "200042",
+    title: "بانک کشاورزی"
+  }
+]
+
+// ---------------------------------------------------------
+// 2. تابع تشخیص هوشمند بانک (مرجع واحد)
+// ---------------------------------------------------------
+export function detectBankInfoByNumber(identifier: string): {
+  slCode: string
+  dlCode: string
+  bankName: string
+} {
+  const DEFAULT = {
+    slCode: "111005",
+    dlCode: "200001", // پیش‌فرض (ملی مرکزی)
+    bankName: "بانک ملی (پیش‌فرض)"
+  }
+
+  if (!identifier) return DEFAULT
+
+  // 1. تبدیل اعداد فارسی به انگلیسی و حذف هر چیزی غیر از عدد
+  const cleanInput = identifier
+    .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+    .replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString())
+    .replace(/[^0-9]/g, "")
+
+  console.log(`🔍 Checking Bank for: [${identifier}] -> Clean: [${cleanInput}]`)
+
+  // اگر ورودی تمیز شده خیلی کوتاه است، برگرد
+  if (cleanInput.length < 4) return DEFAULT
+
+  // 2. جستجوی دقیق (Exact or Contains)
+  for (const bank of INTERNAL_BANK_ACCOUNTS) {
+    // از keywords استفاده می‌کنیم که در بالا تعریف شده
+    for (const key of bank.keywords) {
+      const cleanKey = key.replace(/[^0-9]/g, "")
+      if (cleanInput.includes(cleanKey) || cleanKey.includes(cleanInput)) {
+        const commonLen = Math.min(cleanInput.length, cleanKey.length)
+        if (commonLen >= 5) {
+          // حداقل 5 رقم تطابق
+          console.log(`✅ Bank Identified: ${bank.title} (${bank.dl})`)
+          return {
+            slCode: "111005",
+            dlCode: bank.dl,
+            bankName: bank.title
+          }
+        }
+      }
+    }
+  }
+
+  // 3. فال‌بک بر اساس پیش‌شماره (اگر هیچکدام پیدا نشد)
+  if (cleanInput.startsWith("0364"))
+    return {
+      slCode: "111005",
+      dlCode: "200036",
+      bankName: "بانک ملی (مهربانی - تشخیص پیش‌شماره)"
+    }
+  if (cleanInput.startsWith("0104"))
+    return {
+      slCode: "111005",
+      dlCode: "200001",
+      bankName: "بانک ملی (مرکزی - تشخیص پیش‌شماره)"
+    }
+
+  return DEFAULT
+}
+
 const GENERIC_WORDS = new Set([
   "شرکت",
   "موسسه",
@@ -45,7 +183,6 @@ const GENERIC_WORDS = new Set([
   "تجهیزات",
   "مجتمع",
   "کارخانه",
-  "راه و ساختمانی",
   "بانک",
   "شعبه",
   "کد",
@@ -59,34 +196,14 @@ const GENERIC_WORDS = new Set([
   "امور",
   "دفتر",
   "شیمیایی",
-  "شیمی",
-  "صنایع",
-  "تولیدی",
   "پخش",
   "نوید",
   "گستر",
   "آریا",
-  "برتر",
-  "نوین",
-  "سازه",
-  "صنعت"
+  "برتر"
 ])
-const FEE_KEYWORDS = [
-  "کارمزد",
-  "هزینه بانکی",
-  "آبونمان",
-  "ابونمان", // با و بدون کلاه
-  "حق اشتراک",
-  "صدور چک",
-  "صدور دسته چک",
-  "هزینه پیامک",
-  "سرویس پیامک",
-  "تمبر",
-  "خدمات بانکی",
-  "کارمزد ساتنا",
-  "کارمزد پایا",
-  "عودت کارمزد  ساتنا/پایا",
-  "عودت کارمزد",
+
+const FAST_FEE_KEYWORDS = [
   "کارمزد",
   "هزینه بانکی",
   "آبونمان",
@@ -97,14 +214,16 @@ const FEE_KEYWORDS = [
   "هزینه پیامک",
   "سرویس پیامک",
   "تمبر",
-  "خدمات بانکی"
+  "خدمات بانکی",
+  "ابطال چک",
+  "عودت چک",
+  "رفع سوء اثر",
+  "کارمزد رفع سوء اثر",
+  "صدور چک",
+  "تمتی چک"
 ]
 
-// ---------------------------------------------------------
-// 1️⃣ تابع الگوریتمی (رایگان و سریع)
-// ---------------------------------------------------------
 export function verifyNameMatch(inputName: string, foundName: string): boolean {
-  // 1. نرمال‌سازی
   const normalize = (s: string) =>
     s
       .replace(/[يیكک]/g, m => (m === "ك" ? "ک" : "ی"))
@@ -114,121 +233,110 @@ export function verifyNameMatch(inputName: string, foundName: string): boolean {
 
   const inputNorm = normalize(inputName)
   const foundNorm = normalize(foundName)
-  const foundMerged = foundNorm.replace(/\s+/g, "") // نسخه چسبیده
 
-  // 2. استخراج توکن‌های مهم ورودی
+  if (inputNorm === foundNorm) return true
+  if (foundNorm.includes(inputNorm) && inputNorm.length > 4) return true
+
   const inputTokens = inputNorm
     .split(/\s+/)
     .filter(w => w.length > 2 && !GENERIC_WORDS.has(w))
-
-  // اگر هیچ کلمه خاصی نماند (مثلاً ورودی فقط "شرکت بازرگانی" بود)،
-  // ریسک نمی‌کنیم و فال‌بک می‌زنیم (False) تا AI تصمیم بگیرد یا رد شود.
   if (inputTokens.length === 0) return false
 
-  // 3. شمارش تعداد توکن‌های پیدا شده
   let matchCount = 0
-
   for (const token of inputTokens) {
-    // الف: آیا توکن دقیقاً در متن نرمال وجود دارد؟
-    const directMatch = foundNorm.includes(token)
+    if (foundNorm.includes(token)) matchCount++
+  }
 
-    // ب: آیا توکن در متن چسبیده وجود دارد؟ (برای حل مشکل "آذریوردتبریز")
-    // شرط طول > 3 برای جلوگیری از مچ شدن کلمات کوتاه داخل کلمات دیگر (مثل "علی" داخل "فعلی")
-    const mergedMatch = foundMerged.includes(token) && token.length > 3
+  return matchCount >= Math.ceil(inputTokens.length * 0.7)
+}
 
-    if (directMatch || mergedMatch) {
-      matchCount++
+export async function detectFeeWithAI(
+  partyName: string,
+  desc: string,
+  amount: number
+): Promise<FeeResult> {
+  const normalizeText = (text: string) =>
+    text ? text.replace(/[يیكک]/g, m => (m === "ك" ? "ک" : "ی")) : ""
+  const combinedSearchText = normalizeText(`${partyName} ${desc}`)
+
+  const hasFeeKeyword = FAST_FEE_KEYWORDS.some(k =>
+    combinedSearchText.includes(k)
+  )
+
+  if (amount < 10000 && (partyName === "نامشخص" || partyName === "")) {
+    return { isFee: true, reason: "مبلغ ناچیز و طرف حساب نامشخص (Fast Check)" }
+  }
+
+  if (hasFeeKeyword) {
+    return { isFee: true, reason: "تشخیص کلمه کلیدی کارمزد (Fast Check)" }
+  }
+
+  if (amount < 500000) {
+    try {
+      const aiRes = await openai.chat.completions.create({
+        model: "openai/gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              'You are a bank transaction classifier. Answer JSON: { "isFee": boolean }'
+          },
+          {
+            role: "user",
+            content: `Is this a bank fee/service charge? Description: "${desc}", Amount: ${amount}`
+          }
+        ],
+        response_format: { type: "json_object" }
+      })
+      const result = JSON.parse(aiRes.choices[0].message.content || "{}")
+      if (result.isFee) {
+        return { isFee: true, reason: "تشخیص هوشمند بافت تراکنش (AI Check)" }
+      }
+    } catch (e) {
+      console.error("AI Fee Check Error", e)
     }
   }
 
-  // 4. تصمیم‌گیری نهایی (سخت‌گیرانه)
-
-  // حالت تک کلمه‌ای (مثل "ایرانسل") -> باید پیدا شود
-  if (inputTokens.length === 1) {
-    return matchCount === 1
-  }
-
-  // حالت دو کلمه‌ای (مثل "مهدی صفرخانلو") -> باید هر دو باشند
-  // این خط جلوی باگ "مهدی مهدوی" را می‌گیرد
-  if (inputTokens.length === 2) {
-    return matchCount === 2
-  }
-
-  // حالت سه کلمه و بیشتر -> اجازه می‌دهیم ۱ کلمه پیدا نشود (خطای OCR یا کلمه اضافه)
-  // مثلا "شرکت مهندسی آذر یورد تبریز شمالی" (۴ کلمه مفید) -> اگر ۳ تا پیدا شد قبول است
-  return matchCount >= inputTokens.length - 1
+  return { isFee: false, reason: "" }
 }
 
-// ---------------------------------------------------------
-// 2️⃣ تابع تشخیص کارمزد (Rule-Based)
-// ---------------------------------------------------------
 export function detectFee(
   partyName: string,
   desc: string,
   amount: number
 ): FeeResult {
-  const normalizeText = (text: string) =>
-    text ? text.replace(/[يیكک]/g, m => (m === "ك" ? "ک" : "ی")) : ""
-  const combinedSearchText = normalizeText(`${partyName} ${desc}`)
-
-  // الف: کلمات کلیدی
-  const hasFeeKeyword = FEE_KEYWORDS.some(keyword =>
-    combinedSearchText.includes(keyword)
-  )
-
-  // ب: مبالغ ریز و نامشخص (سقف ۱ میلیون ریال)
-  const isSmallUnspecified =
-    (partyName.includes("نامشخص") || partyName.trim() === "") &&
-    amount < 1000000 &&
-    !combinedSearchText.includes("انتقال")
-
-  if (hasFeeKeyword) {
-    return { isFee: true, reason: "Fee Keyword Detected" }
-  }
-
-  if (isSmallUnspecified) {
-    return { isFee: true, reason: "Small Amount & Unspecified" }
-  }
-
-  // اگر کارمزد نبود
+  const res = FAST_FEE_KEYWORDS.some(k => desc.includes(k))
+  if (res) return { isFee: true, reason: "Keyword" }
+  if (amount < 10000 && partyName === "نامشخص")
+    return { isFee: true, reason: "Small Amount" }
   return { isFee: false, reason: "" }
 }
-
-// ---------------------------------------------------------
-// 3️⃣ قاضی هوش مصنوعی (برای تطابق نام)
-// ---------------------------------------------------------
 
 export async function verifyWithAI(
   inputName: string,
   dbName: string
 ): Promise<boolean> {
-  if (inputName.trim() === dbName.trim()) return true
+  // نرمال‌سازی اولیه برای حذف فاصله‌های اضافی
+  if (inputName.replace(/\s/g, "") === dbName.replace(/\s/g, "")) return true
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "openai/gpt-4o-mini", // یا مدل دلخواه شما
+      model: "openai/gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are a Data Resolution Agent acting as a Fuzzy Matcher.
-Your goal is to match entity names even with OCR errors or typos.
+          content: `You are a fuzzy string matcher for Persian business names.
+          
+RULES for MATCHING (Return "match": true):
+1. **Phonetic Match:** "Arisman" == "Erisman", "Azar" == "Azer".
+2. **Repeated Words:** Ignore repeated city names (e.g., "Tehran Erisman Tehran" == "Tehran Arisman").
+3. **Prefix/Suffix:** Ignore "Sherkat", "Bazargani", "Gorooh", "Havale", "Satna".
+4. **Typos:** Allow minor typos in Persian letters (س/ص, ت/ط, ا/آ).
 
-Rules:
-1. Ignore legal prefixes/suffixes (Sherkat, Aghaye, etc.).
-2. Focus on the core Proper Names.
-3. ALLOW minor OCR errors or typos (e.g., missing 1-2 letters).
-   - Example: "Mehrda" == "Mehrdad" -> MATCH (Missing last letter is common in OCR).
-   - Example: "Mohammd" == "Mohammad" -> MATCH.
-4. ALLOW word reordering (e.g., "Momeni Mehrdad" == "Mehrdad Momeni").
-5. REJECT only if the names are fundamentally different (e.g., "Ali" != "Hassan").
-  "آذربورد=آذریورد"
-Return JSON: {"match": true} OR {"match": false}.`
-        },
-        {
-          role: "user",
-          content: `Compare:
-Input: "${inputName}"
-Database Candidate: "${dbName}"`
+Input 1: "${inputName}"
+Input 2: "${dbName}"
+
+Reply JSON: { "match": boolean }`
         }
       ],
       response_format: { type: "json_object" },
@@ -236,51 +344,71 @@ Database Candidate: "${dbName}"`
     })
 
     const result = JSON.parse(completion.choices[0].message.content || "{}")
-    console.log(
-      `🤖 AI Judge: "${inputName}" vs "${dbName}" => ${result.match ? "✅ MATCH" : "❌ REJECT"}`
-    )
     return result.match === true
   } catch (e) {
-    console.error("AI Verification Failed:", e)
     return false
   }
 }
 
 // ---------------------------------------------------------
-// 🔥 4️⃣ ناظر نهایی (The Auditor) - جدید
+// 🔥 4️⃣ ناظر ارشد مالی (The Senior Auditor) - نسخه نهایی و هوشمند
 // ---------------------------------------------------------
-export async function auditVoucherWithAI(
-  voucherData: any
-): Promise<{ approved: boolean; reason: string }> {
+export async function auditVoucherWithAI(voucherData: {
+  inputName: string
+  inputDesc: string
+  amount: number
+  selectedAccountName: string
+  selectedAccountCode: string | null
+  selectedSLCode: string
+  isFee: boolean
+}): Promise<{ approved: boolean; reason: string; fixedHierarchy?: any }> {
+  // 1. تایید اتوماتیک کارمزد
+  if (voucherData.isFee)
+    return { approved: true, reason: "تایید اتوماتیک: هزینه بانکی" }
+  // 2. رد کردن مبلغ صفر
+  if (!voucherData.amount || voucherData.amount === 0)
+    return { approved: false, reason: "مبلغ صفر" }
+  // 3. بررسی وجود حساب
+  if (!voucherData.selectedAccountCode)
+    return { approved: false, reason: "حساب نامشخص" }
+
   try {
     const completion = await openai.chat.completions.create({
-      model: "openai/gpt-5.2", // برای ناظر نهایی از قوی‌ترین مدل استفاده کنید
+      model: "openai/gpt-4o",
       messages: [
         {
           role: "system",
-          content: `You are a Senior Financial Auditor. 
-Your job is to Sanity Check a bank transaction before it is saved to the accounting system.
+          content: `You are a Senior Financial Auditor. Validate the accounting mapping.
+          
+CRITICAL APPROVAL RULES (Strict Priority Order 1 -> 4):
 
-Fail the transaction (approved: false) IF:
-1. A large amount (> 5,000,000 IRR) is categorized as "Bank Fee" (هزینه بانکی).
-2. The detected account name clearly contradicts the input name (e.g., "Ali" mapped to "Hassan").
-3. The description suggests a "Loan" (وام) but it's mapped to "Income" (درآمد).
+1. **PERSON / PETTY CASH (Highest Priority):**
+   - IF Selected Account is a **Person** (e.g. "Amin...") OR **Petty Cash** ("Tan-khah"):
+   - **APPROVE**. Ignore any "Transfer" or account numbers in text.
 
-Pass the transaction (approved: true) IF:
-1. Logic seems sound.
-2. It's a "Default/Prepayment" (پیش پرداخت) because name was Unknown.
-3. Amounts and Categories match typical accounting logic.
+2. **NAME MATCH (Commercial/Entity):**
+   - IF Input Name matches Selected Account Name (fuzzy match allowed, e.g. "Tehran Arisman" ~= "Sherkat Arisman"):
+   - **APPROVE**.
+   - **IGNORE** any bank account numbers or "Internal Transfer" keywords. A matching name overrides the bank rule.
 
-Return JSON: { "approved": boolean, "reason": string }`
+3. **INTERNAL BANK TRANSFER (Bank-to-Bank):**
+   - IF Rules #1 & #2 NOT met:
+   - AND Description contains "Jobran Rosob" (جبران رسوب) OR "Internal Transfer" OR shows an Account Number:
+   - THEN Selected Account **MUST BE A BANK** (Code starts with "200...").
+   - IF it is a Company/Partner instead of a Bank -> **REJECT**.
+
+4. **MISMATCH:**
+   - IF none of the above apply AND names are totally different:
+   - **REJECT**.
+
+Output JSON: { "approved": boolean, "reason": "Short explanation" }`
         },
         {
           role: "user",
-          content: `Audit this voucher:
-Input Name: "${voucherData.inputName}"
-Input Desc: "${voucherData.inputDesc}"
-Amount: ${voucherData.amount}
-Selected Account: "${voucherData.selectedAccountName}" (Code: ${voucherData.selectedAccountCode})
-Is Fee Logic: ${voucherData.isFee}`
+          content: `Audit Data:
+- Input Name: "${voucherData.inputName}"
+- Description: "${voucherData.inputDesc}"
+- Selected Account: "${voucherData.selectedAccountName}" (Code: ${voucherData.selectedAccountCode})`
         }
       ],
       response_format: { type: "json_object" },
@@ -288,14 +416,27 @@ Is Fee Logic: ${voucherData.isFee}`
     })
 
     const result = JSON.parse(completion.choices[0].message.content || "{}")
+
+    // لاجیک سلسله‌مراتب بانک
+    let fixedHierarchy = null
+    if (
+      result.approved &&
+      (voucherData.selectedAccountName.includes("بانک") ||
+        voucherData.selectedAccountCode?.startsWith("200"))
+    ) {
+      fixedHierarchy = {
+        group: "داراییهای جاری",
+        total: "موجودی نقد وبانک",
+        sl: "موجودی بانکهای ریالی"
+      }
+    }
+
     return {
       approved: result.approved,
-      reason: result.reason || "Auditor decision"
+      reason: result.reason || "تایید توسط ناظر",
+      fixedHierarchy
     }
   } catch (e) {
-    console.error("Auditor Failed:", e)
-    // اگر ناظر خطا داد، محافظه‌کارانه عمل کن یا رد کن، یا تایید کن (بسته به سیاست)
-    // اینجا تایید میکنیم تا پروسه نخوابد، ولی لاگ میکنیم
-    return { approved: true, reason: "Auditor Offline - Auto Pass" }
+    return { approved: true, reason: "تایید سیستمی (عدم دسترسی به ناظر)" }
   }
 }
