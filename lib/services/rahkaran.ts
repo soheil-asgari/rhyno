@@ -706,7 +706,7 @@ export async function syncToRahkaranSystem(
     console.log("---------------------------------------------------")
     const successfulTrackingCodes: string[] = []
 
-    const { mode, items, bankDLCode } = payload
+    const { mode, items, bankDLCode, branchId } = payload
     const isDeposit = mode === "deposit"
     const resultsTable = []
     const FIXED_BANK_DL = bankDLCode
@@ -914,7 +914,7 @@ END
       DECLARE @Sequence BIGINT;
       DECLARE @VoucherLockID BIGINT;
 
-      DECLARE @BranchRef BIGINT; 
+      DECLARE @BranchRef BIGINT = ${branchId ? branchId : "NULL"};
       DECLARE @LedgerRef BIGINT = ${FIXED_LEDGER_ID};
       DECLARE @VoucherTypeRef BIGINT = 30;
       DECLARE @UserRef INT = 1; 
@@ -969,15 +969,18 @@ END
 
          
            SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 1 
-           FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
+           FROM [FIN3].[Voucher] WITH (UPDLOCK, SERIALIZABLE) 
            WHERE LedgerRef = @LedgerRef 
              AND BranchRef = @BranchRef 
+             AND FiscalYearRef = @FiscalYearRef  
              AND Date = @Date;
            
+           -- حلقه اطمینان برای جلوگیری از تکراری بودن
            WHILE EXISTS (
-               SELECT 1 FROM [FIN3].[Voucher] 
+               SELECT 1 FROM [FIN3].[Voucher] WITH (UPDLOCK, SERIALIZABLE)
                WHERE LedgerRef = @LedgerRef 
                  AND BranchRef = @BranchRef
+                 AND FiscalYearRef = @FiscalYearRef 
                  AND Date = @Date 
                  AND DailyNumber = @DailyNumber
            )
