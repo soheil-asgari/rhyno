@@ -134,7 +134,12 @@ export async function analyzeSinglePage(
     if (jsonMatch) {
       try {
         const h = JSON.parse(jsonMatch[0])
-        if (h.acc) headerInfo.number = h.acc.replace(/[^0-9]/g, "")
+        if (h.acc) {
+          // اول تبدیل اعداد فارسی به انگلیسی
+          const fixedAcc = toEnglishDigits(h.acc)
+          // سپس حذف کاراکترهای مزاحم
+          headerInfo.number = fixedAcc.replace(/[^0-9]/g, "")
+        }
         if (h.bank) headerInfo.bank_name = h.bank
       } catch (e) {}
     }
@@ -1049,6 +1054,7 @@ async function insertVoucherWithDL(params: {
         DECLARE @SLCode NVARCHAR(50) = '${params.slCode}';
         
         DECLARE @VoucherID BIGINT, @VoucherNumber BIGINT, @VoucherLockID BIGINT;
+        DECLARE @DailyNumber INT; -- متغیر جدید برای شماره روزانه
         DECLARE @SLRef BIGINT, @GLRef BIGINT, @AccountGroupRef BIGINT;
         
         -- متغیرهای تفصیلی
@@ -1060,7 +1066,7 @@ async function insertVoucherWithDL(params: {
 
         IF @SLRef IS NULL THROW 51000, 'کد معین یافت نشد', 1;
 
-        -- 2. پیدا کردن تفصیلی (اگر کاربر انتخاب کرده باشد)
+        -- 2. پیدا کردن تفصیلی
         IF ${dlCodeValue} IS NOT NULL
         BEGIN
             SELECT TOP 1 @DLRef = DLID, @DLTypeRef = DLTypeRef 
@@ -1075,13 +1081,23 @@ async function insertVoucherWithDL(params: {
         DECLARE @FiscalYearRef BIGINT;
         SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
 
+        -- دریافت ID جدید
         EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
-      SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 
+        
+        -- محاسبه شماره سند (کلی در سال)
+        SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1 
         FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
         WHERE FiscalYearRef = @FiscalYearRef 
           AND LedgerRef = @LedgerRef 
           AND VoucherTypeRef = @VoucherTypeRef;
 
+        -- ✅ محاسبه صحیح شماره روزانه (مخصوص همان روز)
+        SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 1 
+        FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
+        WHERE FiscalYearRef = @FiscalYearRef 
+          AND LedgerRef = @LedgerRef 
+          AND BranchRef = @BranchRef
+          AND Date = @Date;
 
        INSERT INTO [FIN3].[Voucher] (
             VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
@@ -1090,21 +1106,22 @@ async function insertVoucherWithDL(params: {
         ) VALUES (
             @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, @VoucherNumber,
             @Date, @VoucherTypeRef, @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
-            @Desc, 0, 0, 0, 0, @VoucherNumber, @VoucherNumber
+            @Desc, 0, 0, 0, 0, @DailyNumber, @VoucherNumber
         );
+        -- نکته: DailyNumber اصلاح شد (قبلاً @VoucherNumber بود)
 
         EXEC [Sys3].[spGetNextId] 'FIN3.VoucherLock', @Id = @VoucherLockID OUTPUT;
         INSERT INTO [FIN3].[VoucherLock] (VoucherLockID, VoucherRef, UserRef, LastModificationDate) 
         VALUES (@VoucherLockID, @VoucherID, @UserRef, GETDATE());
 
-        -- 4. آیتم طرف حساب (با تفصیلی مشخص)
+        -- 4. آیتم طرف حساب
         DECLARE @ItemID1 BIGINT;
         EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @ItemID1 OUTPUT;
         
         INSERT INTO [FIN3].[VoucherItem] (
             VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef,
             Debit, Credit, Description, RowNumber, IsCurrencyBased,
-            DLLevel4, DLTypeRef4 -- قرار دادن تفصیلی در سطح 4
+            DLLevel4, DLTypeRef4
         ) VALUES (
             @ItemID1, @VoucherID, @BranchRef, @SLRef, @SLCode, @GLRef, @AccountGroupRef,
             ${params.isDeposit ? 0 : params.amount}, ${params.isDeposit ? params.amount : 0}, 

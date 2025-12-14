@@ -386,16 +386,16 @@ CRITICAL APPROVAL RULES (Strict Priority Order 1 -> 4):
    - IF Selected Account is a **Person** (e.g. "Amin...") OR **Petty Cash** ("Tan-khah"):
    - **APPROVE**. Ignore any "Transfer" or account numbers in text.
 
-2. **NAME MATCH (Commercial/Entity):**
+2. **NAME MATCH (Strong Overrule):**
    - IF Input Name matches Selected Account Name (fuzzy match allowed, e.g. "Tehran Arisman" ~= "Sherkat Arisman"):
    - **APPROVE**.
-   - **IGNORE** any bank account numbers or "Internal Transfer" keywords. A matching name overrides the bank rule.
+   - **CRITICAL:** If the name matches, IGNORE the word "Transfer" (انتقالی). A transfer to a specific company/project is valid.
 
-3. **INTERNAL BANK TRANSFER (Bank-to-Bank):**
-   - IF Rules #1 & #2 NOT met:
-   - AND Description contains "Jobran Rosob" (جبران رسوب) OR "Internal Transfer" OR shows an Account Number:
-   - THEN Selected Account **MUST BE A BANK** (Code starts with "200...").
-   - IF it is a Company/Partner instead of a Bank -> **REJECT**.
+3. **INTERNAL BANK TRANSFER (Smart Check):**
+   - IF Description contains "Jobran Rosob", "Internal Transfer", "Transfer" (انتقالی), or "Havale":
+     - **CASE A:** Selected Account is a **BANK** (Code starts with "200...") -> **APPROVE**.
+     - **CASE B:** Selected Account is a **PROJECT/COMPANY** AND the Input Name/Description contains words from the Selected Account Name -> **APPROVE** (It is a specific transfer to that Project/Company).
+     - **CASE C:** Selected Account is NOT a Bank AND Name is NOT in Description -> **REJECT** (Reason: "Generic internal transfer requires a Bank account").
 
 4. **MISMATCH:**
    - IF none of the above apply AND names are totally different:
@@ -417,7 +417,7 @@ Output JSON: { "approved": boolean, "reason": "Short explanation" }`
 
     const result = JSON.parse(completion.choices[0].message.content || "{}")
 
-    // لاجیک سلسله‌مراتب بانک
+    // لاجیک سلسله‌مراتب بانک (اگر واقعاً بانک بود)
     let fixedHierarchy = null
     if (
       result.approved &&

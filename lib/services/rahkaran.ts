@@ -145,7 +145,7 @@ const openai = new OpenAI({
   }
 })
 
-const AI_MODEL = "openai/gpt-5-mini"
+const AI_MODEL = "google/gemini-2.5-pro"
 
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
@@ -524,8 +524,6 @@ async function smartAccountFinder(
 }> {
   const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
   const normalizedDesc = normalizePersianNumbers(description)
-
-  // ✅ اصلاح مهم: حذف فاصله‌ها برای تشخیص بهتر شماره حساب (مثلاً 0104 813...)
   const cleanDescriptionForSearch = normalizedDesc.replace(/[-.\/\s]/g, "")
   const isSmallAmount = amount < 1000000
 
@@ -541,24 +539,22 @@ async function smartAccountFinder(
 
   let candidates: any[] = []
 
-  // 2. جستجوی حساب‌های بانکی (استفاده از لیست مرکزی)
-  // این بخش مشکل سند 52 (آذریورد) را حل می‌کند
+  // 2. جستجوی حساب‌های بانکی
   for (const acc of INTERNAL_BANK_ACCOUNTS) {
     for (const key of acc.keywords) {
-      const cleanKey = key.replace(/[-.\/\s]/g, "") // حذف فاصله از کلید هم
+      const cleanKey = key.replace(/[-.\/\s]/g, "")
       if (cleanDescriptionForSearch.includes(cleanKey)) {
         candidates.push({
           Code: acc.dl,
           Title: acc.title,
           source: "Detected Account Number"
         })
-        // وقتی پیدا شد، بریک کن که تکراری نشه
         break
       }
     }
   }
 
-  // 3. جستجوی ویژه برای اشخاص (حل مشکل Unknown شدن امین‌نیا)
+  // 3. جستجوی اشخاص (توسط ...)
   const personMatch = normalizedDesc.match(/توسط\s+([\u0600-\u06FF\s]+)/)
   if (personMatch && personMatch[1]) {
     const extractedPersonName = personMatch[1]
@@ -591,7 +587,7 @@ async function smartAccountFinder(
     }
   }
 
-  // 4. جستجوی عادی (نام طرف حساب و شرح)
+  // 4. جستجوی عادی نام
   if (cleanName.length > 2) {
     try {
       const embeddingRes = await openai.embeddings.create({
@@ -613,12 +609,11 @@ async function smartAccountFinder(
     } catch (e) {}
   }
 
-  // حذف تکراری‌ها
   const uniqueCandidates = Array.from(
     new Map(candidates.map(item => [item.Code || item.dl_code, item])).values()
   )
 
-  // 5. تصمیم‌گیری نهایی با هوش مصنوعی
+  // 5. تصمیم‌گیری نهایی با هوش مصنوعی (با قانون جدید "آذر یورد")
   const prompt = `
   You are an expert Chief Accountant. Map this transaction to the correct DL Code.
   
@@ -645,15 +640,21 @@ async function smartAccountFinder(
      - **SELECT THAT PERSON** from candidates.
      - **IGNORE** any bank account numbers or "Transfer" keywords.
 
-  2. **NAME MATCH (Commercial):**
+  2. **SELF COMPANY TRANSFER (CRITICAL - AZAR YORD):**
+     - IF Input Name contains "آذر یورد" (Azar Yord) "اذربورد" "آذربورد" "آذر بورد" "اذر بورد" OR "خودم" (Self):
+     - THIS IS AN INTERNAL TRANSFER.
+     - **MUST SELECT THE BANK CANDIDATE** (source='Detected Account Number').
+     - **DO NOT** select any Project or Company named "Azar...".
+
+  3. **NAME MATCH (Commercial):**
      - IF Input Name matches a Candidate Name (fuzzy match):
      - **SELECT THAT CANDIDATE**.
      - **IGNORE** bank transfer details.
 
-  3. **INTERNAL BANK TRANSFER:** - IF Rule #1 & #2 are NOT met, AND description contains an Account Number match (source='Detected Account Number'):
+  4. **INTERNAL BANK TRANSFER:** - IF Rules #1, #2, #3 are NOT met, AND description contains an Account Number match (source='Detected Account Number'):
      - Select the **BANK** candidate.
 
-  4. **Fees:** - If small amount (< 5M IRR) and desc has "کارمزد"/"چک".
+  5. **Fees:** - If small amount (< 5M IRR) and desc has "کارمزد"/"چک".
 
   Output JSON: { "decision": "SELECTED_CODE" | "IS_FEE" | "UNKNOWN", "code": "...", "name": "...", "reason": "..." }
   `
@@ -903,7 +904,6 @@ END
       SET XACT_ABORT ON;
 
       DECLARE @RetryCount INT = 0;
-      DECLARE @Success BIT = 0;
       DECLARE @ErrorMessage NVARCHAR(4000);
       DECLARE @RealLevel INT;
       DECLARE @VoucherID BIGINT;
@@ -912,7 +912,7 @@ END
       DECLARE @RefNumStr NVARCHAR(50);
       DECLARE @DailyNumber INT;
       DECLARE @Sequence BIGINT;
-      DECLARE @RetVal INT;
+      DECLARE @VoucherLockID BIGINT;
 
       DECLARE @BranchRef BIGINT; 
       DECLARE @LedgerRef BIGINT = ${FIXED_LEDGER_ID};
@@ -933,82 +933,97 @@ END
       DECLARE @VoucherItemID BIGINT;
 
       BEGIN TRY
-            BEGIN TRANSACTION;
+           BEGIN TRANSACTION;
 
-            SELECT TOP 1 @BranchRef = BranchID FROM [GNR3].[Branch];
-            IF @BranchRef IS NULL THROW 51000, 'Error: No Branch found.', 1;
+           SELECT TOP 1 @BranchRef = BranchID FROM [GNR3].[Branch];
+           IF @BranchRef IS NULL THROW 51000, 'Error: No Branch found.', 1;
 
-            SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] 
-            WHERE LedgerRef = @LedgerRef AND StartDate <= @Date AND EndDate >= @Date;
-            IF @FiscalYearRef IS NULL 
-               SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
+           -- پیدا کردن سال مالی
+           SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] 
+           WHERE LedgerRef = @LedgerRef AND StartDate <= @Date AND EndDate >= @Date;
+           IF @FiscalYearRef IS NULL 
+              SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
 
-            SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1
-            FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
-            WHERE FiscalYearRef = @FiscalYearRef 
-              AND LedgerRef = @LedgerRef 
-              AND VoucherTypeRef = @VoucherTypeRef;
+           -- محاسبه شماره سند (Number)
+           SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1
+           FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
+           WHERE FiscalYearRef = @FiscalYearRef 
+             AND LedgerRef = @LedgerRef 
+             AND VoucherTypeRef = @VoucherTypeRef;
 
-            IF @VoucherNumber IS NULL SET @VoucherNumber = 1;
+           IF @VoucherNumber IS NULL SET @VoucherNumber = 1;
+           SET @Sequence = @VoucherNumber;
+           SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
 
-            SET @Sequence = @VoucherNumber;
-            SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
+           -- اطمینان از یکتایی شماره سند
+           WHILE EXISTS (
+               SELECT 1 FROM [FIN3].[Voucher] 
+               WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef
+                 AND (ReferenceNumber = @RefNumStr OR Sequence = @Sequence)
+           )
+           BEGIN
+               SET @VoucherNumber = @VoucherNumber + 1;
+               SET @Sequence = @VoucherNumber;
+               SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
+           END
 
-            WHILE EXISTS (
-                SELECT 1 FROM [FIN3].[Voucher] 
-                WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef
-                  AND (ReferenceNumber = @RefNumStr OR Sequence = @Sequence)
-            )
-            BEGIN
-                SET @VoucherNumber = @VoucherNumber + 1;
-                SET @Sequence = @VoucherNumber;
-                SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
-            END
+         
            SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 1 
-            FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
-            WHERE LedgerRef = @LedgerRef 
-              AND BranchRef = @BranchRef 
-              AND Date = @Date;
+           FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
+           WHERE LedgerRef = @LedgerRef 
+             AND BranchRef = @BranchRef 
+             AND Date = @Date;
+           
+           WHILE EXISTS (
+               SELECT 1 FROM [FIN3].[Voucher] 
+               WHERE LedgerRef = @LedgerRef 
+                 AND BranchRef = @BranchRef
+                 AND Date = @Date 
+                 AND DailyNumber = @DailyNumber
+           )
+           BEGIN
+               SET @DailyNumber = @DailyNumber + 1;
+           END
 
-            
-            WHILE EXISTS (
-                SELECT 1 FROM [FIN3].[Voucher] 
-                WHERE LedgerRef = @LedgerRef 
-                  AND BranchRef = @BranchRef
-                  AND Date = @Date 
-                  AND DailyNumber = @DailyNumber
-            )
-            BEGIN
-                SET @DailyNumber = @DailyNumber + 1;
-            END
+           -- دریافت ID جدید برای سند
+           EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
 
-            EXEC @RetVal = [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
+           -- درج هدر سند (با ستون‌های استاندارد و مطمئن)
+           INSERT INTO [FIN3].[Voucher] (
+                 VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
+                 Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
+                 Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields,
+                 DailyNumber, Sequence
+           ) VALUES (
+                 @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, 
+                 @VoucherNumber, @Date, @VoucherTypeRef, 
+                 @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
+                 N'${safeHeaderDesc}', 0, 0, 0, 0,
+                 @DailyNumber, @Sequence
+           );
 
-          INSERT INTO [FIN3].[Voucher] (
-                  VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
-                  Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
-                  Description, State, IsTemporary, IsCurrencyBased, ShowCurrencyFields, -- ✅ اصلاح شد: normalizedDesc حذف شد
-                  DailyNumber, Sequence, ReferenceNumber, IsReadonly, AuxiliaryNumber
-            ) VALUES (
-                  @VoucherID, @LedgerRef, @FiscalYearRef, @BranchRef, 
-                  @VoucherNumber, @Date, @VoucherTypeRef, 
-                  @UserRef, GETDATE(), @UserRef, GETDATE(), 0,
-                  N'${safeHeaderDesc}', 0, 0, 0, 0, -- ✅ اصلاح شد: مقادیر اضافی حذف شدند
-                  @DailyNumber, @Sequence, @RefNumStr, 0, N''
-            );
+           -- ایجاد قفل سند (VoucherLock)
+           EXEC [Sys3].[spGetNextId] 'FIN3.VoucherLock', @Id = @VoucherLockID OUTPUT;
+           INSERT INTO [FIN3].[VoucherLock] (VoucherLockID, VoucherRef, UserRef, LastModificationDate) 
+           VALUES (@VoucherLockID, @VoucherID, @UserRef, GETDATE());
 
-            ${sqlItemsBuffer}
+           -- درج آیتم‌ها
+           ${sqlItemsBuffer}
 
-            UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID;
+           -- تغییر وضعیت سند به "موقت" (State = 1)
+           UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID;
 
-            COMMIT TRANSACTION;
-            SELECT 'Success' AS Status, @VoucherNumber AS VoucherNum;
+           COMMIT TRANSACTION;
+           SELECT 'Success' AS Status, 
+                  @VoucherNumber AS VoucherNum,
+                  @DailyNumber AS DailyNum, 
+                  @RefNumStr AS RefNum;
 
       END TRY
       BEGIN CATCH
-            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-            SET @ErrorMessage = ERROR_MESSAGE();
-            THROW 51000, @ErrorMessage, 1;
+           IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+           SET @ErrorMessage = ERROR_MESSAGE();
+           THROW 51000, @ErrorMessage, 1;
       END CATCH
       `
 
@@ -1016,12 +1031,19 @@ END
 
       if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
         const voucherNum = sqlRes[0].VoucherNum
-        console.log(`🎉 SUCCESS! Voucher Created: #${voucherNum}`)
+        const dailyNum = sqlRes[0].DailyNum
+        const refNum = sqlRes[0].RefNum
+
+        // ✅ لاگ کامل عملیات برای دیباگ
+        console.log(`🎉 SUCCESS! Voucher Created:`)
+        console.log(`   - Voucher Number: #${voucherNum}`)
+        console.log(`   - Daily Number: #${dailyNum}`)
+        console.log(`   - Reference: ${refNum}`)
 
         return {
           success: true,
           docId: voucherNum.toString(),
-          message: `سند با شماره ${voucherNum} با موفقیت ثبت شد.`,
+          message: `سند با شماره ${voucherNum} (روزانه: ${dailyNum}) با موفقیت ثبت شد.`,
           processedTrackingCodes: successfulTrackingCodes
         }
       } else {
