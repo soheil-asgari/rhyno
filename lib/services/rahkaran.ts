@@ -968,7 +968,7 @@ END
            END
 
          
-           SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 1 
+           SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 500 
            FROM [FIN3].[Voucher] WITH (UPDLOCK, SERIALIZABLE) 
            WHERE LedgerRef = @LedgerRef 
              AND BranchRef = @BranchRef 
