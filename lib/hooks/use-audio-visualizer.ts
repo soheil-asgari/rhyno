@@ -11,8 +11,9 @@ export const useAudioVisualizer = (stream: MediaStream | null) => {
       return
     }
 
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)()
+    const audioContext = new (
+      window.AudioContext || (window as any).webkitAudioContext
+    )()
     const analyser = audioContext.createAnalyser()
     const source = audioContext.createMediaStreamSource(stream)
 

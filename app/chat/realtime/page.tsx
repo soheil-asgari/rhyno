@@ -88,8 +88,9 @@ const useAudioVisualizer = (stream: MediaStream | null) => {
     }
 
     if (!audioContextRef.current) {
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)()
+      const audioContext = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )()
       const analyzer = audioContext.createAnalyser()
       analyzer.fftSize = 256
       const source = audioContext.createMediaStreamSource(stream)
@@ -160,8 +161,9 @@ const useAudioActivityDetector = (
     }
 
     // اگر استریم وجود دارد، آنالایزر را بساز
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)()
+    const audioContext = new (
+      window.AudioContext || (window as any).webkitAudioContext
+    )()
     const analyser = audioContext.createAnalyser()
     analyser.fftSize = 256
     const source = audioContext.createMediaStreamSource(stream)

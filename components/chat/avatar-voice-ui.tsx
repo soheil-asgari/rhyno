@@ -28,8 +28,9 @@ const useAudioVisualizer = (stream: MediaStream | null) => {
     }
 
     if (!audioContextRef.current) {
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)()
+      const audioContext = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )()
       const analyzer = audioContext.createAnalyser()
       analyzer.fftSize = 256
       const source = audioContext.createMediaStreamSource(stream)

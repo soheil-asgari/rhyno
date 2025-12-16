@@ -2,8 +2,12 @@ import { Button } from "@/components/ui/button"
 import { useCopyToClipboard } from "@/lib/hooks/use-copy-to-clipboard"
 import { IconCheck, IconCopy, IconDownload } from "@tabler/icons-react"
 import { FC, memo } from "react"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+// 1. Changed import name to avoid conflict
+import { Prism as SyntaxHighlighterOriginal } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism"
+
+// 2. Cast the component to 'any' to fix the React 18 type mismatch error
+const SyntaxHighlighter = SyntaxHighlighterOriginal as any
 
 interface MessageCodeBlockProps {
   language: string
