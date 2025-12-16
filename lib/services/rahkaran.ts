@@ -5,7 +5,10 @@ import {
   detectFee,
   verifyWithAI,
   auditVoucherWithAI,
-  INTERNAL_BANK_ACCOUNTS
+  INTERNAL_BANK_ACCOUNTS,
+  recoverBankFromDescription,
+  detectBankInfoByNumber,
+  extractCounterpartyBankWithAI
 } from "./bankIntelligence"
 
 export interface RahkaranSyncResult {
@@ -23,6 +26,66 @@ export interface FeeResult {
   isFee: boolean
   reason: string
 }
+
+const SPECIAL_OVERRIDES = [
+  {
+    // ✅ قانون عمومی: هر جا "حسن انجام کار" بود -> معین ۱۱۱۳۱۱
+    keywords: [
+      "حسن انجام کار",
+      "سپرده حسن",
+      "وجه نقد ضمانتنامه",
+      "وجه نقد ضمان"
+    ],
+    slCode: "111311",
+    title: "سپرده حسن انجام کار (عمومی)",
+    dlCode: null // تفصیلی را نال می‌گذاریم تا بعداً شاید سیستم بتواند پروژه را پیدا کند یا دستی ست شود
+  },
+  {
+    // قانون خاص چیتگر (اگر هنوز نیاز است تفصیلی خاصی داشته باشد)
+    keywords: ["مجتمع چیتگر", "دادور"],
+    slCode: "111311",
+    title: "سپرده حسن انجام کار - مجتمع چیتگر",
+    dlCode: null
+  }
+]
+
+const PETTY_CASH_HOLDERS = [
+  "امین امین نیا",
+  "امین امین‌نیا", // با نیم‌فاصله
+  "ایرج امین نیا",
+  "ایرج امین‌نیا"
+]
+
+const TRANSFER_TRIGGERS = [
+  "انتقال",
+  "انتقالی",
+  "جبران رسوب",
+  "جبران",
+  "آذریورد",
+  "آذر یورد",
+  "اذربورد",
+  "آذربورد",
+  "آذر بورد",
+  "اذر بورد",
+  "اذریورد",
+  "اذر یورد"
+]
+
+const STRICT_FEE_KEYWORDS = [
+  "تمبر",
+  "ضمانت نامه",
+  "ضمانتنامه",
+  "صدور ضمان",
+  "کارمزد",
+  "آبونمان",
+  "ابونمان",
+  "هزینه",
+  "ابطال",
+  "عودت چک",
+  "دسته چک",
+  "حق اشتراک",
+  "ضمان"
+]
 
 const GENERIC_WORDS = new Set([
   "شرکت",
@@ -145,7 +208,7 @@ const openai = new OpenAI({
   }
 })
 
-const AI_MODEL = "google/gemini-2.5-pro"
+const AI_MODEL = "openai/gpt-5.2"
 
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
@@ -215,7 +278,7 @@ const supabaseService = createClient(
 
 const EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
 
-async function findAccountCode(partyName: string): Promise<{
+export async function findAccountCode(partyName: string): Promise<{
   dlCode?: string
   dlType?: number
   slId?: number
@@ -460,6 +523,58 @@ async function generateHumanHeader(date: string): Promise<string> {
   }
 }
 
+// این تابع را به فایل rahkaran.ts اضافه کنید
+// در فایل rahkaran.ts
+
+async function findStrictAccountBySQL(partyName: string): Promise<{
+  dlCode: string
+  dlType: number
+  foundName: string
+} | null> {
+  // 1. اگر نام "نامشخص" بود، اصلا نگرد (چون فایده‌ای ندارد)
+  if (partyName.includes("نامشخص") || partyName.includes("Unknown")) {
+    return null
+  }
+
+  // تمیزکاری اولیه: حذف کلمات اضافه
+  let clean = partyName
+    .replace(/توسط|به نام|در وجه|بابت|آقای|خانم|شرکت|فروشگاه/g, " ")
+    .trim()
+
+  // کلمات را جدا کن و فقط کلمات بیشتر از 2 حرف را نگه دار
+  const words = clean.split(/\s+/).filter(w => w.length > 2)
+
+  if (words.length === 0) return null
+
+  // ساخت کوئری داینامیک
+  const likeConditions = words
+    .map(w => `Title LIKE N'%${escapeSql(w)}%'`)
+    .join(" AND ")
+
+  // 🛠 اصلاح شده: حذف شرط Status = 1
+  const sql = `
+    SELECT TOP 1 Code, Title, DLTypeRef 
+    FROM [FIN3].[DL] 
+    WHERE (${likeConditions})
+  `
+
+  try {
+    const res = await executeSql(sql)
+    if (res && res.length > 0) {
+      console.log(
+        `✅ Strict SQL Match Found: "${partyName}" => "${res[0].Title}"`
+      )
+      return {
+        dlCode: res[0].Code,
+        dlType: res[0].DLTypeRef,
+        foundName: res[0].Title
+      }
+    }
+  } catch (e) {
+    console.error("Strict SQL Search Error:", e)
+  }
+  return null
+}
 // تابع جدید برای پیدا کردن کد تفصیلی از روی شماره حساب موجود در متن
 async function findBankDLByAccountNum(
   normalizedDesc: string
@@ -503,6 +618,166 @@ async function findBankDLByAccountNum(
   return null
 }
 
+// --- اضافه کردن به فایل rahkaran.ts ---
+
+// --- 1. تابع پیش‌بینی هوشمند معین (Semantic AI) ---
+async function predictSLWithAI(
+  description: string,
+  partyName: string,
+  amount: number,
+  isDeposit: boolean
+): Promise<string | null> {
+  try {
+    const { data: candidates } = await supabaseService
+      .from("rahkaran_accounts")
+      .select("code, title")
+      .eq("account_type", "SL")
+
+    if (!candidates || candidates.length === 0) return null
+
+    const prompt = `
+    You are a Senior Financial Accountant. Your goal is to select the correct Subsidiary Ledger (SL) code for a transaction based on its description and direction (Deposit/Withdrawal).
+
+    Transaction Details:
+    - Description: "${description}"
+    - Counterparty: "${partyName}"
+    - Amount: ${amount}
+    - Type: ${isDeposit ? "DEPOSIT (Credit/بستانکار)" : "WITHDRAWAL (Debit/بدهکار)"}
+
+    Available SL Codes:
+    ${JSON.stringify(candidates.map(c => `${c.code}: ${c.title}`).join("\n"))}
+
+    Instructions:
+    1. **Analyze the nature:** Is it an Expense (Debit), Income (Credit), Asset Purchase, or Liability/Deposit (Soperde)?
+    2. **Context Matching:** - "Mouse/Keyboard" -> Office Supplies/Assets (Assets)
+       - "Lunch/Food" -> Personnel/Reception Expenses (Expenses)
+       - "Guarantee/Hassan Anjam Kar" -> Performance Deposit (Liabilities/Assets)
+       - "Charge/Tan-khah" -> Petty Cash
+    3. **Select Best Match:** Return the exact Code.
+
+    Output JSON ONLY: { "selected_code": "..." | null }
+    `
+
+    const aiRes = await openai.chat.completions.create({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0
+    })
+
+    const result = JSON.parse(aiRes.choices[0].message.content || "{}")
+    if (result.selected_code) {
+      console.log(
+        `🧠 AI Semantic Match: "${description}" (${isDeposit ? "Dep" : "Wdr"}) => ${result.selected_code}`
+      )
+      return result.selected_code
+    }
+    return null
+  } catch (e) {
+    console.error("AI Semantic Error:", e)
+    return null
+  }
+}
+
+// --- جایگزین تابع قبلی در rahkaran.ts ---
+
+async function findFallbackSL(
+  rawDesc: string,
+  partyName: string,
+  amount: number,
+  isDeposit: boolean
+): Promise<string> {
+  const cleanDesc = rawDesc.replace(/[0-9]/g, "").trim()
+
+  // ---------------------------------------------------------
+  // گام ۱: جستجوی سریع کلمات کلیدی (Database Keywords)
+  // ---------------------------------------------------------
+  const { data: slRules } = await supabaseService
+    .from("rahkaran_accounts")
+    .select("code, match_keywords")
+    .eq("account_type", "SL")
+    .not("match_keywords", "is", null)
+
+  if (slRules) {
+    for (const rule of slRules) {
+      if (!rule.match_keywords) continue
+      for (const keyword of rule.match_keywords) {
+        if (cleanDesc.includes(keyword)) {
+          console.log(
+            `⚡️ DB Keyword Match: Found SL "${rule.code}" via keyword "${keyword}"`
+          )
+          return rule.code
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------
+  // گام ۲: هوش مصنوعی (Semantic AI Search)
+  // اینجا مشکل "موس" حل می‌شود!
+  // ---------------------------------------------------------
+  // فقط برای مبالغ برداشت (چون واریزها معمولا مشخص‌ترند، ولی می‌توانید شرط را بردارید)
+  if (!isDeposit) {
+    console.log(
+      `🤔 Keywords failed for "${cleanDesc}". Asking AI for semantic match...`
+    )
+    const aiSL = await predictSLWithAI(rawDesc, partyName, amount, isDeposit)
+
+    if (aiSL) {
+      return aiSL
+    }
+  }
+
+  // ---------------------------------------------------------
+  // گام ۳: آخرین سنگر (Default)
+  // ---------------------------------------------------------
+  console.warn(`🤷‍♂️ No SL found via Hardcode, DB, or AI. Using Default.`)
+  return isDeposit ? "211002" : "111901"
+}
+
+async function findSmartRuleFromDB(
+  description: string,
+  partyName: string
+): Promise<{
+  code: string
+  title: string
+  type: "DL" | "SL"
+  matchedKeyword: string
+} | null> {
+  // نرمال‌سازی متن برای جستجو
+  const textToSearch = `${description} ${partyName}`.toLowerCase().trim()
+
+  // دریافت قوانینی که کیورد دارند
+  // نکته: برای پرفورمنس بهتر، می‌توان این دیتا را کش کرد یا فقط رکوردهای مرتبط را سلکت کرد
+  // اما فعلا برای سادگی کل رول‌ها را چک می‌کنیم (چون تعدادشان زیاد نیست)
+  const { data: rules, error } = await supabaseService
+    .from("rahkaran_accounts")
+    .select("code, title, account_type, match_keywords")
+    .not("match_keywords", "is", null)
+
+  if (error || !rules) {
+    console.error("Error fetching smart rules:", error)
+    return null
+  }
+
+  // جستجوی دقیق
+  for (const rule of rules) {
+    if (!rule.match_keywords) continue
+
+    for (const keyword of rule.match_keywords) {
+      if (textToSearch.includes(keyword.toLowerCase())) {
+        return {
+          code: rule.code,
+          title: rule.title,
+          type: (rule.account_type as "DL" | "SL") || "DL",
+          matchedKeyword: keyword
+        }
+      }
+    }
+  }
+  return null
+}
+
 function normalizePersianNumbers(str: string): string {
   return str
     .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
@@ -513,7 +788,8 @@ async function smartAccountFinder(
   partyName: string,
   description: string,
   amount: number,
-  mode: "deposit" | "withdrawal"
+  mode: "deposit" | "withdrawal",
+  hostDLCode?: string | null
 ): Promise<{
   dlCode?: string
   dlType?: number
@@ -524,107 +800,240 @@ async function smartAccountFinder(
 }> {
   const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
   const normalizedDesc = normalizePersianNumbers(description)
-  const cleanDescriptionForSearch = normalizedDesc.replace(/[-.\/\s]/g, "")
-  const isSmallAmount = amount < 1000000
+  const isSmallAmount = amount < 3000000 // سقف برای کارمزدهای خرد
 
-  // 1. تشخیص کارمزد
-  const hasFeeKeyword = FEE_KEYWORDS.some(k => normalizedDesc.includes(k))
-  if (hasFeeKeyword && isSmallAmount) {
-    return {
-      foundName: "هزینه بانکی",
-      isFee: true,
-      reason: "تشخیص کلمات کلیدی کارمزد"
-    }
-  }
+  for (const special of SPECIAL_OVERRIDES) {
+    if (special.keywords.some(k => normalizedDesc.includes(k))) {
+      console.log(`💎 Special Case Detected: ${special.title}`)
 
-  let candidates: any[] = []
-
-  // 2. جستجوی حساب‌های بانکی
-  for (const acc of INTERNAL_BANK_ACCOUNTS) {
-    for (const key of acc.keywords) {
-      const cleanKey = key.replace(/[-.\/\s]/g, "")
-      if (cleanDescriptionForSearch.includes(cleanKey)) {
-        candidates.push({
-          Code: acc.dl,
-          Title: acc.title,
-          source: "Detected Account Number"
-        })
-        break
+      return {
+        foundName: special.title,
+        dlCode: special.dlCode || undefined,
+        isFee: false, // حتما فالس باشد تا هزینه شناسایی نشود
+        reason: `SPECIAL_SL:${special.slCode}` // این باعث می‌شود معین ۱۱۱۳۱۱ شود
       }
     }
   }
 
-  // 3. جستجوی اشخاص (توسط ...)
-  const personMatch = normalizedDesc.match(/توسط\s+([\u0600-\u06FF\s]+)/)
-  if (personMatch && personMatch[1]) {
-    const extractedPersonName = personMatch[1]
-      .trim()
-      .split(" ")
-      .slice(0, 3)
-      .join(" ")
-    if (extractedPersonName.length > 3) {
-      try {
-        const embeddingRes = await openai.embeddings.create({
-          model: EMBEDDING_MODEL,
-          input: extractedPersonName
-        })
-        const { data: personMatches } = await supabaseService.rpc(
-          "match_rahkaran_entities",
-          {
-            query_embedding: embeddingRes.data[0].embedding,
-            match_threshold: 0.4,
-            match_count: 3
-          }
-        )
-        if (personMatches)
-          candidates.push(
-            ...personMatches.map((m: any) => ({
-              ...m,
-              source: "Extracted Person Name Match"
-            }))
-          )
-      } catch (e) {}
+  // ---------------------------------------------------------
+  // ⛔️ اولویت ۱: VETO هزینه (قانون مطلق)
+  // اگر کلمه هزینه‌ای دیدی، تمام منطق‌های زیرین را (جز جبران رسوب) نادیده بگیر.
+  // ---------------------------------------------------------
+  const isStrictFee = STRICT_FEE_KEYWORDS.some(k => normalizedDesc.includes(k))
+
+  if (isStrictFee) {
+    // استثنای مهم: جبران رسوب (که انتقال است، نه هزینه)
+    if (!normalizedDesc.includes("جبران رسوب")) {
+      console.log("🛑 Strict Fee Keyword Detected. Returning Fee mapping.")
+      return {
+        foundName: "هزینه بانکی",
+        isFee: true,
+        reason: "تشخیص کلمات کلیدی هزینه (اولویت بالا)"
+      }
+    }
+  }
+  const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
+    holder => cleanName.includes(holder) || normalizedDesc.includes(holder)
+  )
+
+  if (isPettyCashHolder) {
+    console.log(
+      `👤 Petty Cash Holder Detected in: ${partyName} / ${description}`
+    )
+
+    // پیدا کردن کد تفصیلی شخص (مثلاً کد 000002)
+    // ابتدا سعی می‌کنیم نام دقیق را پیدا کنیم
+    let targetName =
+      PETTY_CASH_HOLDERS.find(
+        h => cleanName.includes(h) || normalizedDesc.includes(h)
+      ) || cleanName
+
+    // جستجوی کد شخص در دیتابیس
+    const personAcc = await findAccountCode(targetName)
+
+    if (personAcc.dlCode) {
+      return {
+        dlCode: personAcc.dlCode,
+        dlType: personAcc.dlType,
+        foundName: personAcc.foundName,
+        isFee: false,
+        // 🔥 نکته کلیدی: این دستور به سیستم می‌گوید معین را ۱۱۱۰۰۳ بگذارد
+        reason: "SPECIAL_SL:111003"
+      }
+    }
+  }
+  // ---------------------------------------------------------
+  // ✅ اولویت ۲: قوانین هوشمند دیتابیس (Smart Rules)
+  // ---------------------------------------------------------
+  const smartRule = await findSmartRuleFromDB(normalizedDesc, cleanName)
+  if (smartRule) {
+    console.log(`✅ Smart Rule Matched: ${smartRule.title}`)
+    if (smartRule.type === "SL") {
+      return {
+        foundName: smartRule.title,
+        dlCode: undefined,
+        reason: `SPECIAL_SL:${smartRule.code}`,
+        isFee: false
+      }
+    } else {
+      return {
+        dlCode: smartRule.code,
+        foundName: smartRule.title,
+        reason: `SMART_RULE:${smartRule.title}`,
+        isFee: false
+      }
     }
   }
 
-  // 4. جستجوی عادی نام
-  if (cleanName.length > 2) {
-    try {
-      const embeddingRes = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: cleanName
-      })
-      const { data: nameMatches } = await supabaseService.rpc(
-        "match_rahkaran_entities",
-        {
-          query_embedding: embeddingRes.data[0].embedding,
-          match_threshold: 0.4,
-          match_count: 5
-        }
+  // ---------------------------------------------------------
+  // ⚡️ اولویت ۳: تشخیص انتقال بانکی (Jobran Rosub & Satna)
+  // ---------------------------------------------------------
+  const hasTransferKeyword = TRANSFER_TRIGGERS.some(k =>
+    normalizedDesc.includes(k)
+  )
+
+  if (hasTransferKeyword) {
+    console.log(
+      `⚡️ Transfer keyword found in: "${normalizedDesc}". Searching for banks...`
+    )
+
+    // الف) جستجوی شماره حساب با هوش مصنوعی
+    const aiBank = await extractCounterpartyBankWithAI(
+      normalizedDesc,
+      hostDLCode
+    )
+    if (aiBank) {
+      console.log(
+        `🎯 AI Found Transfer Party: ${aiBank.title} (${aiBank.dlCode})`
       )
-      if (nameMatches)
-        candidates.push(
-          ...nameMatches.map((m: any) => ({ ...m, source: "Name Match" }))
-        )
-    } catch (e) {}
+      return {
+        dlCode: aiBank.dlCode,
+        foundName: aiBank.title,
+        isFee: false,
+        reason: "AI Extracted Bank from Desc"
+      }
+    }
+
+    // ب) جستجوی شماره حساب با Regex (پشتیبان)
+    const recoveredBank = recoverBankFromDescription(normalizedDesc, hostDLCode)
+    if (recoveredBank) {
+      console.log(
+        `🎯 Regex Recovered Bank: ${recoveredBank.title} (${recoveredBank.code})`
+      )
+      return {
+        dlCode: recoveredBank.code,
+        foundName: recoveredBank.title,
+        isFee: false,
+        reason: "Regex Detected Account in Desc"
+      }
+    }
+
+    console.log("⏩ Transfer keyword exists but no bank account found.")
   }
 
+  // ---------------------------------------------------------
+  // 💰 اولویت ۴: کارمزدهای خرد (Fallback Fee)
+  // اگر هیچ‌کدام از قوانین بالا نخورد، و مبلغ کم بود و کلمه کارمزد داشت، به عنوان هزینه ثبت شود
+  // ---------------------------------------------------------
+  const hasFeeKeywordLegacy = FEE_KEYWORDS.some(k => normalizedDesc.includes(k))
+  if (hasFeeKeywordLegacy && isSmallAmount) {
+    return {
+      foundName: "هزینه بانکی",
+      isFee: true,
+      reason: "تشخیص کلمات کلیدی کارمزد (مبلغ کم)"
+    }
+  }
+
+  if (hasTransferKeyword) {
+    console.log(
+      `⚡️ Transfer keyword found in: "${normalizedDesc}". Searching for banks...`
+    )
+
+    // الف) تلاش اول: هوش مصنوعی (دقیق‌تر)
+    const aiBank = await extractCounterpartyBankWithAI(
+      normalizedDesc,
+      hostDLCode
+    )
+    if (aiBank) {
+      console.log(
+        `🎯 AI Found Transfer Party: ${aiBank.title} (${aiBank.dlCode})`
+      )
+      return {
+        dlCode: aiBank.dlCode,
+        foundName: aiBank.title,
+        isFee: false,
+        reason: "AI Extracted Bank from Desc"
+      }
+    }
+
+    // ب) تلاش دوم: الگوریتم Regex (پشتیبان)
+    // اگر AI چیزی پیدا نکرد یا قطع بود، این تابع تمام شماره‌های موجود در متن را چک می‌کند
+    // و شماره خودمان (hostDLCode) را نادیده می‌گیرد.
+    const recoveredBank = recoverBankFromDescription(normalizedDesc, hostDLCode)
+    if (recoveredBank) {
+      console.log(
+        `🎯 Regex Recovered Bank: ${recoveredBank.title} (${recoveredBank.code})`
+      )
+      return {
+        dlCode: recoveredBank.code,
+        foundName: recoveredBank.title,
+        isFee: false,
+        reason: "Regex Detected Account in Desc"
+      }
+    }
+
+    console.log("⏩ Transfer keyword exists but no bank account found.")
+  }
+
+  // ---------------------------------------------------------
+  // 👤 اولویت ۵: استخراج نام شخص یا شرکت
+  // ---------------------------------------------------------
+
+  // الف) استخراج از متن (توسط ...)
+  const personMatch = normalizedDesc.match(/توسط\s+([\u0600-\u06FF\s]+)/)
+  let candidates: any[] = []
+
+  if (personMatch && personMatch[1]) {
+    const extractedName = personMatch[1].trim().split(" ").slice(0, 3).join(" ")
+    if (extractedName.length > 3) {
+      const acc = await findAccountCode(extractedName)
+      if (acc.dlCode)
+        candidates.push({
+          Code: acc.dlCode,
+          Title: acc.foundName,
+          DLTypeRef: acc.dlType,
+          source: "Extracted Person Name"
+        })
+    }
+  }
+
+  // ب) جستجوی نام استاندارد (PartyName)
+  if (cleanName.length > 2) {
+    const acc = await findAccountCode(cleanName)
+    if (acc.dlCode)
+      candidates.push({
+        Code: acc.dlCode,
+        Title: acc.foundName,
+        DLTypeRef: acc.dlType,
+        source: "Name Match"
+      })
+  }
+
+  // ---------------------------------------------------------
+  // 🧠 اولویت ۶: تصمیم‌گیری نهایی با هوش مصنوعی (Fallback)
+  // ---------------------------------------------------------
   const uniqueCandidates = Array.from(
     new Map(candidates.map(item => [item.Code || item.dl_code, item])).values()
   )
 
-  // 5. تصمیم‌گیری نهایی با هوش مصنوعی (با قانون جدید "آذر یورد")
   const prompt = `
   You are an expert Chief Accountant. Map this transaction to the correct DL Code.
-  
   Transaction:
   - Type: ${mode}
   - Amount: ${amount} IRR
   - Input Name: "${partyName}"
   - Description: "${normalizedDesc}"
-
-  Candidates Found:
-  ${JSON.stringify(
+  Candidates: ${JSON.stringify(
     uniqueCandidates.map(c => ({
       code: c.Code || c.dl_code,
       name: c.Title || c.title,
@@ -633,35 +1042,14 @@ async function smartAccountFinder(
     null,
     2
   )}
-
-  DECISION RULES (Priority 1 is Highest):
-  
-  1. **PERSONAL WITHDRAWAL (SUPER PRIORITY):** - IF description contains "توسط" (by) followed by a Person's Name (e.g. "Amin..."):
-     - **SELECT THAT PERSON** from candidates.
-     - **IGNORE** any bank account numbers or "Transfer" keywords.
-
-  2. **SELF COMPANY TRANSFER (CRITICAL - AZAR YORD):**
-     - IF Input Name contains "آذر یورد" (Azar Yord) "اذربورد" "آذربورد" "آذر بورد" "اذر بورد" OR "خودم" (Self):
-     - THIS IS AN INTERNAL TRANSFER.
-     - **MUST SELECT THE BANK CANDIDATE** (source='Detected Account Number').
-     - **DO NOT** select any Project or Company named "Azar...".
-
-  3. **NAME MATCH (Commercial):**
-     - IF Input Name matches a Candidate Name (fuzzy match):
-     - **SELECT THAT CANDIDATE**.
-     - **IGNORE** bank transfer details.
-
-  4. **INTERNAL BANK TRANSFER:** - IF Rules #1, #2, #3 are NOT met, AND description contains an Account Number match (source='Detected Account Number'):
-     - Select the **BANK** candidate.
-
-  5. **Fees:** - If small amount (< 5M IRR) and desc has "کارمزد"/"چک".
-
+  Rules:
+  1. Self Transfer ("آذر یورد", "خودم", "جبران رسوب") -> If no bank candidate found, return UNKNOWN.
+  2. Name Match -> Select Candidate.
   Output JSON: { "decision": "SELECTED_CODE" | "IS_FEE" | "UNKNOWN", "code": "...", "name": "...", "reason": "..." }
   `
-
   try {
     const aiResponse = await openai.chat.completions.create({
-      model: AI_MODEL,
+      model: AI_MODEL, // مطمئن شوید AI_MODEL تعریف شده است
       messages: [
         { role: "system", content: "Output JSON only." },
         { role: "user", content: prompt }
@@ -669,13 +1057,11 @@ async function smartAccountFinder(
       temperature: 0.0,
       response_format: { type: "json_object" }
     })
-
     const result = JSON.parse(aiResponse.choices[0].message.content || "{}")
     console.log("🧠 AI Decision:", result)
 
-    if (result.decision === "IS_FEE") {
+    if (result.decision === "IS_FEE")
       return { foundName: "هزینه بانکی", isFee: true, reason: result.reason }
-    }
 
     if (result.decision === "SELECTED_CODE" && result.code) {
       const selectedCandidate = uniqueCandidates.find(
@@ -728,13 +1114,16 @@ export async function syncToRahkaranSystem(
     let currentRowIndex = 1
 
     for (const item of items) {
+      // 1. اعتبارسنجی اولیه
       if (!item.amount || item.amount === 0) {
         console.warn(`⚠️ Skipped item with zero amount: ${item.desc}`)
         continue
       }
+
       const partyName = item.partyName || "نامشخص"
       const rawDesc = item.desc || ""
 
+      // نرمال‌سازی شرح برای خوانایی بهتر
       const humanDesc = await humanizenormalizedDesc(
         rawDesc,
         partyName,
@@ -742,15 +1131,73 @@ export async function syncToRahkaranSystem(
       )
       const safeDesc = escapeSql(humanDesc)
 
-      // 2. اجرا موتور هوشمند
+      // ---------------------------------------------------------
+      // 2. اجرا موتور هوشمند (Smart Finder)
+      // ---------------------------------------------------------
       const decision = await smartAccountFinder(
         partyName,
         rawDesc,
         item.amount,
-        mode as any
+        mode as any,
+        bankDLCode
       )
+      let preservedSpecialSL = null
+      if (decision.reason && decision.reason.startsWith("SPECIAL_SL:")) {
+        preservedSpecialSL = decision.reason.split(":")[1]
+        console.log(`🔒 Special SL Detected & Preserved: ${preservedSpecialSL}`)
+      }
+      // اصلاح کدهای خاص هزینه
+      if (
+        decision.dlCode === "FEE" ||
+        decision.dlCode === "BANK_FEE" ||
+        decision.dlCode === "IS_FEE"
+      ) {
+        decision.dlCode = "111106" // کد تفصیلی پیش‌فرض هزینه
+        decision.foundName = "هزینه کارمزد بانکی"
+        decision.isFee = true
+      }
 
-      // 3. ممیزی نهایی
+      // اصلاح تشخیص اشتباه کلمه "BANK"
+      if (decision.dlCode === "BANK") {
+        decision.dlCode = undefined
+        decision.foundName = "نامشخص"
+      }
+
+      // ---------------------------------------------------------
+      // 3. لاجیک نجات‌بخش (Rescue Logic)
+      // اگر طرف حساب پیدا نشد، شاید انتقال بانکی باشد
+      // ---------------------------------------------------------
+      if (
+        (!decision.dlCode || decision.foundName === "نامشخص") &&
+        !decision.isFee
+      ) {
+        if (
+          rawDesc.includes("جبران رسوب") ||
+          rawDesc.includes("انتقال") ||
+          rawDesc.includes("ساتنا") ||
+          rawDesc.includes("پایا")
+        ) {
+          console.log(
+            `⚠️ Potential Bank Transfer detected in '${rawDesc}'. Scanning for account number...`
+          )
+
+          // جلوگیری از انتخاب حساب خود شرکت (Self-Loop) با پاس دادن bankDLCode
+          const recoveredBank = recoverBankFromDescription(rawDesc, bankDLCode)
+
+          if (recoveredBank) {
+            console.log(
+              `✅ FIXED: Found correct bank -> ${recoveredBank.title} (${recoveredBank.code})`
+            )
+            decision.dlCode = recoveredBank.code
+            decision.foundName = recoveredBank.title
+            decision.isFee = false
+          }
+        }
+      }
+
+      // ---------------------------------------------------------
+      // 4. ممیزی نهایی و تلاش مجدد (Audit & Retry)
+      // ---------------------------------------------------------
       const auditParams = {
         inputName: partyName,
         inputDesc: rawDesc,
@@ -767,8 +1214,49 @@ export async function syncToRahkaranSystem(
         isFee: decision.isFee || false
       }
 
-      const auditResult = await auditVoucherWithAI(auditParams)
+      let auditResult = await auditVoucherWithAI(auditParams)
 
+      // اگر ناظر رد کرد، یک شانس دیگر با جستجوی دقیق SQL می‌دهیم
+      if (!auditResult.approved && !decision.isFee) {
+        console.log(
+          `⚠️ Audit Rejected Vector Match. Trying Strict SQL for: ${partyName}`
+        )
+
+        const strictMatch = await findStrictAccountBySQL(partyName)
+
+        if (strictMatch) {
+          console.log(
+            `🔄 Re-Auditing with SQL Candidate: ${strictMatch.foundName}`
+          )
+
+          const retryAuditParams = { ...auditParams }
+          retryAuditParams.selectedAccountName = strictMatch.foundName
+          retryAuditParams.selectedAccountCode = strictMatch.dlCode
+
+          const retryAuditResult = await auditVoucherWithAI(retryAuditParams)
+
+          if (retryAuditResult.approved) {
+            console.log(
+              `✅ Retry Successful! Approved: ${strictMatch.foundName}`
+            )
+
+            // آپدیت تصمیم نهایی
+            decision.dlCode = strictMatch.dlCode
+            decision.dlType = strictMatch.dlType
+            decision.foundName = strictMatch.foundName
+            decision.reason = "Strict SQL Match (After Vector Rejection)"
+
+            // آپدیت نتیجه ممیزی
+            auditResult = retryAuditResult
+          } else {
+            console.log("❌ Retry Failed. Auditor rejected SQL match too.")
+          }
+        } else {
+          console.log("❌ Retry Failed. No Strict SQL match found.")
+        }
+      }
+
+      // اعمال نتیجه نهایی ممیزی
       if (!auditResult.approved) {
         console.warn(`❌ Audit Rejected: ${auditResult.reason}`)
         decision.dlCode = undefined
@@ -777,6 +1265,7 @@ export async function syncToRahkaranSystem(
         decision.reason = auditResult.reason
       }
 
+      // ذخیره جهت دیباگ
       debugDecisions.push({
         OriginalName: partyName,
         Amount: item.amount,
@@ -792,28 +1281,47 @@ export async function syncToRahkaranSystem(
 
       successfulTrackingCodes.push(item.tracking || "")
 
-      // لاجیک تعیین معین
-      // لاجیک تعیین معین
+      // ---------------------------------------------------------
+      // 5. تعیین کد معین (SL Selection Logic)
+      // ---------------------------------------------------------
       let finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
 
-      if (decision.isFee) {
-        finalSL = "621105" // هزینه مالی
-      } else if (decision.dlCode === "111106") {
-        finalSL = "111106" // کد معین انسداد
+      // اولویت ۱: استفاده از مقدار ذخیره شده (حتی اگر ناظر رد کرده باشد)
+      if (preservedSpecialSL) {
+        finalSL = preservedSpecialSL
+        console.log(`✨ Applying Preserved Special SL: ${finalSL}`)
       }
-      // ✅ شرط جدید: اگر کد تفصیلی با 200 شروع شود (یعنی بانک است) یا اسمش "بانک" باشد
+      // محض احتیاط: اگر در دسیژن مانده بود
+      else if (decision.reason && decision.reason.startsWith("SPECIAL_SL:")) {
+        finalSL = decision.reason.split(":")[1]
+      }
+      // اولویت ۲: هزینه‌ها
+      else if (decision.isFee) {
+        finalSL = "621105" // هزینه مالی
+      }
+      // اولویت ۳: کد خاص انسداد
+      else if (decision.dlCode === "111106") {
+        finalSL = "111106"
+      }
+      // اولویت ۴: جابجایی بین بانکی
       else if (
         decision.dlCode?.startsWith("200") ||
         decision.foundName.includes("بانک")
       ) {
-        // این کد (111005) همان "موجودی بانکهای ریالی" است.
-        // با انتخاب این معین، سیستم راهکاران خودکار گروه "دارایی جاری" و کل "نقد و بانک" را انتخاب می‌کند.
         finalSL = "111005"
-        console.log(
-          `🏦 Bank-to-Bank detected: Forcing SL to ${finalSL} for DL ${decision.dlCode}`
-        )
+        console.log(`🏦 Bank-to-Bank detected: Forcing SL to ${finalSL}`)
       }
-
+      // اولویت ۵: هوش مصنوعی و دیتابیس (Fallback)
+      else {
+        finalSL = await findFallbackSL(
+          rawDesc,
+          partyName,
+          item.amount,
+          isDeposit
+        )
+        console.log(`🔎 Final Selected SL via AI/DB: ${finalSL}`)
+      }
+      // آماده‌سازی مقدار تفصیلی برای SQL
       const dlValue =
         decision.dlCode && decision.dlCode !== "111106"
           ? `N'${decision.dlCode}'`

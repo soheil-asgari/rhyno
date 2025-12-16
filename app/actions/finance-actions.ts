@@ -10,7 +10,13 @@ import gregorian from "react-date-object/calendars/gregorian"
 import persian_fa from "react-date-object/locales/persian_fa"
 import { syncToRahkaranSystem } from "@/lib/services/rahkaran"
 import { sendAssignmentSMS, sendCompletionSMS } from "@/lib/sms-service"
-import { detectBankInfoByNumber } from "@/lib/services/bankIntelligence"
+import {
+  detectBankInfoByNumber,
+  findSmartRule
+} from "@/lib/services/bankIntelligence"
+import { findAccountCode } from "@/lib/services/rahkaran"
+
+// const WINDOWS_SERVER_URL = "http://185.226.119.248:8005/ocr";
 
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
@@ -19,17 +25,18 @@ const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: {
-    "HTTP-Referer": "https://rhyno.ir",
+    "HTTP-Referer": "https://rhynoai.ir",
     "X-Title": "Rhyno Automation"
   }
 })
 
 const AI_MODEL = "google/gemini-2.5-pro"
 
-type SinglePageResult =
-  | { success: true; data: any }
-  | { success: false; error: string }
-
+export interface SinglePageResult {
+  success: boolean
+  data?: any
+  error?: string
+}
 // ------------------------------------------------------------------
 // 1. OCR Function
 // ------------------------------------------------------------------
@@ -59,178 +66,299 @@ function toEnglishDigits(str: string) {
 
 export async function analyzeSinglePage(
   fileUrl: string,
+
   pageNumber: number,
+
   pageText: string = ""
 ): Promise<SinglePageResult> {
+  // مدل AI_MODEL باید قبلاً در فایل شما تعریف شده باشد
+
   try {
+    console.log(
+      `📡 Analyzing Bank Statement directly with AI (Conditional Logic)...`
+    )
+
+    // 1. دانلود فایل
+
     const fileRes = await fetch(fileUrl, { cache: "no-store" })
+
     if (!fileRes.ok) throw new Error("دانلود فایل ناموفق بود")
 
     const fileBuffer = await fileRes.arrayBuffer()
+
     const base64Data = Buffer.from(fileBuffer).toString("base64")
-    const isPdf = fileUrl.toLowerCase().includes(".pdf")
-    const mimeType = isPdf ? "application/pdf" : "image/jpeg"
-    const dataUrl = `data:${mimeType};base64,${base64Data}`
 
-    console.log(`🚀 High-Precision OCR Started using ${AI_MODEL}...`)
+    const mimeType = fileUrl.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : "image/jpeg"
 
-    // تغییر استراتژی: درخواست جدول Markdown برای مجبور کردن مدل به رعایت ساختار بصری
-    const response = await openai.chat.completions.create({
-      model: AI_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: `You are a forensic accountant AI. You do not guess. You transcribe EXACTLY what you see.
-    
-    TASK: Convert the bank statement image into a Markdown Table.
-    🚨 CRITICAL RULE FOR HANDWRITING (دست‌خط):
-1. **Look closely for HANDWRITTEN notes (متن‌های دست‌نویس).** 2. These notes usually indicate the REAL Payer/Payee or the reason for the transfer.
-3. If you see handwriting (e.g. "واریز توسط...", "بابت...", "شرکت..."), you MUST append it to the 'description' field.
-4. Do NOT ignore messy or faint text.
-    CRITICAL RULES:
-    1. **Digit Precision**: 
-       - "30,000,000,000" must be transcribed as 30000000000. Count the zeros carefully.
-       - "77,800" must be 77800. Do not miss digits like '7' at the start.
-    2. **Row Integrity**: 
-       - Do not merge two rows into one.
-       - Do not skip any row, even if it looks like a duplicate description.
-    3. **Columns**:
-       | RowNum | Date | Time | Description | Withdrawal (Debtor) | Deposit (Creditor) | Balance | TrackingID |
-    
-    4. **Handling Empty Cells**: If a cell is empty in the image, put "-" in the table.
-    5. **Descriptions**: Merge all lines of text for a single transaction row into the Description column.
-    `
-        },
-        {
-          role: "user",
-          content: [
+    // 2. ارسال به هوش مصنوعی با دستورالعمل شرطی و مقتدر
+
+    const aiResponse = await withRetry(
+      async () => {
+        return await openai.chat.completions.create({
+          model: AI_MODEL,
+
+          messages: [
             {
-              type: "text",
-              text: `Transcribe this image into a Markdown Table. 
-              After the table, provide the Header Info in JSON format: {"bank": "...", "acc": "..."}.`
+              role: "system",
+
+              content: `You are an expert Bank Statement Auditor and Data Extractor for Persian Documents.
+
+           
+
+            YOUR TASK: Extract ALL transactions from the table and header information.
+
+
+
+            CRITICAL COLUMN AUTHORITY RULES:
+
+           
+
+            1. **COLUMN CHECK (CONDITIONAL LOGIC):**
+
+               a. **IF** you see separate columns named "بدهکار" (Debit) AND "بستانکار" (Credit):
+
+                  - Use them strictly. Put amount from "بدهکار" into 'withdrawal' and "بستانکار" into 'deposit'.
+
+               b. **IF** you see only ONE amount column (e.g., "مبلغ تراکنش"):
+
+                  - Amounts with a MINUS sign (-) must be put into 'withdrawal'.
+
+                  - Amounts without a minus sign (positive) must be put into 'deposit'.
+
+           
+
+            2. **VETO RULE (مانده):** You MUST ignore the "مانده" (Balance) column. Do NOT extract its value as a transaction amount under any circumstance.
+
+           
+
+            3. **HANDWRITING & METADATA:** Look closely for handwritten notes (متن‌های دست‌نویس) and faint text (e.g., payer/payee names or transfer reasons). You MUST append any such found text to the 'description' field.
+
+           
+
+            4. **Data Quality:** Extract "شماره سند/پیگیری" as tracking_code. Remove all separators (commas, dots, etc.) from numbers. Ensure no transaction amount is 0 unless the row is truly empty.
+
+          CRITICAL NEW RULE (HANDWRITING):
+- Look specifically for HANDWRITTEN notes on the statement row (usually describing the nature of transaction).
+- Extract this text into a separate field called "handwritten_text".
+- Set "is_handwritten": true if such text exists.
+
+            OUTPUT JSON FORMAT:
+
+            {
+
+              "header": { "account_number": "string (digits only)", "owner_name": "string" },
+
+              "transactions": [
+
+                {
+
+                  "date": "YYYY/MM/DD (convert to English digits)",
+
+                  "time": "HH:MM",
+
+                  "description": "string (full description + appended handwritten text)",
+                  "handwritten_text": "string (extracted handwriting)", 
+                  "is_handwritten": boolean,
+
+                  "tracking_code": "string (from 'شماره سند/پیگیری', digits only)",
+
+                  "withdrawal": number (amount from Bedekhar column, or negative amount from single column),
+
+                  "deposit": number (amount from Bestankar column, or positive amount from single column)
+
+                }
+
+              ]
+
+            }`
             },
+
             {
-              type: "image_url",
-              image_url: { url: dataUrl } // جزئیات بالا برای خواندن اعداد ریز
+              role: "user",
+
+              content: [
+                {
+                  type: "text",
+                  text: "Extract table data accurately. Trust the column position and the conditional logic."
+                },
+
+                {
+                  type: "image_url",
+                  image_url: { url: `data:${mimeType};base64,${base64Data}` }
+                }
+              ]
             }
-          ]
-        }
-      ],
-      temperature: 0,
-      max_tokens: 20000
-    })
+          ],
 
-    let rawContent = response.choices[0].message.content || ""
-    console.log("\n📄 RAW MARKDOWN OUTPUT:\n", rawContent) // برای دیباگ
+          response_format: { type: "json_object" },
 
-    // --------------------------------------------------------
-    // تبدیل Markdown به JSON
-    // --------------------------------------------------------
-    const transactions: any[] = []
-
-    // 1. استخراج هدر (که معمولا آخر پاسخ می‌آید یا اول)
-    let headerInfo = { number: "", bank_name: "بانک نامشخص" }
-    const jsonMatch = rawContent.match(/\{[\s\S]*?\}/)
-    if (jsonMatch) {
-      try {
-        const h = JSON.parse(jsonMatch[0])
-        if (h.acc) {
-          // اول تبدیل اعداد فارسی به انگلیسی
-          const fixedAcc = toEnglishDigits(h.acc)
-          // سپس حذف کاراکترهای مزاحم
-          headerInfo.number = fixedAcc.replace(/[^0-9]/g, "")
-        }
-        if (h.bank) headerInfo.bank_name = h.bank
-      } catch (e) {}
-    }
-
-    // 2. پارس کردن جدول مارک‌داون
-    const lines = rawContent.split("\n")
-    for (const line of lines) {
-      // خطوطی که با | شروع می‌شوند را پردازش کن
-      if (
-        !line.trim().startsWith("|") ||
-        line.includes("---") ||
-        line.toLowerCase().includes("date")
-      )
-        continue
-
-      const cols = line
-        .split("|")
-        .map(c => c.trim())
-        .filter(c => c !== "")
-      if (cols.length < 5) continue // خط ناقص
-
-      // نگاشت ستون‌ها (بسته به خروجی مدل ممکن است نیاز به تنظیم دقیق باشد)
-      // معمولا: | Row | Date | Time | Desc | Withdraw | Deposit | Balance | Track |
-      // گاهی مدل Row را نمی‌گذارد. باید لاگ را چک کنید.
-
-      // فرض: مدل دقیقاً ۸ ستون برمی‌گرداند
-      const dateStr = cols[1]
-      const timeStr = cols[2]
-      const descStr = cols[3]
-      const withdrawStr = cols[4]
-      const depositStr = cols[5]
-      const trackStr = cols[7] || "NO-REF"
-
-      // تبدیل اعداد (حذف کاما و کاراکترهای اضافه)
-      const parseAmount = (str: string) => {
-        if (!str || str === "-") return 0
-        return parseFloat(str.replace(/,/g, "").replace(/[^0-9.]/g, "")) || 0
-      }
-
-      const wAmount = parseAmount(withdrawStr)
-      const dAmount = parseAmount(depositStr)
-
-      let type: "deposit" | "withdrawal" = "withdrawal"
-      let amount = 0
-
-      if (dAmount > 0) {
-        type = "deposit"
-        amount = dAmount
-      } else if (wAmount > 0) {
-        type = "withdrawal"
-        amount = wAmount
-      } else {
-        continue // سطر بدون مبلغ
-      }
-
-      // اصلاح نام
-      let finalPartyName = "نامشخص"
-      const extractedName = extractNameFromDesc(descStr)
-      if (extractedName) finalPartyName = extractedName
-
-      transactions.push({
-        date: dateStr,
-        time: timeStr,
-        type: type,
-        amount: amount,
-        description: descStr,
-        partyName: finalPartyName,
-        tracking_code: trackStr
-      })
-    }
-
-    // تشخیص بانک
-    let bankDetails = detectBankInfoByNumber(headerInfo.number)
-    // ... ادامه لاجیک قبلی ...
-
-    const finalData = {
-      header_info: headerInfo,
-      bank_details: bankDetails,
-      transactions: transactions
-    }
-
-    console.log(
-      `✅ High-Precision OCR: ${transactions.length} items extracted.`
+          temperature: 0
+        })
+      },
+      2,
+      2000
     )
-    return { success: true, data: finalData }
-  } catch (error: any) {
-    console.error("OCR Failed:", error)
-    return { success: false, error: error.message }
+
+    const content = aiResponse.choices[0].message.content
+
+    const aiJson = JSON.parse(content || "{}")
+
+    if (!aiJson.transactions) {
+      throw new Error("AI could not extract transactions structure.")
+    }
+
+    // 3. پردازش هدر و تشخیص بانک میزبان
+
+    const headerFromAI = aiJson.header || {}
+
+    const extractedAccNum = headerFromAI.account_number
+      ? headerFromAI.account_number.replace(/[^0-9]/g, "")
+      : ""
+
+    console.log(`🔍 AI Detected Header Account: ${extractedAccNum}`)
+
+    // تشخیص بانک میزبان (نیاز به detectBankInfoByNumber در bankIntelligence.ts)
+
+    let bankDetails = detectBankInfoByNumber(extractedAccNum)
+
+    if (bankDetails.dlCode !== "200001") {
+      console.log(
+        `🎯 Host Bank Resolved: ${bankDetails.bankName} (DL: ${bankDetails.dlCode})`
+      )
+    } else {
+      console.warn(`⚠️ Host Bank NOT resolved from header: ${extractedAccNum}`)
+    }
+
+    const rawTransactions = aiJson.transactions || []
+
+    console.log(`✅ AI Extracted ${rawTransactions.length} items.`)
+
+    // 4. حلقه غنی‌سازی (فقط از خروجی AI استفاده می‌کند)
+
+    const enrichedTransactions = await Promise.all(
+      rawTransactions.map(async (tx: any) => {
+        // ادغام دست‌نویس با شرح (دست‌نویس اولویت دارد و اول می‌آید)
+        let fullDescription = tx.description || ""
+        if (tx.is_handwritten && tx.handwritten_text) {
+          fullDescription = `${tx.handwritten_text} - ${fullDescription}`
+        }
+
+        // منطق تعیین نوع و مبلغ دقیق
+
+        let type: "deposit" | "withdrawal" = "withdrawal"
+
+        let amount = 0
+
+        // چون AI حالا تمام حالت‌ها را در دو فیلد deposit و withdrawal جمع‌آوری کرده، فقط کافی است یکی را انتخاب کنیم
+
+        if (tx.deposit && Number(tx.deposit) > 0) {
+          type = "deposit"
+
+          amount = Number(tx.deposit)
+        } else if (tx.withdrawal && Number(tx.withdrawal) > 0) {
+          type = "withdrawal"
+
+          // نکته: اگر خروجی AI منفی بود (برای ستون تک‌مقداری)، اینجا آن را مثبت می‌کنیم
+
+          amount = Math.abs(Number(tx.withdrawal))
+        }
+
+        const safeDate = toEnglishDigits(tx.date)
+
+        const safeTrack = toEnglishDigits(tx.tracking_code)
+
+        const currentTx = {
+          date: safeDate,
+
+          time: tx.time || "00:00",
+
+          type: type,
+
+          amount: amount,
+
+          description: fullDescription,
+
+          partyName: "نامشخص",
+
+          tracking_code: safeTrack,
+
+          dl_code: null as string | null,
+
+          dl_type: null as number | null,
+
+          sl_code: null as string | null,
+
+          ai_verification_status: "pending"
+        }
+
+        // الف: قوانین هوشمند
+
+        const smartMatch = await findSmartRule(
+          tx.description,
+          currentTx.partyName || ""
+        )
+
+        if (smartMatch) {
+          // ... (کدهای اسمارت رول) ...
+
+          currentTx.dl_code =
+            smartMatch.type === "DL" ? smartMatch.code : currentTx.dl_code
+
+          currentTx.sl_code =
+            smartMatch.type === "SL" ? smartMatch.code : currentTx.sl_code
+
+          currentTx.partyName = smartMatch.title
+
+          return currentTx
+        }
+
+        // ب: استخراج نام
+
+        const extractedName = extractNameFromDesc(tx.description)
+
+        if (extractedName) currentTx.partyName = extractedName
+
+        // ج: جستجوی در راهکاران
+
+        if (currentTx.partyName !== "نامشخص") {
+          try {
+            const matchedEntity = await findAccountCode(currentTx.partyName)
+
+            if (matchedEntity && matchedEntity.dlCode) {
+              currentTx.dl_code = matchedEntity.dlCode
+
+              currentTx.dl_type = matchedEntity.dlType || null
+
+              currentTx.partyName = matchedEntity.foundName
+            }
+          } catch (e) {
+            console.error(`Search failed for ${currentTx.partyName}`, e)
+          }
+        }
+
+        return currentTx
+      })
+    )
+
+    return {
+      success: true,
+
+      data: {
+        header_info: { ...headerFromAI, number: extractedAccNum },
+
+        bank_details: bankDetails,
+
+        transactions: enrichedTransactions
+      }
+    }
+  } catch (e: any) {
+    console.error("AI Bridge Failed:", e)
+
+    return { success: false, error: e.message }
   }
 }
-
 // تابع کمکی برای استخراج نام (همان که قبلا دادم)
 function extractNameFromDesc(desc: string): string | null {
   if (!desc) return null
@@ -262,26 +390,25 @@ function getSafeDate(inputDate: string | undefined): string {
   if (!inputDate) return today
 
   try {
-    let cleanStr = toEnglishDigits(inputDate)
-    cleanStr = cleanStr.replace(/\//g, "-")
+    let cleanStr = toEnglishDigits(inputDate).replace(/\//g, "-")
+    const parts = cleanStr.split("-")
+    const yearPart = parseInt(parts[0])
 
-    const dateObj = new DateObject({
-      date: cleanStr,
-      format: "YYYY-MM-DD",
-      calendar: persian
-    })
-
-    if (dateObj.isValid) {
-      const gregorianDate = dateObj.convert(gregorian)
-      const year = gregorianDate.year
-
-      if (year < 2000 || year > 2030) {
-        console.warn(
-          `⚠️ تاریخ نامعتبر شناسایی شد (${cleanStr} -> ${year}). استفاده از تاریخ امروز.`
-        )
-        return today
+    // اگر سال شمسی است (بین 1300 تا 1500)
+    if (yearPart >= 1300 && yearPart <= 1500) {
+      const dateObj = new DateObject({
+        date: cleanStr,
+        format: "YYYY-MM-DD",
+        calendar: persian
+      })
+      if (dateObj.isValid) {
+        return dateObj.convert(gregorian).format("YYYY-MM-DD")
       }
-      return gregorianDate.format("YYYY-MM-DD")
+    }
+
+    // اگر سال میلادی است (مثلا 2025)
+    if (yearPart > 1900 && yearPart < 2100) {
+      return cleanStr
     }
   } catch (e) {
     console.error("Date Parse Error:", e)
