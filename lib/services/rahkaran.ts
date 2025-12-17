@@ -68,7 +68,11 @@ const TRANSFER_TRIGGERS = [
   "آذر بورد",
   "اذر بورد",
   "اذریورد",
-  "اذر یورد"
+  "اذر یورد",
+  "آذر",
+  "اذر",
+  "ساتنا به حساب شرکت",
+  "به نام اراه و ساختمانی آذر"
 ]
 
 const STRICT_FEE_KEYWORDS = [
@@ -203,12 +207,12 @@ const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: {
-    "HTTP-Referer": "https://rhyno.ir",
+    "HTTP-Referer": "https://rhynoai.ir",
     "X-Title": "Rhyno Automation"
   }
 })
 
-const AI_MODEL = "openai/gpt-5.2"
+const AI_MODEL = "google/gemini-2.5-flash"
 
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
