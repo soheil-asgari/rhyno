@@ -456,10 +456,12 @@ async function findOfficerForCustomer(
 // در فایل app/actions/finance-actions.ts
 
 // ✅ تابع جدید: ثبت کامل واریز و برداشت یک روز به صورت همزمان
+// در فایل app/actions/finance-actions.ts
+
 export async function submitDayComplete(
   date: string,
   workspaceId: string,
-  hostBankDL: string | null // <--- ✅ آرگومان جدید
+  hostBankDL: string | null
 ) {
   console.log(
     `🚀 STARTING FULL PROCESS FOR DATE: ${date} | BankDL: ${hostBankDL}`
@@ -467,33 +469,67 @@ export async function submitDayComplete(
 
   const results = { deposit: null as any, withdrawal: null as any }
 
-  try {
-    // ارسال کد بانک به تابع بعدی
-    results.deposit = await submitDailyVoucher(
-      date,
-      workspaceId,
-      "deposit",
-      hostBankDL
-    )
-  } catch (e) {
-    console.error(`Error processing deposits:`, e)
+  // ✅ تابع کمکی داخلی برای مدیریت تلاش مجدد (Retry Loop)
+  const processWithRetry = async (type: "deposit" | "withdrawal") => {
+    const maxAttempts = 5 // ۵ بار تلاش
+    const delayMs = 10000 // ۱۰ ثانیه وقفه
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1) {
+          console.log(
+            `🔄 [${type}] Retrying... Attempt ${attempt}/${maxAttempts}`
+          )
+        }
+
+        // فراخوانی تابع اصلی
+        const result = await submitDailyVoucher(
+          date,
+          workspaceId,
+          type,
+          hostBankDL
+        )
+
+        // ۱. اگر موفق بود، سریع برگردان
+        if (result.success) {
+          return result
+        }
+
+        // ۲. اگر ارور "تراکنشی یافت نشد" بود، تلاش مجدد لازم نیست (چون دیتایی نیست)
+        if (result.error && result.error.includes("تراکنشی برای تاریخ")) {
+          console.warn(`⚠️ [${type}] No transactions found. Skipping retry.`)
+          return result
+        }
+
+        // ۳. اگر ارور دیگری بود (مثل خطای شبکه یا SQL)، پرتاب کن تا برود در catch و دوباره تلاش شود
+        throw new Error(result.error || "Unknown Error")
+      } catch (error: any) {
+        console.error(
+          `❌ [${type}] Error on attempt ${attempt}:`,
+          error.message
+        )
+
+        // اگر آخرین تلاش هم شکست خورد، ارور نهایی را برگردان
+        if (attempt === maxAttempts) {
+          console.error(`🔥 [${type}] Failed after ${maxAttempts} attempts.`)
+          return { success: false, error: error.message }
+        }
+
+        // وقفه قبل از تلاش بعدی
+        console.log(`⏳ Waiting ${delayMs / 1000}s before next retry...`)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
   }
 
-  try {
-    // ارسال کد بانک به تابع بعدی
-    results.withdrawal = await submitDailyVoucher(
-      date,
-      workspaceId,
-      "withdrawal",
-      hostBankDL
-    )
-  } catch (e) {
-    console.error(`Error processing withdrawals:`, e)
-  }
+  // 1. پردازش واریزها (با مکانیزم تلاش مجدد)
+  results.deposit = await processWithRetry("deposit")
+
+  // 2. پردازش برداشت‌ها (با مکانیزم تلاش مجدد)
+  results.withdrawal = await processWithRetry("withdrawal")
 
   return results
 }
-
 export async function submitGroupedTransactions(
   workspaceId: string,
   groupedData: any[]

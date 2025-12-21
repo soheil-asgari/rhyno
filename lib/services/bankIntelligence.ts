@@ -754,6 +754,7 @@ export async function auditVoucherWithAI(data: {
     - Extracted Name: "${data.inputName}"
     - Selected Account: "${data.selectedAccountName}" (Code: ${data.selectedAccountCode})
     - Amount: ${data.amount}
+    - Is Fee Logic Active: ${data.isFee ? "YES" : "NO"}
 
     CRITICAL APPROVAL RULES (Highest Priority):
 
@@ -774,10 +775,15 @@ export async function auditVoucherWithAI(data: {
        - Ignore prefixes like "Sherkat", "Bazargani", "Aghaye".
        - Allow slight spelling differences (e.g., "Tehran Risman" == "Tehran Arisman").
        - If the core name sounds similar -> **APPROVE**.
-
-    5. **FEES:**
-       - If transaction is a Bank Fee (Commission/Aboman) and code is ~621105 -> **APPROVE**.
-
+       
+    5. **FEES & COMMISSIONS (SAFE PASS):**
+        - If transaction is a Bank Fee (Commission/Aboman) and code is ~621105 -> **APPROVE**.
+       - IF the Description mentions "Karmozd" (Commission), "Tambr" (Stamp), "Hazine" (Expense), "Aboman", "Sodoor".
+       - OR IF "Selected Account" is "هزینه بانکی" (Bank Fee).
+       - OR IF "Is Fee Logic Active" is YES.
+       - **ACTION: APPROVE IMMEDIATELY.**
+       - **CRITICAL:** Do NOT reject if the Code is NULL or Account is "Unknown" or "Namoshakhas". 
+       - REASON: Bank fees are general ledger expenses and often do not have a specific counterparty (DL) code. This is expected behavior.
     Output JSON ONLY: { "approved": boolean, "reason": "Short explanation" }
     `
 
