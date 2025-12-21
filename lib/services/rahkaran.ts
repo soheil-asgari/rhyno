@@ -1312,7 +1312,7 @@ export async function syncToRahkaranSystem(
       }
       // اولویت ۴: جابجایی بین بانکی
       else if (
-        decision.dlCode?.startsWith("200") ||
+        (decision.dlCode?.startsWith("200") && decision.dlCode !== "200000") || // ✅ اصلاح: استثنا کردن کد 200000
         decision.foundName.includes("بانک")
       ) {
         finalSL = "111005"

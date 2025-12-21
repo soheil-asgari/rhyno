@@ -12,7 +12,8 @@ import { syncToRahkaranSystem } from "@/lib/services/rahkaran"
 import { sendAssignmentSMS, sendCompletionSMS } from "@/lib/sms-service"
 import {
   detectBankInfoByNumber,
-  findSmartRule
+  findSmartRule,
+  generateCleanDescription
 } from "@/lib/services/bankIntelligence"
 import { findAccountCode } from "@/lib/services/rahkaran"
 
@@ -711,10 +712,6 @@ export async function submitGroupedTransactions(
   }
 }
 
-// در فایل app/actions/finance-actions.ts
-
-// در فایل app/actions/finance-actions.ts
-
 export async function submitDailyVoucher(
   date: string,
   workspaceId: string,
@@ -727,18 +724,18 @@ export async function submitDailyVoucher(
   const cookieStore = cookies()
   const supabase = createClient(cookieStore)
   const finalBankDL = hostBankDL
+
   try {
-    // ✅ اصلاح مهم: تبدیل تاریخ ورودی (که احتمالا شمسی است) به میلادی
-    // چون در دیتابیس تاریخ‌ها میلادی ذخیره شده‌اند
+    // ✅ تبدیل تاریخ ورودی (شمسی) به میلادی برای جستجو در دیتابیس
     const searchDate = getSafeDate(date)
     console.log(`📅 Converting date for search: ${date} -> ${searchDate}`)
 
-    // 1. دریافت داده‌ها با تاریخ اصلاح شده
+    // 1. دریافت داده‌ها با تاریخ میلادی
     const { data: requests } = await supabase
       .from("payment_requests")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .eq("payment_date", searchDate) // <--- استفاده از تاریخ میلادی
+      .eq("payment_date", searchDate)
       .eq("type", type)
       .is("rahkaran_doc_id", null)
 
@@ -746,24 +743,43 @@ export async function submitDailyVoucher(
       console.warn(
         `⚠️ [FINANCE_ACTION] No requests found for date ${searchDate} (Input: ${date})`
       )
+      // این ارور خاص باعث می‌شود در تابع پدر، تلاش مجدد (Retry) انجام نشود
       return { success: false, error: `تراکنشی برای تاریخ ${date} یافت نشد.` }
     }
 
+    // ✅ فیلتر کردن آیتم‌های مبلغ صفر (مانند فایل‌های آپلود شده)
+    const validRequests = requests.filter(r => Number(r.amount) > 0)
+
+    if (validRequests.length === 0) {
+      console.warn(
+        `⚠️ All transactions have 0 amount (probably uploads). Skipping.`
+      )
+      return { success: false, error: `تراکنش معتبری (با مبلغ) یافت نشد.` }
+    }
+
     // 2. آماده‌سازی داده خام
-    const totalAmount = requests.reduce((sum, r) => sum + Number(r.amount), 0)
+    const totalAmount = validRequests.reduce(
+      (sum, r) => sum + Number(r.amount),
+      0
+    )
     const typeFarsi = type === "deposit" ? "واریز" : "برداشت"
 
     const payload = {
       description: `سند تجمیعی ${typeFarsi} - مورخ ${date}`,
       mode: type,
       totalAmount: totalAmount,
-      date: searchDate,
-      workspaceId: workspaceId, // ✅✅✅ این خط را اضافه کنید
+      date: date, // ✅ ارسال تاریخ شمسی به راهکاران
+      workspaceId: workspaceId,
       bankDLCode: finalBankDL,
-      items: requests.map(r => ({
+      items: validRequests.map(r => ({
         partyName: r.counterparty || r.supplier_name || "نامشخص",
         amount: Number(r.amount),
-        desc: r.description || `${typeFarsi} وجه`,
+        // ✅ استفاده از تابع تمیزکننده شرح
+        desc: generateCleanDescription(
+          r.description || "",
+          r.counterparty || r.supplier_name || "",
+          type
+        ),
         tracking: r.tracking_code || ""
       }))
     }
@@ -778,8 +794,8 @@ export async function submitDailyVoucher(
 
     if (!rahkaranRes.success) throw new Error(rahkaranRes.error)
 
-    // 4. آپدیت دیتابیس
-    const requestIds = requests.map(r => r.id)
+    // 4. آپدیت دیتابیس (فقط برای آیتم‌های معتبر ارسال شده)
+    const requestIds = validRequests.map(r => r.id)
     await supabase
       .from("payment_requests")
       .update({
@@ -792,9 +808,8 @@ export async function submitDailyVoucher(
     return {
       success: true,
       docId: rahkaranRes.docId,
-      count: requests.length,
+      count: validRequests.length,
       totalAmount: totalAmount,
-      // مقادیر برگشتی برای نمایش رسید
       party: "سند تجمیعی",
       sl: "---"
     }
