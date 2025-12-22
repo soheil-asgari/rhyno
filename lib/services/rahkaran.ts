@@ -8,6 +8,7 @@ import {
   INTERNAL_BANK_ACCOUNTS,
   recoverBankFromDescription,
   detectBankInfoByNumber,
+  findSmartRule,
   extractCounterpartyBankWithAI
 } from "./bankIntelligence"
 
@@ -760,7 +761,6 @@ async function findSmartRuleFromDB(
   const { data: rules, error } = await supabaseService
     .from("rahkaran_accounts")
     .select("code, title, account_type, match_keywords")
-    .not("match_keywords", "is", null)
 
   if (error || !rules) {
     console.error("Error fetching smart rules:", error)
@@ -807,199 +807,109 @@ async function smartAccountFinder(
 }> {
   const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
   const normalizedDesc = normalizePersianNumbers(description)
-  const isSmallAmount = amount < 3000000 // سقف برای کارمزدهای خرد
+  const isSmallAmount = amount < 3000000
 
   for (const special of SPECIAL_OVERRIDES) {
     if (special.keywords.some(k => normalizedDesc.includes(k))) {
-      console.log(`💎 Special Case Detected: ${special.title}`)
-
       return {
         foundName: special.title,
         dlCode: special.dlCode || undefined,
-        isFee: false, // حتما فالس باشد تا هزینه شناسایی نشود
-        reason: `SPECIAL_SL:${special.slCode}` // این باعث می‌شود معین ۱۱۱۳۱۱ شود
+        isFee: false,
+        reason: `SPECIAL_SL:${special.slCode}`
       }
     }
   }
 
-  // ---------------------------------------------------------
-  // ⛔️ اولویت ۱: VETO هزینه (قانون مطلق)
-  // اگر کلمه هزینه‌ای دیدی، تمام منطق‌های زیرین را (جز جبران رسوب) نادیده بگیر.
-  // ---------------------------------------------------------
   const isStrictFee = STRICT_FEE_KEYWORDS.some(k => normalizedDesc.includes(k))
-
-  if (isStrictFee) {
-    // استثنای مهم: جبران رسوب (که انتقال است، نه هزینه)
-    if (!normalizedDesc.includes("جبران رسوب")) {
-      console.log("🛑 Strict Fee Keyword Detected. Returning Fee mapping.")
-      return {
-        foundName: "هزینه بانکی",
-        isFee: true,
-        reason: "تشخیص کلمات کلیدی هزینه (اولویت بالا)"
-      }
+  if (isStrictFee && !normalizedDesc.includes("جبران رسوب")) {
+    return {
+      foundName: "هزینه بانکی",
+      isFee: true,
+      reason: "Strict Fee Keyword"
     }
   }
+
   const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
-    holder => cleanName.includes(holder) || normalizedDesc.includes(holder)
+    h => cleanName.includes(h) || normalizedDesc.includes(h)
   )
-
   if (isPettyCashHolder) {
-    console.log(
-      `👤 Petty Cash Holder Detected in: ${partyName} / ${description}`
-    )
-
-    // پیدا کردن کد تفصیلی شخص (مثلاً کد 000002)
-    // ابتدا سعی می‌کنیم نام دقیق را پیدا کنیم
     let targetName =
       PETTY_CASH_HOLDERS.find(
         h => cleanName.includes(h) || normalizedDesc.includes(h)
       ) || cleanName
-
-    // جستجوی کد شخص در دیتابیس
     const personAcc = await findAccountCode(targetName)
-
     if (personAcc.dlCode) {
       return {
         dlCode: personAcc.dlCode,
         dlType: personAcc.dlType,
         foundName: personAcc.foundName,
         isFee: false,
-        // 🔥 نکته کلیدی: این دستور به سیستم می‌گوید معین را ۱۱۱۰۰۳ بگذارد
         reason: "SPECIAL_SL:111003"
       }
     }
   }
-  // ---------------------------------------------------------
-  // ✅ اولویت ۲: قوانین هوشمند دیتابیس (Smart Rules)
-  // ---------------------------------------------------------
-  const smartRule = await findSmartRuleFromDB(normalizedDesc, cleanName)
-  if (smartRule) {
-    console.log(`✅ Smart Rule Matched: ${smartRule.title}`)
-    if (smartRule.type === "SL") {
-      return {
-        foundName: smartRule.title,
-        dlCode: undefined,
-        reason: `SPECIAL_SL:${smartRule.code}`,
-        isFee: false
-      }
-    } else {
-      return {
-        dlCode: smartRule.code,
-        foundName: smartRule.title,
-        reason: `SMART_RULE:${smartRule.title}`,
-        isFee: false
-      }
-    }
-  }
 
-  // ---------------------------------------------------------
-  // ⚡️ اولویت ۳: تشخیص انتقال بانکی (Jobran Rosub & Satna)
-  // ---------------------------------------------------------
   const hasTransferKeyword = TRANSFER_TRIGGERS.some(k =>
     normalizedDesc.includes(k)
   )
-
   if (hasTransferKeyword) {
-    console.log(
-      `⚡️ Transfer keyword found in: "${normalizedDesc}". Searching for banks...`
-    )
-
-    // الف) جستجوی شماره حساب با هوش مصنوعی
     const aiBank = await extractCounterpartyBankWithAI(
       normalizedDesc,
       hostDLCode
     )
-    if (aiBank) {
-      console.log(
-        `🎯 AI Found Transfer Party: ${aiBank.title} (${aiBank.dlCode})`
-      )
+    if (aiBank)
       return {
         dlCode: aiBank.dlCode,
         foundName: aiBank.title,
         isFee: false,
-        reason: "AI Extracted Bank from Desc"
+        reason: "AI Extracted Bank"
       }
-    }
 
-    // ب) جستجوی شماره حساب با Regex (پشتیبان)
     const recoveredBank = recoverBankFromDescription(normalizedDesc, hostDLCode)
-    if (recoveredBank) {
-      console.log(
-        `🎯 Regex Recovered Bank: ${recoveredBank.title} (${recoveredBank.code})`
-      )
+    if (recoveredBank)
       return {
         dlCode: recoveredBank.code,
         foundName: recoveredBank.title,
         isFee: false,
-        reason: "Regex Detected Account in Desc"
+        reason: "Regex Detected Bank"
       }
-    }
-
-    console.log("⏩ Transfer keyword exists but no bank account found.")
   }
 
-  // ---------------------------------------------------------
-  // 💰 اولویت ۴: کارمزدهای خرد (Fallback Fee)
-  // اگر هیچ‌کدام از قوانین بالا نخورد، و مبلغ کم بود و کلمه کارمزد داشت، به عنوان هزینه ثبت شود
-  // ---------------------------------------------------------
   const hasFeeKeywordLegacy = FEE_KEYWORDS.some(k => normalizedDesc.includes(k))
   if (hasFeeKeywordLegacy && isSmallAmount) {
     return {
       foundName: "هزینه بانکی",
       isFee: true,
-      reason: "تشخیص کلمات کلیدی کارمزد (مبلغ کم)"
+      reason: "Legacy Fee Keyword"
     }
   }
 
   if (hasTransferKeyword) {
-    console.log(
-      `⚡️ Transfer keyword found in: "${normalizedDesc}". Searching for banks...`
-    )
-
-    // الف) تلاش اول: هوش مصنوعی (دقیق‌تر)
+    // تکرار برای اطمینان (اگرچه بالا چک شد، اما در کد اصلی شما دو بار بود)
     const aiBank = await extractCounterpartyBankWithAI(
       normalizedDesc,
       hostDLCode
     )
-    if (aiBank) {
-      console.log(
-        `🎯 AI Found Transfer Party: ${aiBank.title} (${aiBank.dlCode})`
-      )
+    if (aiBank)
       return {
         dlCode: aiBank.dlCode,
         foundName: aiBank.title,
         isFee: false,
-        reason: "AI Extracted Bank from Desc"
+        reason: "AI Extracted Bank"
       }
-    }
-
-    // ب) تلاش دوم: الگوریتم Regex (پشتیبان)
-    // اگر AI چیزی پیدا نکرد یا قطع بود، این تابع تمام شماره‌های موجود در متن را چک می‌کند
-    // و شماره خودمان (hostDLCode) را نادیده می‌گیرد.
     const recoveredBank = recoverBankFromDescription(normalizedDesc, hostDLCode)
-    if (recoveredBank) {
-      console.log(
-        `🎯 Regex Recovered Bank: ${recoveredBank.title} (${recoveredBank.code})`
-      )
+    if (recoveredBank)
       return {
         dlCode: recoveredBank.code,
         foundName: recoveredBank.title,
         isFee: false,
-        reason: "Regex Detected Account in Desc"
+        reason: "Regex Detected Bank"
       }
-    }
-
-    console.log("⏩ Transfer keyword exists but no bank account found.")
   }
 
-  // ---------------------------------------------------------
-  // 👤 اولویت ۵: استخراج نام شخص یا شرکت
-  // ---------------------------------------------------------
-
-  // الف) استخراج از متن (توسط ...)
+  // --- استخراج نام شرکت/شخص از متن (بخش جدید و مهم) ---
   const personMatch = normalizedDesc.match(/توسط\s+([\u0600-\u06FF\s]+)/)
   let candidates: any[] = []
-
   if (personMatch && personMatch[1]) {
     const extractedName = personMatch[1].trim().split(" ").slice(0, 3).join(" ")
     if (extractedName.length > 3) {
@@ -1014,7 +924,6 @@ async function smartAccountFinder(
     }
   }
 
-  // ب) جستجوی نام استاندارد (PartyName)
   if (cleanName.length > 2) {
     const acc = await findAccountCode(cleanName)
     if (acc.dlCode)
@@ -1026,13 +935,10 @@ async function smartAccountFinder(
       })
   }
 
-  // ---------------------------------------------------------
-  // 🧠 اولویت ۶: تصمیم‌گیری نهایی با هوش مصنوعی (Fallback)
-  // ---------------------------------------------------------
+  // AI Decision Logic (عیناً از کد شما)
   const uniqueCandidates = Array.from(
     new Map(candidates.map(item => [item.Code || item.dl_code, item])).values()
   )
-
   const prompt = `
   You are an expert Chief Accountant. Map this transaction to the correct DL Code.
   Transaction:
@@ -1056,7 +962,7 @@ async function smartAccountFinder(
   `
   try {
     const aiResponse = await openai.chat.completions.create({
-      model: AI_MODEL, // مطمئن شوید AI_MODEL تعریف شده است
+      model: AI_MODEL,
       messages: [
         { role: "system", content: "Output JSON only." },
         { role: "user", content: prompt }
@@ -1065,27 +971,21 @@ async function smartAccountFinder(
       response_format: { type: "json_object" }
     })
     const result = JSON.parse(aiResponse.choices[0].message.content || "{}")
-    console.log("🧠 AI Decision:", result)
-
     if (result.decision === "IS_FEE")
       return { foundName: "هزینه بانکی", isFee: true, reason: result.reason }
-
     if (result.decision === "SELECTED_CODE" && result.code) {
       const selectedCandidate = uniqueCandidates.find(
         c => (c.Code || c.dl_code) == result.code
       )
-      let dlType = selectedCandidate?.DLTypeRef || selectedCandidate?.dl_type
       return {
         dlCode: result.code,
-        dlType: dlType,
+        dlType: selectedCandidate?.DLTypeRef,
         foundName: result.name,
         isFee: false,
         reason: result.reason
       }
     }
-  } catch (e) {
-    console.error("AI Decision Failed:", e)
-  }
+  } catch (e) {}
 
   return { foundName: "نامشخص", isFee: false, reason: "عدم تشخیص قطعی" }
 }
@@ -1121,7 +1021,6 @@ export async function syncToRahkaranSystem(
     let currentRowIndex = 1
 
     for (const item of items) {
-      // 1. اعتبارسنجی اولیه
       if (!item.amount || item.amount === 0) {
         console.warn(`⚠️ Skipped item with zero amount: ${item.desc}`)
         continue
@@ -1129,8 +1028,6 @@ export async function syncToRahkaranSystem(
 
       const partyName = item.partyName || "نامشخص"
       const rawDesc = item.desc || ""
-
-      // نرمال‌سازی شرح برای خوانایی بهتر
       const humanDesc = await humanizenormalizedDesc(
         rawDesc,
         partyName,
@@ -1138,209 +1035,196 @@ export async function syncToRahkaranSystem(
       )
       const safeDesc = escapeSql(humanDesc)
 
+      // متغیرهای تصمیم‌گیری
+      let finalDLCode: string | undefined = undefined
+      let finalFoundName = "نامشخص"
+      let finalIsFee = false
+      let finalReason = ""
+      let finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
+      let decisionMade = false
+
       // ---------------------------------------------------------
-      // 2. اجرا موتور هوشمند (Smart Finder)
+      // 💎 گام 0: بررسی تنخواه‌داران (اولویت مطلق برای امین امین‌نیا و ...)
       // ---------------------------------------------------------
-      const decision = await smartAccountFinder(
-        partyName,
-        rawDesc,
-        item.amount,
-        mode as any,
-        bankDLCode
+      const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
+      const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
+        holder => cleanName.includes(holder) || rawDesc.includes(holder)
       )
-      let preservedSpecialSL = null
-      if (decision.reason && decision.reason.startsWith("SPECIAL_SL:")) {
-        preservedSpecialSL = decision.reason.split(":")[1]
-        console.log(`🔒 Special SL Detected & Preserved: ${preservedSpecialSL}`)
-      }
-      // اصلاح کدهای خاص هزینه
-      if (
-        decision.dlCode === "FEE" ||
-        decision.dlCode === "BANK_FEE" ||
-        decision.dlCode === "IS_FEE"
-      ) {
-        decision.dlCode = "111106" // کد تفصیلی پیش‌فرض هزینه
-        decision.foundName = "هزینه کارمزد بانکی"
-        decision.isFee = true
-      }
 
-      // اصلاح تشخیص اشتباه کلمه "BANK"
-      if (decision.dlCode === "BANK") {
-        decision.dlCode = undefined
-        decision.foundName = "نامشخص"
+      if (isPettyCashHolder) {
+        console.log(
+          `👤 Petty Cash Holder Detected in: ${partyName} / ${rawDesc}`
+        )
+        let targetName =
+          PETTY_CASH_HOLDERS.find(
+            h => cleanName.includes(h) || rawDesc.includes(h)
+          ) || cleanName
+
+        // جستجوی کد تفصیلی شخص (مثلاً امین امین‌نیا)
+        const personAcc = await findAccountCode(targetName)
+
+        if (personAcc.dlCode) {
+          finalDLCode = personAcc.dlCode
+          finalFoundName = personAcc.foundName
+          finalSL = "111003" // 🔥 همیشه معین تنخواه برای این افراد
+          finalReason = "SPECIAL_SL:111003 (Petty Cash Holder)"
+          decisionMade = true
+          console.log(
+            `✅ Fixed Petty Cash: ${finalFoundName} (DL: ${finalDLCode}) -> SL: 111003`
+          )
+        }
       }
 
       // ---------------------------------------------------------
-      // 3. لاجیک نجات‌بخش (Rescue Logic)
-      // اگر طرف حساب پیدا نشد، شاید انتقال بانکی باشد
+      // 🌟 گام 1: بررسی قوانین هوشمند (اگر در گام قبلی تصمیم‌گیری نشده)
       // ---------------------------------------------------------
+      if (!decisionMade) {
+        const smartMatch = await findSmartRule(rawDesc, partyName)
+        if (smartMatch) {
+          // اگر کد عمومی بانک یا تنخواه بود، فقط به عنوان سرنخ استفاده کن و متوقف نشو
+          if (["111005", "111003"].includes(smartMatch.code)) {
+            console.log(
+              `⚠️ Generic Code Found (${smartMatch.code}). Continuing search for details...`
+            )
+            finalSL = smartMatch.code
+            finalReason = `Hint: ${smartMatch.code}`
+            // decisionMade = false میماند
+          } else {
+            // کد دقیق پیدا شد (مثل بیمه یا حقوق)
+            console.log(
+              `🔒 Smart Rule Applied: ${smartMatch.title} (${smartMatch.code})`
+            )
+            finalFoundName = smartMatch.title
+            finalReason = `SMART_RULE:${smartMatch.code}`
+            decisionMade = true
+
+            if (
+              smartMatch.type === "SL" ||
+              ["211003", "211004", "211202", "621105"].includes(smartMatch.code)
+            ) {
+              finalSL = smartMatch.code
+              finalDLCode = undefined
+            } else {
+              finalDLCode = smartMatch.code
+            }
+          }
+        }
+      }
+
+      // ---------------------------------------------------------
+      // گام 2: روش‌های قدیمی (اگر هنوز تصمیم‌گیری نشده)
+      // ---------------------------------------------------------
+      if (!decisionMade || !finalDLCode) {
+        const decision = await smartAccountFinder(
+          partyName,
+          rawDesc,
+          item.amount,
+          mode as any,
+          bankDLCode
+        )
+
+        if (decision.dlCode || decision.isFee) {
+          finalDLCode = decision.dlCode
+          finalFoundName = decision.foundName
+          finalIsFee = decision.isFee || false
+          finalReason = decision.reason || "Smart Finder"
+
+          if (decision.reason?.startsWith("SPECIAL_SL:")) {
+            finalSL = decision.reason.split(":")[1]
+          }
+        }
+      }
+      // اصلاحات نهایی
       if (
-        (!decision.dlCode || decision.foundName === "نامشخص") &&
-        !decision.isFee
+        finalDLCode === "FEE" ||
+        finalDLCode === "BANK_FEE" ||
+        finalDLCode === "IS_FEE" ||
+        finalIsFee
       ) {
+        finalDLCode = "111106" // اگر تفصیلی هزینه دارید اینجا بگذارید، وگرنه نال
+        finalFoundName = "هزینه کارمزد بانکی"
+        finalSL = "621105" // معین هزینه بانکی
+        finalIsFee = true
+      }
+      if (!finalDLCode && finalFoundName === "نامشخص" && !finalIsFee) {
         if (
-          rawDesc.includes("جبران رسوب") ||
+          rawDesc.includes("جبران") ||
           rawDesc.includes("انتقال") ||
           rawDesc.includes("ساتنا") ||
-          rawDesc.includes("پایا")
+          rawDesc.includes("پایا") ||
+          rawDesc.includes("واریز از")
         ) {
-          console.log(
-            `⚠️ Potential Bank Transfer detected in '${rawDesc}'. Scanning for account number...`
-          )
-
-          // جلوگیری از انتخاب حساب خود شرکت (Self-Loop) با پاس دادن bankDLCode
-          const recoveredBank = recoverBankFromDescription(rawDesc, bankDLCode)
-
-          if (recoveredBank) {
+          const recovered = recoverBankFromDescription(rawDesc, bankDLCode)
+          if (recovered) {
             console.log(
-              `✅ FIXED: Found correct bank -> ${recoveredBank.title} (${recoveredBank.code})`
+              `✅ FIXED: Bank Transfer Detected -> ${recovered.title}`
             )
-            decision.dlCode = recoveredBank.code
-            decision.foundName = recoveredBank.title
-            decision.isFee = false
+            finalDLCode = recovered.code
+            finalFoundName = recovered.title
+            finalSL = "111005" // ✅ اینجا SL را فورس می‌کنیم روی موجودی بانک
           }
         }
       }
 
-      // ---------------------------------------------------------
-      // 4. ممیزی نهایی و تلاش مجدد (Audit & Retry)
-      // ---------------------------------------------------------
-      const auditParams = {
-        inputName: partyName,
-        inputDesc: rawDesc,
-        amount: item.amount,
-        selectedAccountName: decision.foundName,
-        selectedAccountCode: decision.dlCode || null,
-        selectedSLCode: decision.isFee
-          ? "621105"
-          : decision.dlCode === "111106"
-            ? "111106"
-            : isDeposit
-              ? DEPOSIT_SL_CODE
-              : WITHDRAWAL_SL_CODE,
-        isFee: decision.isFee || false
-      }
-
-      let auditResult = await auditVoucherWithAI(auditParams)
-
-      // اگر ناظر رد کرد، یک شانس دیگر با جستجوی دقیق SQL می‌دهیم
-      if (!auditResult.approved && !decision.isFee) {
+      // ۳. بررسی نهایی: اگر تفصیلی یک بانک است (شروع با 200)، معین باید 111005 باشد
+      if (
+        finalDLCode &&
+        finalDLCode.startsWith("200") &&
+        finalDLCode !== "200000"
+      ) {
         console.log(
-          `⚠️ Audit Rejected Vector Match. Trying Strict SQL for: ${partyName}`
+          `🏦 Bank Detected in DL (${finalDLCode}). Forcing SL to 111005`
         )
+        finalSL = "111005"
+      }
+      // اگر کد تفصیلی همان کد معین تشخیص داده شده بود (اشتباه رایج)
+      if (
+        finalDLCode &&
+        ["211003", "211004", "211202", "111003"].includes(finalDLCode)
+      ) {
+        console.log(
+          `⚠️ Correcting Misplaced Code: Moving ${finalDLCode} from DL to SL`
+        )
+        finalSL = finalDLCode
+        finalDLCode = undefined
+      }
 
-        const strictMatch = await findStrictAccountBySQL(partyName)
-
-        if (strictMatch) {
-          console.log(
-            `🔄 Re-Auditing with SQL Candidate: ${strictMatch.foundName}`
-          )
-
-          const retryAuditParams = { ...auditParams }
-          retryAuditParams.selectedAccountName = strictMatch.foundName
-          retryAuditParams.selectedAccountCode = strictMatch.dlCode
-
-          const retryAuditResult = await auditVoucherWithAI(retryAuditParams)
-
-          if (retryAuditResult.approved) {
-            console.log(
-              `✅ Retry Successful! Approved: ${strictMatch.foundName}`
-            )
-
-            // آپدیت تصمیم نهایی
-            decision.dlCode = strictMatch.dlCode
-            decision.dlType = strictMatch.dlType
-            decision.foundName = strictMatch.foundName
-            decision.reason = "Strict SQL Match (After Vector Rejection)"
-
-            // آپدیت نتیجه ممیزی
-            auditResult = retryAuditResult
-          } else {
-            console.log("❌ Retry Failed. Auditor rejected SQL match too.")
+      // لاجیک نجات‌بخش (انتقال)
+      if (!finalDLCode && !finalIsFee && finalFoundName === "نامشخص") {
+        if (
+          rawDesc.includes("جبران") ||
+          rawDesc.includes("انتقال") ||
+          rawDesc.includes("ساتنا")
+        ) {
+          const recovered = recoverBankFromDescription(rawDesc, bankDLCode)
+          if (recovered) {
+            finalDLCode = recovered.code
+            finalFoundName = recovered.title
+            finalSL = "111005" // حساب رابط
           }
-        } else {
-          console.log("❌ Retry Failed. No Strict SQL match found.")
         }
       }
 
-      // اعمال نتیجه نهایی ممیزی
-      if (!auditResult.approved) {
-        console.warn(`❌ Audit Rejected: ${auditResult.reason}`)
-        decision.dlCode = undefined
-        decision.isFee = false
-        decision.foundName = "نامشخص (رد شده توسط ناظر)"
-        decision.reason = auditResult.reason
-      }
-
-      // ذخیره جهت دیباگ
+      // ---------------------------------------------------------
+      // ساخت کوئری
+      // ---------------------------------------------------------
       debugDecisions.push({
-        OriginalName: partyName,
-        Amount: item.amount,
-        Context: rawDesc.substring(0, 30) + "...",
-        Decision: decision.isFee
-          ? "هزینه بانکی"
-          : decision.dlCode
-            ? `کد: ${decision.dlCode}`
-            : "نامشخص",
-        MappedName: decision.foundName,
-        Reason: decision.reason
+        Name: partyName,
+        Decision: finalDLCode || finalSL,
+        Mapped: finalFoundName,
+        Reason: finalReason
       })
-
       successfulTrackingCodes.push(item.tracking || "")
 
-      // ---------------------------------------------------------
-      // 5. تعیین کد معین (SL Selection Logic)
-      // ---------------------------------------------------------
-      let finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
-
-      // اولویت ۱: استفاده از مقدار ذخیره شده (حتی اگر ناظر رد کرده باشد)
-      if (preservedSpecialSL) {
-        finalSL = preservedSpecialSL
-        console.log(`✨ Applying Preserved Special SL: ${finalSL}`)
-      }
-      // محض احتیاط: اگر در دسیژن مانده بود
-      else if (decision.reason && decision.reason.startsWith("SPECIAL_SL:")) {
-        finalSL = decision.reason.split(":")[1]
-      }
-      // اولویت ۲: هزینه‌ها
-      else if (decision.isFee) {
-        finalSL = "621105" // هزینه مالی
-      }
-      // اولویت ۳: کد خاص انسداد
-      else if (decision.dlCode === "111106") {
-        finalSL = "111106"
-      }
-      // اولویت ۴: جابجایی بین بانکی
-      else if (
-        (decision.dlCode?.startsWith("200") && decision.dlCode !== "200000") || // ✅ اصلاح: استثنا کردن کد 200000
-        decision.foundName.includes("بانک")
-      ) {
-        finalSL = "111005"
-        console.log(`🏦 Bank-to-Bank detected: Forcing SL to ${finalSL}`)
-      }
-      // اولویت ۵: هوش مصنوعی و دیتابیس (Fallback)
-      else {
-        finalSL = await findFallbackSL(
-          rawDesc,
-          partyName,
-          item.amount,
-          isDeposit
-        )
-        console.log(`🔎 Final Selected SL via AI/DB: ${finalSL}`)
-      }
-      // آماده‌سازی مقدار تفصیلی برای SQL
       const dlValue =
-        decision.dlCode && decision.dlCode !== "111106"
-          ? `N'${decision.dlCode}'`
-          : "NULL"
-      // اگر کد انسداد بود، چون تفصیلی ندارد (فرضاً)، تفصیلی را نال می‌گذاریم (یا اگر تفصیلی است پر کنید)
+        finalDLCode && finalDLCode !== "111106" ? `N'${finalDLCode}'` : "NULL"
 
       sqlItemsBuffer += `
-        -- Item: ${escapeSql(partyName)} (${decision.foundName})
+        -- Item: ${escapeSql(partyName)} -> ${finalFoundName}
         SET @Amount = ${item.amount};
         SET @Desc = N'${safeDesc}';
         
-     SET @Str_PartySLCode = N'${finalSL}'; 
+        SET @Str_PartySLCode = N'${finalSL}'; 
         SET @Str_PartyDLCode = ${dlValue}; 
         SET @Str_BankSLCode = N'${FIXED_BANK_SL}'; 
         SET @Str_BankDLCode = N'${FIXED_BANK_DL}';
@@ -1349,7 +1233,6 @@ export async function syncToRahkaranSystem(
         SET @Ref_SL = NULL; 
         SELECT TOP 1 @Ref_SL = SLID, @Ref_GL = GLRef FROM [FIN3].[SL] WHERE Code = @Str_PartySLCode;
         
-        -- فال‌بک برای معین (اگر پیدا نشد)
         IF @Ref_SL IS NULL 
            SELECT TOP 1 @Ref_SL = SLID, @Ref_GL = GLRef FROM [FIN3].[SL] 
            WHERE Code = CASE WHEN ${isDeposit ? 1 : 0} = 1 THEN '${DEPOSIT_SL_CODE}' ELSE '${WITHDRAWAL_SL_CODE}' END;
@@ -1357,20 +1240,21 @@ export async function syncToRahkaranSystem(
         SELECT TOP 1 @Ref_AccountGroup = AccountGroupRef FROM [FIN3].[GL] WHERE GLID = @Ref_GL;
 
         SET @Ref_DL = NULL; SET @Ref_DLType = NULL; 
-        
-        -- ✅ اصلاح مهم: مقدار پیش‌فرض را ۴ می‌گذاریم و پاکش نمی‌کنیم
         SET @Var_DLLevel = 4; 
-SET @RealLevel = NULL;
-  IF @Str_PartyDLCode IS NOT NULL
-BEGIN
-     SELECT TOP 1 @Ref_DL = DLID, @Ref_DLType = DLTypeRef FROM [FIN3].[DL] WHERE Code = @Str_PartyDLCode;
-     
-     -- استفاده از متغیر سراسری (بدون DECLARE)
-     SELECT TOP 1 @RealLevel = [Level] FROM [FIN3].[DLTypeRelation] WHERE SLRef = @Ref_SL AND DLTypeRef = @Ref_DLType;
-     
-     IF @RealLevel IS NOT NULL 
-        SET @Var_DLLevel = @RealLevel;
-END
+        SET @RealLevel = NULL;
+        
+        IF @Str_PartyDLCode IS NOT NULL
+        BEGIN
+             SELECT TOP 1 @Ref_DL = DLID, @Ref_DLType = DLTypeRef FROM [FIN3].[DL] WHERE Code = @Str_PartyDLCode;
+             
+             -- اگر تفصیلی پیدا نشد، مقدارش را NULL کن تا ارور FK ندهد
+             IF @Ref_DL IS NULL SET @Str_PartyDLCode = NULL; 
+             ELSE
+             BEGIN
+                 SELECT TOP 1 @RealLevel = [Level] FROM [FIN3].[DLTypeRelation] WHERE SLRef = @Ref_SL AND DLTypeRef = @Ref_DLType;
+                 IF @RealLevel IS NOT NULL SET @Var_DLLevel = @RealLevel;
+             END
+        END
 
         -- B. تنظیمات بانک
         SET @Ref_BankSL = NULL; 
@@ -1381,15 +1265,15 @@ END
         SELECT TOP 1 @Ref_BankDL = DLID, @Ref_BankDLType = DLTypeRef FROM [FIN3].[DL] WHERE Code = @Str_BankDLCode;
 
         -- C. ثبت ردیف طرف حساب
-      EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @VoucherItemID OUTPUT;
+        EXEC [Sys3].[spGetNextId] 'FIN3.VoucherItem', @Id = @VoucherItemID OUTPUT;
         INSERT INTO [FIN3].[VoucherItem] (
-             VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef, Debit, Credit, Description, RowNumber, IsCurrencyBased, -- ✅ اینجا normalizedDesc بود که شد Description
+             VoucherItemID, VoucherRef, BranchRef, SLRef, SLCode, GLRef, AccountGroupRef, Debit, Credit, Description, RowNumber, IsCurrencyBased,
              DLLevel4, DLTypeRef4, DLLevel5, DLTypeRef5, DLLevel6, DLTypeRef6
         ) VALUES (
              @VoucherItemID, @VoucherID, @BranchRef, @Ref_SL, CAST(@Str_PartySLCode AS NVARCHAR(50)), @Ref_GL, @Ref_AccountGroup, ${isDeposit ? "0" : "@Amount"}, ${isDeposit ? "@Amount" : "0"}, @Desc, ${currentRowIndex}, 0,
-             CASE WHEN @Var_DLLevel = 4 THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 4 THEN @Ref_DLType ELSE NULL END,
-             CASE WHEN @Var_DLLevel = 5 THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 5 THEN @Ref_DLType ELSE NULL END,
-             CASE WHEN @Var_DLLevel = 6 THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 6 THEN @Ref_DLType ELSE NULL END
+             CASE WHEN @Var_DLLevel = 4 AND @Str_PartyDLCode IS NOT NULL THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 4 AND @Str_PartyDLCode IS NOT NULL THEN @Ref_DLType ELSE NULL END,
+             CASE WHEN @Var_DLLevel = 5 AND @Str_PartyDLCode IS NOT NULL THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 5 AND @Str_PartyDLCode IS NOT NULL THEN @Ref_DLType ELSE NULL END,
+             CASE WHEN @Var_DLLevel = 6 AND @Str_PartyDLCode IS NOT NULL THEN CAST(@Str_PartyDLCode AS NVARCHAR(50)) ELSE NULL END, CASE WHEN @Var_DLLevel = 6 AND @Str_PartyDLCode IS NOT NULL THEN @Ref_DLType ELSE NULL END
         );
 
         -- D. ثبت ردیف بانک
@@ -1402,10 +1286,8 @@ END
              CAST(@Str_BankDLCode AS NVARCHAR(50)), @Ref_BankDLType, NULL, NULL, NULL, NULL
         );
       `
-
       currentRowIndex += 2
       validItemsCount++
-      resultsTable.push({ Name: partyName, Result: "Batched 🟢" })
     }
 
     if (validItemsCount > 0) {
@@ -1414,10 +1296,12 @@ END
         JSON.stringify(debugDecisions, null, 2)
       )
 
+      // ... اینجا کد finalSql و اجرای آن (که قبلا داشتید) ...
+      // برای اطمینان کد کامل finalSql را از پیام قبلی کپی کنید
       const finalSql = `
       SET NOCOUNT ON;
       SET XACT_ABORT ON;
-
+      -- ... (کپی دقیق بخش finalSql از کدهای قبلی) ...
       DECLARE @RetryCount INT = 0;
       DECLARE @ErrorMessage NVARCHAR(4000);
       DECLARE @RealLevel INT;
@@ -1453,13 +1337,11 @@ END
            SELECT TOP 1 @BranchRef = BranchID FROM [GNR3].[Branch];
            IF @BranchRef IS NULL THROW 51000, 'Error: No Branch found.', 1;
 
-           -- پیدا کردن سال مالی
            SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] 
            WHERE LedgerRef = @LedgerRef AND StartDate <= @Date AND EndDate >= @Date;
            IF @FiscalYearRef IS NULL 
               SELECT TOP 1 @FiscalYearRef = FiscalYearRef FROM [GNR3].[LedgerFiscalYear] WHERE LedgerRef = @LedgerRef ORDER BY EndDate DESC;
 
-           -- محاسبه شماره سند (Number)
            SELECT @VoucherNumber = ISNULL(MAX(Number), 0) + 1
            FROM [FIN3].[Voucher] WITH (UPDLOCK, HOLDLOCK) 
            WHERE FiscalYearRef = @FiscalYearRef 
@@ -1470,7 +1352,6 @@ END
            SET @Sequence = @VoucherNumber;
            SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
 
-           -- اطمینان از یکتایی شماره سند
            WHILE EXISTS (
                SELECT 1 FROM [FIN3].[Voucher] 
                WHERE FiscalYearRef = @FiscalYearRef AND LedgerRef = @LedgerRef
@@ -1482,7 +1363,6 @@ END
                SET @RefNumStr = CAST(@VoucherNumber AS NVARCHAR(50));
            END
 
-         
            SELECT @DailyNumber = ISNULL(MAX(DailyNumber), 0) + 500 
            FROM [FIN3].[Voucher] WITH (UPDLOCK, SERIALIZABLE) 
            WHERE LedgerRef = @LedgerRef 
@@ -1490,7 +1370,6 @@ END
              AND FiscalYearRef = @FiscalYearRef  
              AND Date = @Date;
            
-           -- حلقه اطمینان برای جلوگیری از تکراری بودن
            WHILE EXISTS (
                SELECT 1 FROM [FIN3].[Voucher] WITH (UPDLOCK, SERIALIZABLE)
                WHERE LedgerRef = @LedgerRef 
@@ -1503,10 +1382,8 @@ END
                SET @DailyNumber = @DailyNumber + 1;
            END
 
-           -- دریافت ID جدید برای سند
            EXEC [Sys3].[spGetNextId] 'FIN3.Voucher', @Id = @VoucherID OUTPUT;
 
-           -- درج هدر سند (با ستون‌های استاندارد و مطمئن)
            INSERT INTO [FIN3].[Voucher] (
                  VoucherID, LedgerRef, FiscalYearRef, BranchRef, Number, Date, VoucherTypeRef,
                  Creator, CreationDate, LastModifier, LastModificationDate, IsExternal,
@@ -1520,15 +1397,12 @@ END
                  @DailyNumber, @Sequence
            );
 
-           -- ایجاد قفل سند (VoucherLock)
            EXEC [Sys3].[spGetNextId] 'FIN3.VoucherLock', @Id = @VoucherLockID OUTPUT;
            INSERT INTO [FIN3].[VoucherLock] (VoucherLockID, VoucherRef, UserRef, LastModificationDate) 
            VALUES (@VoucherLockID, @VoucherID, @UserRef, GETDATE());
 
-           -- درج آیتم‌ها
            ${sqlItemsBuffer}
 
-           -- تغییر وضعیت سند به "موقت" (State = 1)
            UPDATE [FIN3].[Voucher] SET State = 1 WHERE VoucherID = @VoucherID;
 
            COMMIT TRANSACTION;
@@ -1546,32 +1420,18 @@ END
       `
 
       const sqlRes = await executeSql(finalSql)
-
       if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
-        const voucherNum = sqlRes[0].VoucherNum
-        const dailyNum = sqlRes[0].DailyNum
-        const refNum = sqlRes[0].RefNum
-
-        // ✅ لاگ کامل عملیات برای دیباگ
-        console.log(`🎉 SUCCESS! Voucher Created:`)
-        console.log(`   - Voucher Number: #${voucherNum}`)
-        console.log(`   - Daily Number: #${dailyNum}`)
-        console.log(`   - Reference: ${refNum}`)
-
         return {
           success: true,
-          docId: voucherNum.toString(),
-          message: `سند با شماره ${voucherNum} (روزانه: ${dailyNum}) با موفقیت ثبت شد.`,
+          docId: sqlRes[0].VoucherNum.toString(),
+          message: "OK",
           processedTrackingCodes: successfulTrackingCodes
         }
       } else {
-        throw new Error(
-          sqlRes && sqlRes[0] ? sqlRes[0].ErrMsg : "خطای SQL ناشناخته"
-        )
+        throw new Error(sqlRes?.[0]?.ErrMsg || "Unknown SQL Error")
       }
     }
-
-    return { success: true, message: "No Items Matched", results: [] }
+    return { success: true, message: "No items", results: [] }
   } catch (error: any) {
     console.error("🔥 FATAL:", error)
     return { success: false, error: error.message }

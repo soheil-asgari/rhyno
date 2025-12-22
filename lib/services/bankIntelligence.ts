@@ -15,6 +15,13 @@ const openai = new OpenAI({
   }
 })
 
+export interface SmartRuleResult {
+  type: "SL" | "DL"
+  code: string
+  title: string
+  source?: "HARDCODE" | "AI_DB"
+}
+
 export interface FeeResult {
   isFee: boolean
   reason: string
@@ -693,40 +700,142 @@ Reply JSON: { "match": boolean }`
   }
 }
 
-export async function findSmartRule(
+export async function matchAccountByDescriptionAI(
   description: string,
   partyName: string
-): Promise<DetectionResult | null> {
-  // تمیزکاری متن ورودی
-  const textToSearch = `${description} ${partyName}`.toLowerCase()
+): Promise<SmartRuleResult | null> {
+  try {
+    // 1. دریافت کل حساب‌ها از دیتابیس (چون تعداد کمه - حدود ۱۵۰ تا - میشه همه رو خوند)
+    // اگر تعداد زیاد شد باید از جستجوی متنی دیتابیس استفاده کرد
+    const { data: accounts, error } = await supabase
+      .from("rahkaran_accounts")
+      .select("code, title, account_type")
 
-  // 1. دریافت تمام اکانت‌هایی که کیورد دارند (فقط آن‌هایی که نال نیستند)
-  const { data: rules, error } = await supabase
-    .from("rahkaran_accounts")
-    .select("code, title, account_type, match_keywords")
-    .not("match_keywords", "is", null)
+    if (error || !accounts || accounts.length === 0) {
+      console.warn("⚠️ Could not fetch accounts from DB:", error?.message)
+      return null
+    }
 
-  if (error || !rules) {
-    console.error("Error fetching smart rules:", error)
-    return null
-  }
+    // تبدیل لیست به متن برای ارسال به هوش مصنوعی
+    const accountsList = accounts
+      .map(acc => `- [${acc.code}] ${acc.title} (${acc.account_type})`)
+      .join("\n")
 
-  // 2. چرخش روی قوانین و پیدا کردن تطابق
-  for (const rule of rules) {
-    if (!rule.match_keywords) continue
+    // 2. درخواست از هوش مصنوعی برای انتخاب بهترین گزینه
+    const response = await openai.chat.completions.create({
+      model: "openai/gpt-4o-mini", // مدل سریع و ارزان
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert accountant using the Iranian accounting system (Rahkaran).
+Your task is to match a transaction description to the MOST ACCURATE accounting code from the provided list.
 
-    for (const keyword of rule.match_keywords) {
-      // چک کردن وجود کلمه کلیدی در متن
-      if (textToSearch.includes(keyword.toLowerCase())) {
+RULES:
+1. Return JSON ONLY: { "found": boolean, "code": "string", "reason": "string" }
+2. If the transaction matches an account clearly (semantically or by keyword), set "found": true.
+3. If uncertain, set "found": false.
+4. Prioritize "Expense" accounts for withdrawals and "Revenue" accounts for deposits if context suggests.
+5. Pay attention to keywords like "حقوق" (Salary), "بیمه" (Insurance), "مالیات" (Tax), "کارمزد" (Fee).`
+        },
+        {
+          role: "user",
+          content: `Transaction Description: "${description}"
+Party/Name: "${partyName}"
+
+Available Accounts List:
+${accountsList}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0
+    })
+
+    const result = JSON.parse(response.choices[0].message.content || "{}")
+
+    if (result.found && result.code) {
+      const matchedAccount = accounts.find(a => a.code === result.code)
+      if (matchedAccount) {
+        console.log(
+          `🧠 AI DB Match: ${description.substring(0, 20)}... => ${matchedAccount.title} (${matchedAccount.code})`
+        )
         return {
-          code: rule.code, // مثلا 111003
-          title: rule.title, // مثلا تنخواه گردان
-          type: (rule.account_type as "DL" | "SL") || "DL",
-          matchedKeyword: keyword
+          type: matchedAccount.account_type as "SL" | "DL",
+          code: matchedAccount.code,
+          title: matchedAccount.title,
+          source: "AI_DB"
         }
       }
     }
+
+    return null
+  } catch (e) {
+    console.error("❌ AI Account Matching Failed:", e)
+    return null
   }
+}
+
+// ------------------------------------------------------------------
+// تابع اصلی قوانین هوشمند (ترکیبی: اول قوانین ثابت، بعد هوش مصنوعی دیتابیس)
+// ------------------------------------------------------------------
+export async function findSmartRule(
+  description: string,
+  partyName: string
+): Promise<SmartRuleResult | null> {
+  const desc = (description || "").toLowerCase()
+  const name = (partyName || "").toLowerCase()
+  const fullText = `${desc} ${name}`
+  const normalizedText = fullText
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/\s+/g, " ")
+
+  // --- سطح ۱: قوانین هاردکد شده (برای اطمینان ۱۰۰٪) ---
+
+  // مالیات حقوق
+  if (
+    normalizedText.includes("مالیات حقوق") ||
+    (normalizedText.includes("مالیات") && normalizedText.includes("کارکنان"))
+  ) {
+    return {
+      type: "DL",
+      code: "211202",
+      title: "حسابهای پرداختنی-مالیات حقوق",
+      source: "HARDCODE"
+    }
+  }
+
+  // بیمه
+  if (
+    normalizedText.includes("حق بیمه") ||
+    normalizedText.includes("تامین اجتماعی") ||
+    normalizedText.includes("لیست بیمه")
+  ) {
+    return {
+      type: "DL",
+      code: "211004",
+      title: "بیمه پرداختنی",
+      source: "HARDCODE"
+    }
+  }
+
+  // حقوق
+  if (
+    normalizedText.includes("حقوق") &&
+    !normalizedText.includes("مالیات") &&
+    (normalizedText.includes("پرسنل") || normalizedText.includes("کارکنان"))
+  ) {
+    return {
+      type: "DL",
+      code: "211003",
+      title: "حقوق پرداختنی",
+      source: "HARDCODE"
+    }
+  }
+
+  // --- سطح ۲: استفاده از هوش مصنوعی روی دیتابیس (rahkaran_accounts) ---
+  // اگر قوانین بالا مچ نشدند، از AI می‌خواهیم در جدول بگردد
+  const aiMatch = await matchAccountByDescriptionAI(description, partyName)
+  if (aiMatch) return aiMatch
 
   return null
 }

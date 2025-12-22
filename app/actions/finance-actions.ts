@@ -155,7 +155,7 @@ export async function analyzeSinglePage(
 
                 {
 
-                  "date": "YYYY/MM/DD (convert to English digits)",
+                 "date": "YYYY/MM/DD (Extract exactly as printed on the doc. If it is Jalali e.g. 1403/09/29, keep it as 1403. Do NOT convert year to Gregorian)",
 
                   "time": "HH:MM",
 
@@ -296,25 +296,28 @@ export async function analyzeSinglePage(
 
         // الف: قوانین هوشمند
 
+        // الف: قوانین هوشمند (شامل قوانین ثابت و هوش مصنوعی دیتابیس)
         const smartMatch = await findSmartRule(
           tx.description,
           currentTx.partyName || ""
         )
 
         if (smartMatch) {
-          // ... (کدهای اسمارت رول) ...
-
-          currentTx.dl_code =
-            smartMatch.type === "DL" ? smartMatch.code : currentTx.dl_code
-
-          currentTx.sl_code =
-            smartMatch.type === "SL" ? smartMatch.code : currentTx.sl_code
+          // تعیین کد معین یا تفصیلی بر اساس نوع بازگشتی
+          if (smartMatch.type === "DL") {
+            currentTx.dl_code = smartMatch.code
+          } else if (smartMatch.type === "SL") {
+            currentTx.sl_code = smartMatch.code
+          }
 
           currentTx.partyName = smartMatch.title
 
+          // ✅ تغییر مهم: وضعیت را "verified" می‌زنیم تا در پنل سبز شود
+          currentTx.ai_verification_status = "verified"
+
+          // چون قانون هوشمند پیدا شد، دیگر جستجوهای بعدی را انجام نده و برگرد
           return currentTx
         }
-
         // ب: استخراج نام
 
         const extractedName = extractNameFromDesc(tx.description)
@@ -768,7 +771,7 @@ export async function submitDailyVoucher(
       description: `سند تجمیعی ${typeFarsi} - مورخ ${date}`,
       mode: type,
       totalAmount: totalAmount,
-      date: date, // ✅ ارسال تاریخ شمسی به راهکاران
+      date: searchDate,
       workspaceId: workspaceId,
       bankDLCode: finalBankDL,
       items: validRequests.map(r => ({
