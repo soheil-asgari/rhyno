@@ -14,7 +14,7 @@ const testimonialsData = [
   {
     name: "علی رضایی",
     title: "توسعه‌دهنده وب",
-    avatar: "/avatars/avatar-1.png",
+    avatar: "/avatars/avatar-2.png",
     rating: 5,
     comment:
       "به عنوان یک برنامه‌نویس، قابلیت کدنویسی هوشمند Rhyno AI فوق‌العاده‌ست. برای دیباگ کردن و نوشتن کدهای پیچیده ساعت‌ها در وقتم صرفه‌جویی کرده. API تمیز و مستندات خوبی هم داره."
@@ -22,7 +22,7 @@ const testimonialsData = [
   {
     name: "سارا نوری",
     title: "مدیر بازاریابی دیجیتال",
-    avatar: "/avatars/avatar-2.png",
+    avatar: "/avatars/avatar-1.png",
     rating: 5,
     comment:
       "تولید محتوا برای شبکه‌های اجتماعی همیشه چالش‌برانگیز بود. با Rhyno AI، ایده‌های جذاب و کپشن‌های حرفه‌ای رو در چند دقیقه آماده می‌کنم. واقعاً یک دستیار خلاق و همه‌چی تمامه."

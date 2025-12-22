@@ -61,30 +61,38 @@ export default function ContactPage() {
       href: "mailto:info@rhynoai.ir"
     }
   ]
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setStatus("در حال ارسال...")
 
     try {
-      // اینجا منطق ارسال فرم به API شما قرار می‌گیرد
-      // مثال:
-      // const response = await fetch("/api/contact", { ... });
-      // if (response.ok) { ... }
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          message
+        })
+      })
 
-      // شبیه‌سازی موفقیت‌آمیز بودن
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      const data = await response.json()
 
-      setStatus("پیام شما با موفقیت ارسال شد! ✅")
-      setName("")
-      setEmail("")
-      setMessage("")
-
-      // شبیه‌سازی خطا
-      // throw new Error("خطا در ارسال پیام.");
+      if (response.ok) {
+        setStatus("پیام شما با موفقیت ارسال شد! ✅")
+        // خالی کردن فرم
+        setName("")
+        setEmail("")
+        setMessage("")
+      } else {
+        // نمایش خطایی که از سمت سرور آمده یا خطای عمومی
+        setStatus(data.message || "مشکلی پیش آمد. لطفا دوباره تلاش کنید ❌")
+      }
     } catch (error) {
-      setStatus("مشکلی پیش آمد. لطفا دوباره تلاش کنید ❌")
       console.error(error)
+      setStatus("خطا در برقراری ارتباط با سرور ❌")
     }
   }
 
