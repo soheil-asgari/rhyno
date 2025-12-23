@@ -6,11 +6,58 @@ module.exports = {
     changefreq: 'weekly',
     priority: 0.7,
     outDir: './public',
-    exclude: ['/api/*', '/secret', '/server-sitemap.xml', '/admin/*'],
+
+    exclude: ['/api/*', '/secret', '/server-sitemap.xml'],
+
     robotsTxtOptions: {
         policies: [
-            { userAgent: '*', allow: '/', disallow: ['/api', '/secret', '/admin'] },
+            {
+                userAgent: '*',
+                allow: '/',
+                disallow: ['/api', '/secret'],
+            },
         ],
     },
-    // ✅ بخش additionalPaths کامل حذف شد چون خودکار انجام می‌شود
+
+    additionalPaths: async (config) => {
+        // مسیرهای ثابت سایت
+        const staticPaths = await Promise.all([
+            config.transform(config, '/'),
+            config.transform(config, '/chat'),
+            config.transform(config, '/about'),
+            config.transform(config, '/contact'),
+            config.transform(config, '/blog'),
+            config.transform(config, '/company'),
+        ]);
+
+        // مسیرهای بلاگ — اینجا باید لیست slugها رو دستی یا داینامیک وارد کنید
+        const blogSlugs = [
+            'ai-business-growth',
+            'ai-dollar-rhyno',
+            'ai-trends-2025',
+            "rhyno-dollar-1",
+            "content-creation-ai",
+            "keyword-research-with-ai",
+            "link-building-guide",
+            "on-page-seo-guide",
+            "pejman-jamshidi-seo",
+            "what-is-ai-explained",
+            "ai-seo-transformation",
+            "what-is-ai-explained",
+            "prompt-engineering-guide",
+            "powerbi-ai-integration",
+            "instagram-ai-management",
+            "gemini-3-capabilities",
+            "free-ai-tools",
+            "content-creation-ai",
+
+
+        ];
+
+        const blogPaths = await Promise.all(
+            blogSlugs.map((slug) => config.transform(config, `/blog/${slug}`))
+        );
+
+        return [...staticPaths, ...blogPaths];
+    },
 };

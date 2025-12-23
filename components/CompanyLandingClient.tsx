@@ -1,11 +1,11 @@
 // app/company/page.tsx
 "use client"
-
+import dynamic from "next/dynamic"
 import React from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import Image from "next/image"
-
+const FreeChat = dynamic(() => import("@/components/FreeChat"), { ssr: false })
 // --- کامپوننت‌های مشترک ---
 import { BentoCard, BentoCardContent } from "@/components/BentoCard"
 import { SectionTitle } from "@/components/SectionTitle"
@@ -457,7 +457,6 @@ export default function CompanyLandingClient() {
                 className="group relative text-center"
               >
                 <div className="relative mx-auto mb-4 size-32 overflow-hidden rounded-full border-4 border-white bg-gray-100 shadow-lg transition-transform duration-300 group-hover:scale-105 dark:border-gray-800 dark:bg-gray-800">
-                  {/* استفاده از Image برای پرفورمنس بهتر */}
                   <Image
                     src={member.image}
                     alt={member.name}
@@ -538,7 +537,7 @@ export default function CompanyLandingClient() {
           </div>
         </section>
 
-        {/* --- Call to Action (Enhanced) --- */}
+        {/* --- Call to Action --- */}
         <section className="py-16 text-center">
           <div className="relative overflow-hidden rounded-3xl bg-blue-600 px-6 py-16 text-white shadow-2xl md:px-12">
             <div className="relative z-10 mx-auto max-w-3xl">
@@ -584,6 +583,39 @@ export default function CompanyLandingClient() {
         {/* --- سوالات متداول --- */}
         <FaqSection />
       </main>
+
+      <footer className="font-vazir border-t border-black/10 py-8 pb-28 text-center transition-colors duration-300 sm:pb-8 dark:border-white/10">
+        <div className="container mx-auto flex flex-col items-center justify-between gap-6 px-4 sm:flex-row">
+          {/* ===== بخش سمت راست ===== */}
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+            <p className="text-sm text-gray-600 transition-colors duration-300 dark:text-gray-500">
+              &copy; {new Date().getFullYear()} Rhyno AI. تمامی حقوق محفوظ است.
+            </p>
+            <a
+              href="https://www.rhynoai.ir/privacy"
+              className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
+            >
+              حریم خصوصی
+            </a>
+          </div>
+
+          {/* ===== بخش سمت چپ ===== */}
+          <div className="flex flex-col-reverse items-center gap-2 sm:flex-row sm:gap-4">
+            <a
+              href="https://www.rhynoai.ir/terms"
+              className="text-sm text-gray-600 transition-colors duration-300 hover:text-white dark:text-gray-500"
+            >
+              قوانین و مقررات
+            </a>
+            <div
+              dangerouslySetInnerHTML={{
+                __html: `<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=642420&Code=snXTJxUEZgVAphAqD5lpep29PJRZ2haT' alt='نماد اعتماد الکترونیکی' style='cursor:pointer; width:80px;' code='snXTJxUEZgVAphAqD5lpep29PJRZ2haT'></a>`
+              }}
+            />
+          </div>
+        </div>
+      </footer>
+      <FreeChat />
     </div>
   )
 }

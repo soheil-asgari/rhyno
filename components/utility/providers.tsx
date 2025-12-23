@@ -1,11 +1,12 @@
 "use client"
 
-// import { SessionProvider } from "next-auth/react" // <-- این خط را حذف یا کامنت کنید
-
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import { type ThemeProviderProps } from "next-themes/dist/types"
 import { SWRConfig } from "swr"
+// ۱. این دو مورد را ایمپورت کنید
+import { ChatbotUIProvider } from "@/context/provider"
+import { GlobalState } from "@/components/utility/global-state"
 
 const swrConfig = {
   revalidateOnFocus: false
@@ -13,10 +14,14 @@ const swrConfig = {
 
 export function Providers({ children, ...props }: ThemeProviderProps) {
   return (
-    // SessionProvider از اینجا حذف شد
     <SWRConfig value={swrConfig}>
       <NextThemesProvider {...props}>
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          {/* ۲. برنامه را داخل این پرووایدرها قرار دهید */}
+          <ChatbotUIProvider>
+            <GlobalState>{children}</GlobalState>
+          </ChatbotUIProvider>
+        </TooltipProvider>
       </NextThemesProvider>
     </SWRConfig>
   )
