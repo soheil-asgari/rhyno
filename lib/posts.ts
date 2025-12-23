@@ -5,6 +5,8 @@ import path from "path"
 import matter from "gray-matter"
 import { remark } from "remark"
 import html from "remark-html"
+// ❌ ایمپورت kv را اینجا نیاز نداریم چون نباید در بیلد استاتیک استفاده شود
+// اگر جای دیگری استفاده می‌کنید بگذارید بماند، اما در توابع زیر استفاده نکنید.
 import { kv } from "@vercel/kv"
 
 const postsDirectory = path.join(process.cwd(), "_posts")
@@ -24,8 +26,7 @@ export interface PostFull extends Post {
   contentHtml: string
 }
 
-// 🟢 ۱. تابع جدید: فقط خواندن فایل‌ها (بدون اتصال به دیتابیس)
-// این تابع امن برای استفاده در generateStaticParams است
+// 🟢 ۱. تابع دریافت پست‌های لوکال (امن برای generateStaticParams)
 export function getLocalPosts(): Post[] {
   const fileNames = fs.readdirSync(postsDirectory)
 
@@ -45,7 +46,7 @@ export function getLocalPosts(): Post[] {
         image: (matterResult.data.image as string) || "",
         excerpt: (matterResult.data.excerpt as string) || "",
         category: (matterResult.data.category as string) || "",
-        views: 0 // مقدار پیش‌فرض چون اینجا به دیتابیس وصل نمی‌شویم
+        views: 0 // در بیلد استاتیک بازدید همیشه ۰ است
       }
     })
     .filter((post): post is Post => post !== null)
@@ -54,32 +55,32 @@ export function getLocalPosts(): Post[] {
   return posts
 }
 
-// 🟠 ۲. تابع اصلی: دریافت پست‌ها + بازدیدها (برای استفاده در صفحات اصلی)
+// 🟠 ۲. تابع دریافت همه پست‌ها
+// نکته: اگر صفحه اصلی وبلاگ (/blog) شما هم استاتیک است،
+// بهتر است اینجا هم kv را حذف کنید یا آن صفحه را dynamic کنید.
+// اما برای رفع ارور فعلی، فعلا می‌گذاریم این تابع کارش را بکند
+// مگر اینکه در بیلد صفحه اصلی هم به مشکل بخورید.
 export async function getAllPosts(): Promise<Post[]> {
-  // اول پست‌های لوکال را می‌گیریم
   const posts = getLocalPosts()
-
   if (posts.length === 0) return []
 
-  const slugs = posts.map(p => p.slug)
-
+  // ⚠️ نکته مهم: اگر در صفحه اصلی ارور مشابه گرفتید، کد داخل try/catch را حذف کنید
+  // و فقط posts را برگردانید.
   try {
-    // تلاش برای گرفتن بازدیدها
+    const slugs = posts.map(p => p.slug)
     const allViews = await kv.hmget<Record<string, number>>("views", ...slugs)
 
-    // ترکیب بازدیدها با پست‌ها
     return posts.map(post => ({
       ...post,
       views: allViews?.[post.slug] || 0
     }))
   } catch (error) {
-    // اگر دیتابیس خطا داد، همان پست‌های لوکال را بدون بازدید برگردان
     console.error("Error fetching views form KV:", error)
     return posts
   }
 }
 
-// 🔵 ۳. دریافت تک پست (همراه با مدیریت خطا برای KV)
+// 🔵 ۳. دریافت تک پست (اصلاح شده برای رفع ارور)
 export async function getPostBySlug(slug: string): Promise<PostFull | null> {
   const fullPath = path.join(postsDirectory, `${slug}.md`)
   try {
@@ -93,18 +94,15 @@ export async function getPostBySlug(slug: string): Promise<PostFull | null> {
       .process(matterResult.content)
     const contentHtml = processedContent.toString()
 
-    // گرفتن بازدید (با try-catch جداگانه که کل صفحه کرش نکند)
-    let views = 0
-    try {
-      views = (await kv.hget<number>("views", slug)) || 0
-    } catch (e) {
-      console.warn(`Could not fetch views for ${slug}`, e)
-    }
+    // ⭐️ اصلاح مهم: حذف فچ کردن بازدیدها از اینجا
+    // چون این تابع در زمان Build اجرا می‌شود، نباید به دیتابیس وصل شود.
+    // بازدید را باید در کلاینت نمایش دهید.
+    const views = 0
 
     return {
       slug,
       contentHtml,
-      views,
+      views, // مقدار صفر برمی‌گرداند (درست است)
       title: (matterResult.data.title as string) || "بدون عنوان",
       date: (matterResult.data.date as string) || new Date().toISOString(),
       author: (matterResult.data.author as string) || "RhynoAI",
