@@ -1,32 +1,30 @@
 // FILE: app/api/views/[slug]/route.ts
 
+import { NextRequest, NextResponse } from "next/server"
 import { kv } from "@vercel/kv"
-import { NextResponse } from "next/server"
 
-// این تابع درخواست POST از ViewCounter.tsx را مدیریت می‌کند
-export async function POST(
-  request: Request,
-  { params }: { params: { slug: string } }
-) {
-  const slug = params.slug
-  if (!slug) {
-    return new Response("Slug is required", { status: 400 })
-  }
+interface Params {
+  params: { slug: string }
+}
 
+export async function GET(req: NextRequest, { params }: Params) {
   try {
-    // "views" نام کلکسیون (hash) ما در Vercel KV است
-    // slug همان کلید (key) ما است
-    // 1 عددی است که به بازدید اضافه می‌کنیم
-    const views = await kv.hincrby("views", slug, 1)
-
-    // تعداد بازدید جدید را برمی‌گردانیم
-    return NextResponse.json({ slug, views })
+    const views = await kv.hget("views", params.slug)
+    return NextResponse.json({ views: views || 0 })
   } catch (error) {
-    console.error("Error incrementing views:", error)
-    return new Response("Internal Server Error", { status: 500 })
+    return NextResponse.json({ views: 0 }, { status: 500 })
   }
 }
 
-// 💡 نکته: ما به تابع GET نیازی نداریم
-// چون صفحه اصلی بلاگ (app/blog/page.tsx) مستقیماً با kv.hgetall()
-// از دیتابیس می‌خواند که بسیار بهینه‌تر است.
+export async function POST(req: NextRequest, { params }: Params) {
+  try {
+    // 🟢 اصلاح شده: استفاده از hincrby به جای hincr
+    // پارامتر سوم (1) یعنی یک واحد اضافه کن
+    const views = await kv.hincrby("views", params.slug, 1)
+
+    return NextResponse.json({ views })
+  } catch (error) {
+    console.error("KV Error:", error)
+    return NextResponse.json({ error: "Error saving view" }, { status: 500 })
+  }
+}

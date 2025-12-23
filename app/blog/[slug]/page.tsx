@@ -3,6 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { FiCalendar, FiUser } from "react-icons/fi"
+import { ViewDisplay } from "./components/ViewDisplay"
 
 // ایمپورت‌های پروژه شما
 import { getPostBySlug, getLocalPosts } from "@/lib/posts" // مطمئن شوید این توابع fetch به upstash ندارند
@@ -86,6 +87,7 @@ export default async function PostPage({ params }: Props) {
             {post.title}
           </h1>
           <div className="flex flex-wrap items-center justify-end gap-6 text-sm text-gray-600 dark:text-gray-400">
+            <ViewDisplay slug={post.slug} />
             <div className="flex items-center gap-2">
               <FiUser className="text-gray-600 dark:text-gray-500" />
               <span>{authorName}</span>
