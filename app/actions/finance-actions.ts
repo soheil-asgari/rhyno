@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
-import OpenAI from "openai"
+import { OpenRouter } from "@openrouter/sdk"
 import { revalidatePath } from "next/cache"
 import DateObject from "react-date-object"
 import persian from "react-date-object/calendars/persian"
@@ -22,15 +22,9 @@ import { findAccountCode } from "@/lib/services/rahkaran"
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
 
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://rhynoai.ir",
-    "X-Title": "Rhyno Automation"
-  }
+const openRouter = new OpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY!
 })
-
 const AI_MODEL = "google/gemini-2.5-pro"
 
 export interface SinglePageResult {
@@ -97,7 +91,7 @@ export async function analyzeSinglePage(
 
     const aiResponse = await withRetry(
       async () => {
-        return await openai.chat.completions.create({
+        return await openRouter.chat.send({
           model: AI_MODEL,
 
           messages: [
@@ -187,13 +181,13 @@ export async function analyzeSinglePage(
 
                 {
                   type: "image_url",
-                  image_url: { url: `data:${mimeType};base64,${base64Data}` }
+                  imageUrl: { url: `data:${mimeType};base64,${base64Data}` }
                 }
               ]
             }
           ],
 
-          response_format: { type: "json_object" },
+          responseFormat: { type: "json_object" },
 
           temperature: 0
         })
@@ -202,8 +196,7 @@ export async function analyzeSinglePage(
       2000
     )
 
-    const content = aiResponse.choices[0].message.content
-
+    const content = aiResponse.choices[0].message.content as string
     const aiJson = JSON.parse(content || "{}")
 
     if (!aiJson.transactions) {
@@ -1420,7 +1413,7 @@ export async function analyzeInvoice(fileUrl: string) {
       ? "application/pdf"
       : "image/jpeg"
 
-    const response = await openai.chat.completions.create({
+    const response = await openRouter.chat.send({
       model: "openai/gpt-5-mini", // مدل مناسب و سریع
       messages: [
         {
@@ -1437,15 +1430,15 @@ export async function analyzeInvoice(fileUrl: string) {
             },
             {
               type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${base64Data}` }
+              imageUrl: { url: `data:${mimeType};base64,${base64Data}` }
             }
           ]
         }
       ],
-      response_format: { type: "json_object" }
+      responseFormat: { type: "json_object" }
     })
 
-    const content = response.choices[0].message.content
+    const content = response.choices[0].message.content as string
     const data = JSON.parse(content || "{}")
 
     return { success: true, data }

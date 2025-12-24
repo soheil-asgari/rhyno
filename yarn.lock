@@ -2091,10 +2091,10 @@
   resolved "https://registry.yarnpkg.com/@nolyfill/is-core-module/-/is-core-module-1.0.39.tgz#3dc35ba0f1e66b403c00b39344f870298ebb1c8e"
   integrity sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==
 
-"@openrouter/sdk@^0.2.11":
-  version "0.2.11"
-  resolved "https://registry.yarnpkg.com/@openrouter/sdk/-/sdk-0.2.11.tgz#0c177fefa8046e3dbfb61e9071c4366f2e8be302"
-  integrity sha512-W6ji4J2O08RUkDmCBqDgiHkoH5ARb4xBZL/xTM98cDzes2iLBuGaF3z2PXMCC27UYTas2pyz+nn62iXjO+yQvg==
+"@openrouter/sdk@^0.3.10":
+  version "0.3.10"
+  resolved "https://registry.yarnpkg.com/@openrouter/sdk/-/sdk-0.3.10.tgz#5414c9940d3b420883d5841e145430e3eec74430"
+  integrity sha512-FNOwLn/GvOw1Xk+x36bC1vtDwLIo45yIEoBwin+Dhb4j9DoRVBW2h9L/1rjNd7ILpyj9lB3LBhaLmateOt4Wrg==
   dependencies:
     zod "^3.25.0 || ^4.0.0"
 

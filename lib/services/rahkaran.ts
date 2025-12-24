@@ -1,4 +1,3 @@
-import OpenAI from "openai"
 import { createClient } from "@supabase/supabase-js"
 import {
   verifyNameMatch,
@@ -11,6 +10,7 @@ import {
   findSmartRule,
   extractCounterpartyBankWithAI
 } from "./bankIntelligence"
+import { OpenRouter } from "@openrouter/sdk"
 
 export interface RahkaranSyncResult {
   success: boolean
@@ -197,7 +197,28 @@ const FEE_KEYWORDS = [
   "رفع سوء اثر",
   "کارمزد رفع سوء اثر",
   "صدور چک",
-  "تمتی چک"
+  "تمتی چک",
+  "کارمزد",
+  "هزینه بانکی",
+  "آبونمان",
+  "ابونمان",
+  "حق اشتراک",
+  "صدور چک",
+  "صدور دسته چک",
+  "هزینه پیامک",
+  "سرویس پیامک",
+  "تمبر",
+  "خدمات بانکی",
+  "کارمزد ساتنا",
+  "کارمزد پایا",
+  "عودت کارمزد",
+  "تمبرضمان",
+  "تمبر ضمان",
+  "ضمان",
+  "ابطال چک",
+  "عودت چک",
+  "رفع سوء اثر",
+  "کارمزد رفع سوء اثر"
 ]
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -207,13 +228,8 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
 
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://rhynoai.ir",
-    "X-Title": "Rhyno Automation"
-  }
+const openai = new OpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY
 })
 
 const AI_MODEL = "google/gemini-2.5-flash"
@@ -339,12 +355,24 @@ export async function findAccountCode(partyName: string): Promise<{
   // 1. جستجوی وکتور (بدون تغییر)
   // ---------------------------------------------------------
   try {
-    const embeddingRes = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: cleanName.replace(/\s+/g, " ")
+    const fetchRes = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "<YOUR_SITE_URL>",
+        "X-Title": "<YOUR_SITE_NAME>"
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: cleanName.replace(/\s+/g, " ")
+      })
     })
 
-    const embedding = embeddingRes.data[0].embedding
+    if (!fetchRes.ok) throw new Error("Embedding API Error")
+
+    const data = await fetchRes.json()
+    const embedding = data.data[0].embedding
     const { data: matches } = await supabaseService.rpc(
       "match_rahkaran_entities",
       {
@@ -490,13 +518,14 @@ async function humanizenormalizedDesc(
     Type: ${type === "deposit" ? "واریز" : "برداشت"}
     Rules: Remove "robot", "automated". Use terms like "بابت", "طی فیش", "حواله". Keep tracking codes. Output ONLY Farsi.
     `
-    const response = await openai.chat.completions.create({
+    const response = await openai.chat.send({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.4,
-      max_tokens: 100
+      maxTokens: 100
     })
-    return response.choices[0]?.message?.content?.trim() || rawDesc
+    const content = response.choices[0].message.content as string
+    return content?.trim() || rawDesc
   } catch (e) {
     return `بابت ${partyName} - ${rawDesc}`
   }
@@ -516,16 +545,14 @@ async function generateHumanHeader(date: string): Promise<string> {
     - Use varied styles like: "ثبت گردش عملیات بانکی مورخ ...", "سند روزانه بانک ...", "گردش وجوه نقد ...".
     - Output ONLY the Farsi string.
     `
-    const response = await openai.chat.completions.create({
+    const response = await openai.chat.send({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.7, // کمی خلاقیت برای تنوع
-      max_tokens: 60
+      temperature: 0.7,
+      maxTokens: 60
     })
-    return (
-      response.choices[0]?.message?.content?.trim() ||
-      `گردش عملیات بانکی مورخ ${date}`
-    )
+    const content = response.choices[0].message.content as string
+    return content?.trim() || `${date}`
   } catch (e) {
     return `گردش عملیات بانکی مورخ ${date}`
   }
@@ -666,14 +693,15 @@ async function predictSLWithAI(
     Output JSON ONLY: { "selected_code": "..." | null }
     `
 
-    const aiRes = await openai.chat.completions.create({
+    const aiRes = await openai.chat.send({
       model: "google/gemini-2.5-flash",
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" }, // camelCase اصلاح شد
       temperature: 0
     })
 
-    const result = JSON.parse(aiRes.choices[0].message.content || "{}")
+    const content = aiRes.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
     if (result.selected_code) {
       console.log(
         `🧠 AI Semantic Match: "${description}" (${isDeposit ? "Dep" : "Wdr"}) => ${result.selected_code}`
@@ -961,16 +989,17 @@ async function smartAccountFinder(
   Output JSON: { "decision": "SELECTED_CODE" | "IS_FEE" | "UNKNOWN", "code": "...", "name": "...", "reason": "..." }
   `
   try {
-    const aiResponse = await openai.chat.completions.create({
+    const aiResponse = await openai.chat.send({
       model: AI_MODEL,
       messages: [
         { role: "system", content: "Output JSON only." },
         { role: "user", content: prompt }
       ],
       temperature: 0.0,
-      response_format: { type: "json_object" }
+      responseFormat: { type: "json_object" } // camelCase اصلاح شد
     })
-    const result = JSON.parse(aiResponse.choices[0].message.content || "{}")
+    const content = aiResponse.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
     if (result.decision === "IS_FEE")
       return { foundName: "هزینه بانکی", isFee: true, reason: result.reason }
     if (result.decision === "SELECTED_CODE" && result.code) {
@@ -1047,48 +1076,57 @@ export async function syncToRahkaranSystem(
       // 💎 گام 0: بررسی تنخواه‌داران (اولویت مطلق برای امین امین‌نیا و ...)
       // ---------------------------------------------------------
       const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
-      const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
-        holder => cleanName.includes(holder) || rawDesc.includes(holder)
-      )
 
-      if (isPettyCashHolder) {
+      // ---------------------------------------------------------
+      // 🚨 گام منفی ۱: بررسی کارمزد (اولویت مطلق) - رفع باگ عدم تشخیص کارمزد
+      // ---------------------------------------------------------
+      const isStrictFee = STRICT_FEE_KEYWORDS.some(k => rawDesc.includes(k))
+      if (isStrictFee && !rawDesc.includes("جبران رسوب")) {
         console.log(
-          `👤 Petty Cash Holder Detected in: ${partyName} / ${rawDesc}`
+          `💸 Strict Fee Detected at Start: ${rawDesc.substring(0, 30)}...`
         )
-        let targetName =
-          PETTY_CASH_HOLDERS.find(
-            h => cleanName.includes(h) || rawDesc.includes(h)
-          ) || cleanName
+        finalIsFee = true
+        finalFoundName = "هزینه کارمزد بانکی"
+        finalSL = "621105"
+        finalDLCode = undefined
+        finalReason = "Strict Fee Keyword (Pre-check)"
+        decisionMade = true
+      }
 
-        // جستجوی کد تفصیلی شخص (مثلاً امین امین‌نیا)
-        const personAcc = await findAccountCode(targetName)
-
-        if (personAcc.dlCode) {
-          finalDLCode = personAcc.dlCode
-          finalFoundName = personAcc.foundName
-          finalSL = "111003" // 🔥 همیشه معین تنخواه برای این افراد
-          finalReason = "SPECIAL_SL:111003 (Petty Cash Holder)"
-          decisionMade = true
-          console.log(
-            `✅ Fixed Petty Cash: ${finalFoundName} (DL: ${finalDLCode}) -> SL: 111003`
-          )
+      // 💎 0. بررسی تنخواه‌داران
+      if (!decisionMade) {
+        const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
+          h => cleanName.includes(h) || rawDesc.includes(h)
+        )
+        if (isPettyCashHolder) {
+          console.log(`👤 Petty Cash Holder Detected: ${cleanName}`)
+          let targetName =
+            PETTY_CASH_HOLDERS.find(
+              h => cleanName.includes(h) || rawDesc.includes(h)
+            ) || cleanName
+          const personAcc = await findAccountCode(targetName)
+          if (personAcc.dlCode) {
+            finalDLCode = personAcc.dlCode
+            finalFoundName = personAcc.foundName
+            finalSL = "111003"
+            finalReason = "Priority: Petty Cash Holder"
+            decisionMade = true
+          }
         }
       }
 
-      // ---------------------------------------------------------
-      // 🌟 گام 1: بررسی قوانین هوشمند (اگر در گام قبلی تصمیم‌گیری نشده)
-      // ---------------------------------------------------------
+      // 🌟 1. بررسی Smart Rule (حقوق/بیمه/مالیات/بانک)
       if (!decisionMade) {
         const smartMatch = await findSmartRule(rawDesc, partyName)
         if (smartMatch) {
-          // اگر کد عمومی بانک یا تنخواه بود، فقط به عنوان سرنخ استفاده کن و متوقف نشو
+          // اگر کد پیدا شده عمومی (بانک 111005) بود، فقط سرنخ است، متوقف نشو!
           if (["111005", "111003"].includes(smartMatch.code)) {
             console.log(
-              `⚠️ Generic Code Found (${smartMatch.code}). Continuing search for details...`
+              `⚠️ Generic Hint Found (${smartMatch.code}). Continuing search for Vendor...`
             )
             finalSL = smartMatch.code
             finalReason = `Hint: ${smartMatch.code}`
-            // decisionMade = false میماند
+            // decisionMade = false باقی می‌ماند تا جستجوی دقیق انجام شود
           } else {
             // کد دقیق پیدا شد (مثل بیمه یا حقوق)
             console.log(
@@ -1111,9 +1149,7 @@ export async function syncToRahkaranSystem(
         }
       }
 
-      // ---------------------------------------------------------
-      // گام 2: روش‌های قدیمی (اگر هنوز تصمیم‌گیری نشده)
-      // ---------------------------------------------------------
+      // 🔍 2. جستجوی عمیق (Smart Finder)
       if (!decisionMade || !finalDLCode) {
         const decision = await smartAccountFinder(
           partyName,
@@ -1134,19 +1170,40 @@ export async function syncToRahkaranSystem(
           }
         }
       }
-      // اصلاحات نهایی
+
+      // =========================================================
+      // 🔧 3. اصلاحات نهایی
+      // =========================================================
+
+      // اصلاح معین اشتباه برای شرکت‌ها
+      // اگر اسمارت رول به ما 111005 (بانک) داد، اما ما یک کد تفصیلی غیر بانکی (شرکت) پیدا کردیم
+      if (finalSL === "111005" && finalDLCode) {
+        // اگر کد با 200 شروع نمی‌شود (یعنی بانک نیست)، پس یک شرکت است
+        if (!finalDLCode.startsWith("200") || finalDLCode === "200000") {
+          console.log(
+            `🔄 Correcting SL from 111005 to Default (Vendor detected: ${finalDLCode})`
+          )
+          finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
+        }
+      }
+
       if (
         finalDLCode === "FEE" ||
-        finalDLCode === "BANK_FEE" ||
-        finalDLCode === "IS_FEE" ||
-        finalIsFee
+        finalIsFee ||
+        finalDLCode === "111106" ||
+        finalDLCode === "621105"
       ) {
-        finalDLCode = "111106" // اگر تفصیلی هزینه دارید اینجا بگذارید، وگرنه نال
+        finalSL = "621105"
+        finalDLCode = undefined
         finalFoundName = "هزینه کارمزد بانکی"
-        finalSL = "621105" // معین هزینه بانکی
-        finalIsFee = true
       }
-      if (!finalDLCode && finalFoundName === "نامشخص" && !finalIsFee) {
+
+      // نجات‌بخش (انتقال بانکی)
+      if (
+        !finalDLCode &&
+        !finalIsFee &&
+        (finalFoundName === "نامشخص" || finalFoundName.includes("موجودی بانک"))
+      ) {
         if (
           rawDesc.includes("جبران") ||
           rawDesc.includes("انتقال") ||
@@ -1161,48 +1218,30 @@ export async function syncToRahkaranSystem(
             )
             finalDLCode = recovered.code
             finalFoundName = recovered.title
-            finalSL = "111005" // ✅ اینجا SL را فورس می‌کنیم روی موجودی بانک
+            finalSL = "111005"
           }
         }
       }
 
-      // ۳. بررسی نهایی: اگر تفصیلی یک بانک است (شروع با 200)، معین باید 111005 باشد
+      // بررسی نهایی بانک
       if (
         finalDLCode &&
         finalDLCode.startsWith("200") &&
         finalDLCode !== "200000"
       ) {
-        console.log(
-          `🏦 Bank Detected in DL (${finalDLCode}). Forcing SL to 111005`
-        )
         finalSL = "111005"
       }
-      // اگر کد تفصیلی همان کد معین تشخیص داده شده بود (اشتباه رایج)
+
+      // رفع باگ کدهای معین در تفصیلی
       if (
         finalDLCode &&
-        ["211003", "211004", "211202", "111003"].includes(finalDLCode)
-      ) {
-        console.log(
-          `⚠️ Correcting Misplaced Code: Moving ${finalDLCode} from DL to SL`
+        ["211003", "211004", "211202", "111003", "621105", "111005"].includes(
+          finalDLCode
         )
+      ) {
+        console.log(`⚠️ Moving misplaced code ${finalDLCode} to SL`)
         finalSL = finalDLCode
         finalDLCode = undefined
-      }
-
-      // لاجیک نجات‌بخش (انتقال)
-      if (!finalDLCode && !finalIsFee && finalFoundName === "نامشخص") {
-        if (
-          rawDesc.includes("جبران") ||
-          rawDesc.includes("انتقال") ||
-          rawDesc.includes("ساتنا")
-        ) {
-          const recovered = recoverBankFromDescription(rawDesc, bankDLCode)
-          if (recovered) {
-            finalDLCode = recovered.code
-            finalFoundName = recovered.title
-            finalSL = "111005" // حساب رابط
-          }
-        }
       }
 
       // ---------------------------------------------------------

@@ -1,4 +1,4 @@
-import OpenAI from "openai"
+import { OpenRouter } from "@openrouter/sdk"
 import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(
@@ -6,13 +6,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://rhyno.ir",
-    "X-Title": "Rhyno Automation"
-  }
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
+const SITE_URL = "https://rhynoai.ir"
+const SITE_NAME = "Rhyno Automation"
+
+const openRouter = new OpenRouter({
+  apiKey: OPENROUTER_API_KEY!
 })
 
 export interface SmartRuleResult {
@@ -318,20 +317,30 @@ export function detectBankInfoByNumber(
 }
 
 export async function findBestEntitiesByEmbedding(
-  supabase: any, // کلاینت سوپابیس را پاس بدهید
+  supabase: any,
   searchText: string,
   matchCount: number = 5
 ) {
   try {
-    // ۱. تولید امبدینگ برای متن جستجو
-    // نکته: مدلی که اینجا استفاده می‌کنید باید دقیقاً همان مدلی باشد که دیتابیس با آن پر شده
-    const embeddingResponse = await openai.embeddings.create({
-      model: "qwen/qwen3-embedding-8b", // یا مدلی که استفاده کردید
-      input: searchText.replace(/\n/g, " ")
+    // ✅ جایگزینی با Fetch مستقیم به OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": SITE_URL,
+        "X-Title": SITE_NAME
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-embedding-8b", // مدل امبدینگ شما
+        input: searchText.replace(/\n/g, " ")
+      })
     })
 
-    const embedding = embeddingResponse.data[0].embedding
+    if (!response.ok) throw new Error("Embedding API Error")
 
+    const data = await response.json()
+    const embedding = data.data[0].embedding
     // ۲. فراخوانی RPC در سوپابیس
     const { data: documents, error } = await supabase.rpc(
       "match_rahkaran_entities",
@@ -449,7 +458,7 @@ export async function extractCounterpartyBankWithAI(
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await openRouter.chat.send({
       model: "openai/gpt-5-mini", // مدل سریع
       messages: [
         {
@@ -470,11 +479,12 @@ export async function extractCounterpartyBankWithAI(
           content: `Text: "${description}"`
         }
       ],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0
     })
 
-    const result = JSON.parse(completion.choices[0].message.content || "{}")
+    const content = completion.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
     const foundNumber = result.found_number
 
     if (foundNumber) {
@@ -623,7 +633,7 @@ export async function detectFeeWithAI(
 
   if (amount < 500000) {
     try {
-      const aiRes = await openai.chat.completions.create({
+      const aiRes = await openRouter.chat.send({
         model: "openai/gpt-5-mini",
         messages: [
           {
@@ -636,9 +646,10 @@ export async function detectFeeWithAI(
             content: `Is this a bank fee/service charge? Description: "${desc}", Amount: ${amount}`
           }
         ],
-        response_format: { type: "json_object" }
+        responseFormat: { type: "json_object" }
       })
-      const result = JSON.parse(aiRes.choices[0].message.content || "{}")
+      const content = aiRes.choices[0].message.content as string
+      const result = JSON.parse(content || "{}")
       if (result.isFee) {
         return { isFee: true, reason: "تشخیص هوشمند بافت تراکنش (AI Check)" }
       }
@@ -670,7 +681,7 @@ export async function verifyWithAI(
   if (inputName.replace(/\s/g, "") === dbName.replace(/\s/g, "")) return true
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await openRouter.chat.send({
       model: "openai/gpt-5-mini",
       messages: [
         {
@@ -689,11 +700,12 @@ Input 2: "${dbName}"
 Reply JSON: { "match": boolean }`
         }
       ],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.1
     })
 
-    const result = JSON.parse(completion.choices[0].message.content || "{}")
+    const content = completion.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
     return result.match === true
   } catch (e) {
     return false
@@ -722,7 +734,7 @@ export async function matchAccountByDescriptionAI(
       .join("\n")
 
     // 2. درخواست از هوش مصنوعی برای انتخاب بهترین گزینه
-    const response = await openai.chat.completions.create({
+    const response = await openRouter.chat.send({
       model: "openai/gpt-4o-mini", // مدل سریع و ارزان
       messages: [
         {
@@ -746,11 +758,12 @@ Available Accounts List:
 ${accountsList}`
         }
       ],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0
     })
 
-    const result = JSON.parse(response.choices[0].message.content || "{}")
+    const content = response.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
 
     if (result.found && result.code) {
       const matchedAccount = accounts.find(a => a.code === result.code)
@@ -896,14 +909,15 @@ export async function auditVoucherWithAI(data: {
     Output JSON ONLY: { "approved": boolean, "reason": "Short explanation" }
     `
 
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.5-flash", // مدل سریع
+    const completion = await openRouter.chat.send({
+      model: "google/gemini-2.5-flash",
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0
     })
 
-    const result = JSON.parse(completion.choices[0].message.content || "{}")
+    const content = completion.choices[0].message.content as string
+    const result = JSON.parse(content || "{}")
 
     return {
       approved: result.approved,
