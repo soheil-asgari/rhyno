@@ -1,13 +1,28 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
-export const runtime = "edge" // برای سرعت بالاتر
+export const runtime = "edge"
+
+// لیست محصولات و قیمت‌ها (باید با پنل مایکت یکی باشد)
+const PRODUCTS: Record<string, number> = {
+  sku_100000: 100000,
+  sku_250000: 250000,
+  sku_500000: 500000
+}
 
 export async function POST(request: Request) {
   try {
     const { purchaseToken, productId, packageName } = await request.json()
 
-    // ۱. بررسی احراز هویت کاربر
+    // 1. اعتبارسنجی ورودی‌ها
+    if (!purchaseToken || !productId || !packageName) {
+      return NextResponse.json(
+        { message: "اطلاعات خرید ناقص است" },
+        { status: 400 }
+      )
+    }
+
+    // 2. احراز هویت کاربر (User Auth)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -28,11 +43,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    // ۲. استعلام از سرور مایکت
+    // 3. ساخت کلاینت ادمین (برای دسترسی به دیتابیس بدون محدودیت RLS)
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // 4. *** مهم ***: چک کردن اینکه آیا این توکن قبلاً استفاده شده است؟
+    // اگر توکن در دیتابیس باشد، یعنی قبلاً شارژ شده.
+    const { data: existingTransaction } = await supabaseAdmin
+      .from("payment_transactions")
+      .select("id")
+      .eq("purchase_token", purchaseToken)
+      .single()
+
+    if (existingTransaction) {
+      // اگر قبلاً ثبت شده، پیام موفقیت الکی می‌دهیم که کلاینت خیالش راحت شود و ارور ندهد
+      // یا می‌توانیم ارور بدهیم. اینجا فرض می‌کنیم موفق است چون پول قبلاً واریز شده.
+      return NextResponse.json({
+        success: true,
+        message: "این خرید قبلاً ثبت شده است."
+      })
+    }
+
+    // 5. استعلام از سرور مایکت برای تایید نهایی
     const myketAccessToken = process.env.MYKET_ACCESS_TOKEN
     if (!myketAccessToken) {
+      console.error("MYKET_ACCESS_TOKEN is missing in .env")
       return NextResponse.json(
-        { message: "Server config error: MYKET_ACCESS_TOKEN missing" },
+        { message: "Server configuration error" },
         { status: 500 }
       )
     }
@@ -45,40 +84,59 @@ export async function POST(request: Request) {
     })
 
     if (!myketResponse.ok) {
-      console.error("Myket Error:", await myketResponse.text())
+      const errorText = await myketResponse.text()
+      console.error("Myket Verify Error:", errorText)
       return NextResponse.json(
-        { message: "تایید پرداخت در مایکت ناموفق بود" },
+        { message: "تایید خرید از سمت مایکت ناموفق بود." },
         { status: 400 }
       )
     }
 
     const verifyData = await myketResponse.json()
 
-    // نکته: اگر consumptionState برابر 1 باشد یعنی قبلا مصرف شده.
-    // اما چون ممکن است کلاینت دوباره درخواست داده باشد، ما فرض را بر صحت می‌گذاریم
-    // و فقط اگر توکن معتبر بود شارژ را اضافه می‌کنیم.
-    // بهتر است در دیتابیس خودتان جدول تراکنش داشته باشید که جلوی شارژ تکراری با یک توکن را بگیرید.
-
-    // ۳. تعیین مبلغ شارژ
-    let amountToAdd = 0
-    if (productId === "sku_100000") amountToAdd = 100000
-    else if (productId === "sku_250000") amountToAdd = 250000
-    else if (productId === "sku_500000") amountToAdd = 500000
-
-    if (amountToAdd === 0) {
+    // purchaseState: 0 (پرداخت موفق), 1 (لغو شده), 2 (بازپرداخت شده)
+    if (verifyData.purchaseState !== 0) {
       return NextResponse.json(
-        { message: "محصول نامعتبر است" },
+        { message: "وضعیت خرید معتبر نیست (لغو شده یا ناموفق)." },
         { status: 400 }
       )
     }
 
-    // ۴. افزایش موجودی در دیتابیس (با دسترسی ادمین)
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    // 6. محاسبه مبلغ بر اساس محصول
+    const amountToAdd = PRODUCTS[productId] || 0
 
-    // ابتدا پروفایل را میگیریم
+    if (amountToAdd === 0) {
+      return NextResponse.json(
+        { message: "محصول انتخاب شده نامعتبر است" },
+        { status: 400 }
+      )
+    }
+
+    // 7. عملیات دیتابیس: ثبت تراکنش + افزایش موجودی
+    // بهتر است اگر این بخش در Transaction SQL انجام شود اما اینجا جداگانه می‌زنیم
+
+    // الف) ثبت توکن در جدول تراکنش‌ها (برای جلوگیری از تکرار در آینده)
+    const { error: insertError } = await supabaseAdmin
+      .from("payment_transactions")
+      .insert({
+        user_id: user.id,
+        purchase_token: purchaseToken,
+        product_id: productId,
+        amount: amountToAdd,
+        gateway: "myket"
+      })
+
+    if (insertError) {
+      // اگر اینجا ارور unique constraint بدهد یعنی همزمان دو درخواست آمده
+      console.error("Transaction Insert Error:", insertError)
+      return NextResponse.json(
+        { message: "خطا در ثبت تراکنش" },
+        { status: 500 }
+      )
+    }
+
+    // ب) افزایش موجودی کاربر
+    // ابتدا موجودی فعلی را می‌خوانیم (بهتر است از RPC استفاده شود ولی این روش هم در ترافیک پایین کار می‌کند)
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("balance")
@@ -94,19 +152,25 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
 
     if (updateError) {
+      console.error("Balance Update Error:", updateError)
+      // اینجا وضعیت بحرانی است: تراکنش ثبت شده ولی پول اضافه نشده.
+      // در سیستم‌های واقعی باید مکانیزم Rollback داشته باشید.
       return NextResponse.json(
-        { message: "خطا در آپدیت دیتابیس" },
+        { message: "خطا در بروزرسانی موجودی. با پشتیبانی تماس بگیرید." },
         { status: 500 }
       )
     }
 
     return NextResponse.json({
       success: true,
-      message: "حساب شما شارژ شد",
+      message: "حساب شما با موفقیت شارژ شد",
       newBalance
     })
   } catch (error: any) {
-    console.error("Payment Verify Error:", error)
-    return NextResponse.json({ message: error.message }, { status: 500 })
+    console.error("Verify API Exception:", error)
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    )
   }
 }
