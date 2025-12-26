@@ -17,7 +17,7 @@ import jwt from "jsonwebtoken"
 import { encode } from "gpt-tokenizer" // ⬅️ 1. این ایمپورت حیاتی را اضافه کنید
 
 export const runtime: ServerRuntime = "nodejs"
-export const maxDuration = 60
+export const maxDuration = 180
 
 // ✨ ثابت‌ها و تابع محاسبه هزینه (مشابه کدهای دیگر)
 const PROFIT_MARGIN = 1.0
