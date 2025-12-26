@@ -529,7 +529,6 @@ export async function POST(request: Request) {
       apiKey: profile.openai_api_key || "",
       organization: profile.openai_organization_id
     })
-
     if (OPENROUTER_MODELS.has(selectedModel)) {
       console.log(
         `🔄 [ROUTER] Redirecting request for model ${selectedModel} to /api/chat/openrouter...`
@@ -539,17 +538,27 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // توکن موبایل و کوکی وب‌سایت را برای احراز هویت به مسیر بعدی پاس بده
           Authorization: request.headers.get("Authorization") || "",
           Cookie: request.headers.get("Cookie") || ""
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        // @ts-ignore
+        duplex: "half" // 💡 این خط برای پایداری استریم در Node.js مفید است
       })
 
-      // پاسخ (استریم یا غیر استریم) را مستقیماً به کاربر برگردان
+      if (!openrouterResponse.ok) {
+        console.error("❌ OpenRouter Error:", await openrouterResponse.text())
+        return new Response("Error from OpenRouter provider", { status: 500 })
+      }
+
+      // 🛠️ اصلاح مهم: هدرها را کپی نکنید! هدرهای تمیز بسازید.
       return new Response(openrouterResponse.body, {
         status: openrouterResponse.status,
-        headers: openrouterResponse.headers
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no" // جلوگیری از بافر شدن توسط Vercel/Nginx
+        }
       })
     }
     // --- ⬆️ پایان تغییر ۲ ---
