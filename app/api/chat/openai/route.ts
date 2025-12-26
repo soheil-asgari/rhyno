@@ -24,6 +24,7 @@ import { StreamingTextResponse } from "ai"
 
 // از Node.js runtime استفاده می‌کنیم
 export const runtime: ServerRuntime = "nodejs"
+export const maxDuration = 60
 
 // --- ⬇️ تغییر ۱: مدل‌های OpenRouter را اینجا تعریف می‌کنیم ---
 const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image"
