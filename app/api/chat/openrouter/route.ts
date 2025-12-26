@@ -161,12 +161,20 @@ export async function POST(request: Request) {
     let calculated_prompt_tokens = 0
     try {
       for (const message of messages) {
-        // محتوای پیام می‌تواند رشته یا آرایه‌ای از آبجکت‌ها باشد
-        const content =
-          typeof message.content === "string"
-            ? message.content
-            : JSON.stringify(message.content)
-        calculated_prompt_tokens += encode(content).length
+        if (typeof message.content === "string") {
+          // اگر پیام فقط متن است
+          calculated_prompt_tokens += encode(message.content).length
+        } else if (Array.isArray(message.content)) {
+          // اگر پیام شامل متن و عکس است (آرایه)
+          for (const part of message.content) {
+            if (part.type === "text") {
+              calculated_prompt_tokens += encode(part.text || "").length
+            } else if (part.type === "image_url") {
+              // ✅ نکته مهم: به جای شمردن کد عکس، هزینه تقریبی (مثلا ۱۰۰۰ توکن) را اضافه می‌کنیم
+              calculated_prompt_tokens += 1000
+            }
+          }
+        }
       }
       console.log(
         `[OpenRouter] 📊 Calculated Prompt Tokens: ${calculated_prompt_tokens}`
