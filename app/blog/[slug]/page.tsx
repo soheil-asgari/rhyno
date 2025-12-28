@@ -15,10 +15,10 @@ type Props = {
 }
 
 // ✅ ساخت صفحات استاتیک (این بخش باعث سرعت بالا می‌شود)
-export async function generateStaticParams() {
-  const posts = getLocalPosts()
-  return posts.map(post => ({ slug: post.slug }))
-}
+// export async function generateStaticParams() {
+//   const posts = getLocalPosts()
+//   return posts.map(post => ({ slug: post.slug }))
+// }
 
 // ✅ متادیتا
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

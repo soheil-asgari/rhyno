@@ -27,20 +27,7 @@ export const runtime: ServerRuntime = "nodejs"
 export const maxDuration = 240
 
 // --- ⬇️ تغییر ۱: مدل‌های OpenRouter را اینجا تعریف می‌کنیم ---
-const OPENROUTER_GEMINI_MODEL_ID = "google/gemini-2.5-flash-image"
 
-/**
- * مدل‌هایی که باید به کنترل‌کننده اختصاصی OpenRouter هدایت شوند.
- * این کنترل‌کننده (/api/chat/openrouter) مسئول تماس با API OpenRouter
- * و استریم کردن پاسخ است.
- */
-const OPENROUTER_MODELS = new Set([
-  OPENROUTER_GEMINI_MODEL_ID,
-  "gpt-5",
-  "gpt-5-mini",
-  "gpt-5-nano",
-  "gpt-5-codex"
-])
 // --- ⬆️ پایان تغییر ۱ ---
 
 function isImageRequest(prompt: string): boolean {
@@ -529,38 +516,38 @@ export async function POST(request: Request) {
       apiKey: profile.openai_api_key || "",
       organization: profile.openai_organization_id
     })
-    if (OPENROUTER_MODELS.has(selectedModel)) {
-      console.log(
-        `🔄 [ROUTER] Redirecting request for model ${selectedModel} to /api/chat/openrouter...`
-      )
-      const openrouterUrl = new URL("/api/chat/openrouter", request.url)
-      const openrouterResponse = await fetch(openrouterUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: request.headers.get("Authorization") || "",
-          Cookie: request.headers.get("Cookie") || ""
-        },
-        body: JSON.stringify(requestBody),
-        // @ts-ignore
-        duplex: "half" // 💡 این خط برای پایداری استریم در Node.js مفید است
-      })
+    // if (OPENROUTER_MODELS.has(selectedModel)) {
+    //   console.log(
+    //     `🔄 [ROUTER] Redirecting request for model ${selectedModel} to /api/chat/openrouter...`
+    //   )
+    //   const openrouterUrl = new URL("/api/chat/openrouter", request.url)
+    //   const openrouterResponse = await fetch(openrouterUrl, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Authorization: request.headers.get("Authorization") || "",
+    //       Cookie: request.headers.get("Cookie") || ""
+    //     },
+    //     body: JSON.stringify(requestBody),
+    //     // @ts-ignore
+    //     duplex: "half" // 💡 این خط برای پایداری استریم در Node.js مفید است
+    //   })
 
-      if (!openrouterResponse.ok) {
-        console.error("❌ OpenRouter Error:", await openrouterResponse.text())
-        return new Response("Error from OpenRouter provider", { status: 500 })
-      }
+    //   if (!openrouterResponse.ok) {
+    //     console.error("❌ OpenRouter Error:", await openrouterResponse.text())
+    //     return new Response("Error from OpenRouter provider", { status: 500 })
+    //   }
 
-      // 🛠️ اصلاح مهم: هدرها را کپی نکنید! هدرهای تمیز بسازید.
-      return new Response(openrouterResponse.body, {
-        status: openrouterResponse.status,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "X-Accel-Buffering": "no" // جلوگیری از بافر شدن توسط Vercel/Nginx
-        }
-      })
-    }
+    //   // 🛠️ اصلاح مهم: هدرها را کپی نکنید! هدرهای تمیز بسازید.
+    //   return new Response(openrouterResponse.body, {
+    //     status: openrouterResponse.status,
+    //     headers: {
+    //       "Content-Type": "text/plain; charset=utf-8",
+    //       "Cache-Control": "no-cache, no-transform",
+    //       "X-Accel-Buffering": "no" // جلوگیری از بافر شدن توسط Vercel/Nginx
+    //     }
+    //   })
+    // }
     // --- ⬆️ پایان تغییر ۲ ---
 
     if (selectedModel === "gpt-4o-mini-tts") {

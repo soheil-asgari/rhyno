@@ -33,7 +33,18 @@ const MODELS_WITH_WEB_SEARCH = new Set([
   "gpt-5",
   "gpt-5-mini",
   "gpt-5-codex",
-  "google/gemini-1.5-flash" // (مثال - مدل خودتان را اضافه کنید)
+  "google/gemini-1.5-flash",
+  "google/gemini-2.5-flash-image", // ✅ مدل خود را اینجا اضافه کنید
+  "perplexity/llama-3-sonar-large-32k-online" // مثال: مدل‌های آنلاین پرپلکسیتی
+])
+
+const MODELS_WITH_AUTO_SEARCH = new Set([
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-codex",
+  "google/gemini-1.5-flash",
+  "google/gemini-2.5-flash-image", // ✅ مدل خود را اینجا اضافه کنید
+  "perplexity/llama-3-sonar-large-32k-online" // مثال: مدل‌های آنلاین پرپلکسیتی
 ])
 
 function calculateUserCostUSD(
@@ -194,14 +205,20 @@ export async function POST(request: Request) {
         messages: messages as any,
         stream: true
       }
+    const supportsSearch = MODELS_WITH_WEB_SEARCH.has(model)
+    const isAutoSearch = MODELS_WITH_AUTO_SEARCH.has(model)
 
-    // ⬅️ 6. اضافه کردن ابزار وب سرچ در صورت نیاز
-    const doWebSearch = !!enableWebSearch && MODELS_WITH_WEB_SEARCH.has(model)
+    // شرط: مدل پشتیبانی کند AND (کاربر دکمه را زده باشد OR مدل اتوماتیک باشد)
+    const doWebSearch = supportsSearch && (!!enableWebSearch || isAutoSearch)
+
     if (doWebSearch) {
-      console.log(`[OpenRouter] 🔎 Enabling Web Search for model: ${model}`)
-      // @ts-ignore - OpenRouter این را می‌پذیرد
+      console.log(
+        `[OpenRouter] 🔎 Enabling Smart Web Search for model: ${model}`
+      )
+      // @ts-ignore
       requestPayload.tools = [{ type: "web_search" }]
     }
+    // ⬅️ 6. اضافه کردن ابزار وب سرچ در صورت نیاز
 
     // ۳. پارامتر 'modalities' را فقط در صورت نیاز اضافه کنید
     if (isImageModel) {

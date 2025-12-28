@@ -219,7 +219,7 @@ export const useChatHandler = () => {
       const newAbortController = new AbortController()
       setAbortController(newAbortController)
 
-      const modelData = [
+      let modelData = [
         ...models.map(model => ({
           modelId: model.model_id as LLMID,
           modelName: model.name,
@@ -232,6 +232,20 @@ export const useChatHandler = () => {
         ...availableLocalModels,
         ...availableOpenRouterModels
       ].find(llm => llm.modelId === chatSettings?.model)
+
+      // ✨ [تغییر جدید] هدایت مستقیم مدل‌های خاص به OpenRouter
+      // این کار باعث می‌شود درخواست مستقیماً به /api/chat/openrouter برود
+      const DIRECT_OPENROUTER_MODELS = [
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-5-codex",
+        "google/gemini-2.5-flash-image"
+      ]
+
+      if (modelData && DIRECT_OPENROUTER_MODELS.includes(modelData.modelId)) {
+        modelData = { ...modelData, provider: "openrouter" as ModelProvider }
+      }
 
       validateChatSettings(
         chatSettings,
