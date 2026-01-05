@@ -19,6 +19,7 @@ import { useParams, useRouter, notFound } from "next/navigation"
 import { getChatById } from "@/db/chats"
 import { getMessagesByChatId } from "@/db/messages"
 import { Tables } from "@/supabase/types"
+import { toast } from "sonner" // اضافه کردن Toast برای نمایش خطا
 
 const Dashboard = dynamic(
   () => import("@/components/ui/dashboard").then(mod => mod.Dashboard),
@@ -33,7 +34,6 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const params = useParams()
   const router = useRouter()
 
-  // نام پارامتر باید دقیقاً با نام پوشه یکی باشد (مثلاً [workspaceid] یا [workspaceId])
   const workspaceid = params.workspaceid as string
   const chatId = params.chatId as string | undefined
 
@@ -63,83 +63,83 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
   useEffect(() => {
     const validateAndFetchData = async () => {
-      if (!workspaceid) {
-        setIsValidWorkspace(false)
+      try {
+        if (!workspaceid) {
+          setIsValidWorkspace(false)
+          setLoading(false)
+          return
+        }
+
+        // 1. پیدا کردن ورک‌اسپیس
+        let workspace: Tables<"workspaces"> | null = null
+
+        if (workspaces.length > 0) {
+          workspace = workspaces.find(w => w.id === workspaceid) || null
+        }
+
+        if (!workspace) {
+          workspace = await getWorkspaceById(workspaceid)
+        }
+
+        if (!workspace) {
+          setIsValidWorkspace(false)
+          setLoading(false)
+          return
+        }
+
+        setSelectedWorkspace(workspace)
+        setIsValidWorkspace(true)
+
+        // 2. دریافت سایر اطلاعات
+        const [
+          assistants,
+          chats,
+          collections,
+          folders,
+          files,
+          presets,
+          prompts,
+          tools,
+          models
+        ] = await Promise.all([
+          getAssistantWorkspacesByWorkspaceId(workspaceid),
+          getChatsByWorkspaceId(workspaceid),
+          getCollectionWorkspacesByWorkspaceId(workspaceid),
+          getFoldersByWorkspaceId(workspaceid),
+          getFileWorkspacesByWorkspaceId(workspaceid),
+          getPresetWorkspacesByWorkspaceId(workspaceid),
+          getPromptWorkspacesByWorkspaceId(workspaceid),
+          getToolWorkspacesByWorkspaceId(workspaceid),
+          getModelWorkspacesByWorkspaceId(workspaceid)
+        ])
+
+        setAssistants(assistants.assistants || [])
+        setChats(chats || [])
+        setCollections(collections.collections || [])
+        setFolders(folders || [])
+        setFiles(files.files || [])
+        setPresets(presets.presets || [])
+        setPrompts(prompts.prompts || [])
+        setTools(tools.tools || [])
+        setModels(models.models || [])
+      } catch (error) {
+        console.error("Error loading workspace data:", error)
+        toast.error("خطا در بارگذاری اطلاعات ورک‌اسپیس")
+      } finally {
+        // این خط تضمین می‌کند که حتی در صورت خطا، لودینگ تمام شود
         setLoading(false)
-        return
       }
-
-      // 1. پیدا کردن ورک‌اسپیس
-      let workspace: Tables<"workspaces"> | null = null
-
-      // اگر ورک‌اسپیس‌ها قبلاً لود شده‌اند، داخل آن‌ها بگرد
-      if (workspaces.length > 0) {
-        workspace = workspaces.find(w => w.id === workspaceid) || null
-      }
-
-      // اگر پیدا نشد، از دیتابیس بگیر
-      if (!workspace) {
-        workspace = await getWorkspaceById(workspaceid)
-      }
-
-      // ❌ اصلاح مهم: اگر ورک‌اسپیس وجود نداشت، همینجا متوقف شو
-      if (!workspace) {
-        setIsValidWorkspace(false)
-        setLoading(false)
-        return
-      }
-
-      // ✅ اگر رسیدیم اینجا یعنی ورک‌اسپیس معتبر است
-      setSelectedWorkspace(workspace)
-      setIsValidWorkspace(true)
-
-      // 2. دریافت سایر اطلاعات
-      const [
-        assistants,
-        chats,
-        collections,
-        folders,
-        files,
-        presets,
-        prompts,
-        tools,
-        models
-      ] = await Promise.all([
-        getAssistantWorkspacesByWorkspaceId(workspaceid),
-        getChatsByWorkspaceId(workspaceid),
-        getCollectionWorkspacesByWorkspaceId(workspaceid),
-        getFoldersByWorkspaceId(workspaceid),
-        getFileWorkspacesByWorkspaceId(workspaceid),
-        getPresetWorkspacesByWorkspaceId(workspaceid),
-        getPromptWorkspacesByWorkspaceId(workspaceid),
-        getToolWorkspacesByWorkspaceId(workspaceid),
-        getModelWorkspacesByWorkspaceId(workspaceid)
-      ])
-
-      setAssistants(assistants.assistants || [])
-      setChats(chats || [])
-      setCollections(collections.collections || [])
-      setFolders(folders || [])
-      setFiles(files.files || [])
-      setPresets(presets.presets || [])
-      setPrompts(prompts.prompts || [])
-      setTools(tools.tools || [])
-      setModels(models.models || [])
-
-      setLoading(false)
     }
 
     validateAndFetchData()
-  }, [workspaceid]) // وابستگی‌ها را کم کردم تا لوپ بی‌نهایت نخورید
+  }, [workspaceid])
 
-  // ریدایرکت در صورت نامعتبر بودن
   useEffect(() => {
     if (!loading && !isValidWorkspace) {
-      router.push("/setup") // بهتر است به setup بروید تا home، چون شاید ورک‌اسپیس ندارد
+      router.push("/setup")
     }
   }, [loading, isValidWorkspace, router])
 
-  // واکشی پیام‌های چت
   useEffect(() => {
     const fetchChatMessages = async () => {
       if (!chatId || !isValidWorkspace) {
@@ -148,21 +148,24 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         return
       }
 
-      const chat = await getChatById(chatId)
-      if (!chat) {
-        // اگر چت پیدا نشد ولی ورک‌اسپیس معتبر بود، فقط چت را خالی کن (ریدایرکت نکن که اذیت نکنه)
-        setSelectedChat(null)
-        return
+      try {
+        const chat = await getChatById(chatId)
+        if (!chat) {
+          setSelectedChat(null)
+          return
+        }
+
+        const messages = await getMessagesByChatId(chatId)
+        const formattedMessages: ChatMessage[] = messages.map(msg => ({
+          message: msg,
+          fileItems: []
+        }))
+
+        setSelectedChat(chat)
+        setChatMessages(formattedMessages)
+      } catch (error) {
+        console.error("Error fetching chat messages:", error)
       }
-
-      const messages = await getMessagesByChatId(chatId)
-      const formattedMessages: ChatMessage[] = messages.map(msg => ({
-        message: msg,
-        fileItems: []
-      }))
-
-      setSelectedChat(chat)
-      setChatMessages(formattedMessages)
     }
 
     if (!loading && isValidWorkspace) {
@@ -175,7 +178,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   if (!isValidWorkspace) {
-    return <Loading /> // تا زمان ریدایرکت شدن چیزی نشان نده
+    return <Loading />
   }
 
   return <Dashboard>{children}</Dashboard>
