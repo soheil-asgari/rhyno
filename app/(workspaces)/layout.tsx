@@ -15,11 +15,11 @@ import { ChatMessage } from "@/types"
 import { ReactNode, useContext, useEffect, useState } from "react"
 import Loading from "../loading"
 import dynamic from "next/dynamic"
-import { useParams, useRouter, notFound } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { getChatById } from "@/db/chats"
 import { getMessagesByChatId } from "@/db/messages"
 import { Tables } from "@/supabase/types"
-import { toast } from "sonner" // اضافه کردن Toast برای نمایش خطا
+import { toast } from "sonner"
 
 const Dashboard = dynamic(
   () => import("@/components/ui/dashboard").then(mod => mod.Dashboard),
@@ -43,6 +43,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   const {
+    profile, // ✅ اضافه شد: برای چک کردن وضعیت لاگین
     workspaces,
     setAssistants,
     setChats,
@@ -61,12 +62,17 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const [loading, setLoading] = useState(true)
   const [isValidWorkspace, setIsValidWorkspace] = useState(false)
 
+  // 1. دریافت اطلاعات ورک‌اسپیس (فقط وقتی پروفایل لود شده باشد)
   useEffect(() => {
     const validateAndFetchData = async () => {
+      // 🛑 اصلاح مهم: اگر پروفایل هنوز لود نشده، صبر کن و هیچ کاری نکن
+      if (!profile) return
+
       try {
+        setLoading(true)
+
         if (!workspaceid) {
           setIsValidWorkspace(false)
-          setLoading(false)
           return
         }
 
@@ -83,14 +89,13 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
         if (!workspace) {
           setIsValidWorkspace(false)
-          setLoading(false)
           return
         }
 
         setSelectedWorkspace(workspace)
         setIsValidWorkspace(true)
 
-        // 2. دریافت سایر اطلاعات
+        // 2. دریافت سایر اطلاعات به صورت موازی
         const [
           assistants,
           chats,
@@ -125,26 +130,26 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       } catch (error) {
         console.error("Error loading workspace data:", error)
         toast.error("خطا در بارگذاری اطلاعات ورک‌اسپیس")
+        setIsValidWorkspace(false)
       } finally {
-        // این خط تضمین می‌کند که حتی در صورت خطا، لودینگ تمام شود
         setLoading(false)
       }
     }
 
     validateAndFetchData()
-  }, [workspaceid])
+  }, [workspaceid, profile]) // ✅ profile به وابستگی‌ها اضافه شد تا با تغییر آن، کد دوباره اجرا شود
 
+  // 2. ریدایرکت فقط در صورتی که دیتای کاربر کامل لود شده باشد و ورک‌اسپیس نامعتبر باشد
   useEffect(() => {
-    if (!loading && !isValidWorkspace) {
+    if (profile && !loading && !isValidWorkspace) {
       router.push("/setup")
     }
-  }, [loading, isValidWorkspace, router])
+  }, [loading, isValidWorkspace, router, profile])
 
+  // 3. لود پیام‌های چت
   useEffect(() => {
     const fetchChatMessages = async () => {
-      if (!chatId || !isValidWorkspace) {
-        setSelectedChat(null)
-        setChatMessages([])
+      if (!chatId || !isValidWorkspace || !profile) {
         return
       }
 
@@ -168,15 +173,17 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       }
     }
 
-    if (!loading && isValidWorkspace) {
+    if (!loading && isValidWorkspace && profile) {
       fetchChatMessages()
     }
-  }, [chatId, isValidWorkspace, loading])
+  }, [chatId, isValidWorkspace, loading, profile])
 
-  if (loading) {
+  // 🛑 تا زمانی که پروفایل لود نشده یا دیتا در حال دریافت است، اسپینر را نشان بده
+  if (!profile || loading) {
     return <Loading />
   }
 
+  // اگر ورک‌اسپیس معتبر نیست (در حال ریدایرکت)، همچنان لودینگ نشان بده
   if (!isValidWorkspace) {
     return <Loading />
   }
