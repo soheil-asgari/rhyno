@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 import { createClient as createSSRClient } from "@/lib/supabase/server"
 
 // --- تنظیمات ---
-const INITIAL_FREE_CREDIT = 1.0 // اعتبار اولیه ۱ دلار
+const INITIAL_FREE_CREDIT = 1.0
 
 // --- توابع کمکی ---
 const toE164 = (phone: string) => {
@@ -27,6 +27,7 @@ function generateStrongPassword(length = 16): string {
 export async function POST(request: Request) {
   const { phone, otp } = await request.json()
   const phoneE164 = toE164(phone)
+  // ساخت ایمیل فیک بر اساس شماره موبایل (برای ثبات)
   const fakeEmail = `${phoneE164.replace("+", "")}@placeholder.rhyno`
 
   const cookieStore = cookies()
@@ -58,29 +59,78 @@ export async function POST(request: Request) {
 
     await supabaseAdmin.from("otp_codes").delete().eq("id", latestOtp.id)
 
-    // ۲. مدیریت کاربر (ثبت‌نام یا آپدیت)
-    const { data: users } = await supabaseAdmin.auth.admin.listUsers()
-    let user = users.users.find(
-      u => u.email === fakeEmail || u.user_metadata?.phone === phoneE164
-    )
-
-    const passwordToUse = generateStrongPassword()
+    // ۲. مدیریت کاربر (جستجوی بهینه + ثبت‌نام یا آپدیت)
+    let user = null
     let isNewUser = false
 
+    // الف) تلاش برای یافتن کاربر از طریق جدول پروفایل (روش مطمئن)
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id")
+      .eq("phone", phoneE164)
+      .single()
+
+    if (existingProfile) {
+      // اگر پروفایل وجود داشت، یوزر Auth را بر اساس ID می‌گیریم
+      const { data: userData, error: userError } =
+        await supabaseAdmin.auth.admin.getUserById(existingProfile.user_id)
+      if (!userError && userData.user) {
+        user = userData.user
+      }
+    }
+
+    // ب) اگر در پروفایل پیدا نشد، ممکن است کاربر وجود داشته باشد ولی پروفایل نداشته باشد (مثلاً کاربران خیلی قدیمی)
+    // نکته: listUsers محدودیت ۵۰ تایی دارد، پس روی آن حساب نمی‌کنیم.
+    // در عوض سعی می‌کنیم کاربر را بسازیم، اگر ارور داد یعنی وجود دارد و باید پیدایش کنیم.
+
+    const passwordToUse = generateStrongPassword()
+
     if (!user) {
-      isNewUser = true
-      // ساخت کاربر جدید
-      const { data: newUser, error: createError } =
-        await supabaseAdmin.auth.admin.createUser({
-          email: fakeEmail,
-          password: passwordToUse,
-          email_confirm: true,
-          user_metadata: { phone: phoneE164 }
-        })
-      if (createError) throw createError
-      user = newUser.user
-    } else {
-      // آپدیت پسورد کاربر قدیمی برای لاگین
+      // تلاش برای ساخت کاربر جدید
+      // از آنجایی که ایمیل را بر اساس شماره می‌سازیم، اگر کاربر وجود داشته باشد، این دستور ارور می‌دهد
+      try {
+        const { data: newUser, error: createError } =
+          await supabaseAdmin.auth.admin.createUser({
+            email: fakeEmail,
+            password: passwordToUse,
+            email_confirm: true,
+            user_metadata: { phone: phoneE164 }
+          })
+
+        if (createError) {
+          // اگر ارور "ایمیل تکراری" بود، یعنی کاربر وجود دارد ولی ما پیدایش نکرده بودیم
+          if (
+            createError.message.includes("email") ||
+            createError.status === 422
+          ) {
+            // در این حالت خاص و نادر، چون نمی‌توانیم با ایمیل جستجو کنیم (متدش وجود ندارد)،
+            // مجبوریم یک بار لیست را با پیج‌بندی زیاد بگیریم یا فرض کنیم همان پروفایل باید سینک می‌شده.
+            // اما راه بهتر: از آنجایی که ایمیل را خودمان ساختیم، می‌توانیم مطمئن باشیم کاربر هست.
+            // متاسفانه Supabase Admin API متد getUserByEmail ندارد.
+            // راه حل نهایی: فراخوانی RPC برای گرفتن ID از روی ایمیل (اگر دسترسی دیتابیس دارید)
+            // یا موقتاً افزایش limit در listUsers فقط برای این سناریوی خاص:
+            const { data: searchUsers } =
+              await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+            user = searchUsers.users.find(u => u.email === fakeEmail)
+
+            if (!user)
+              throw new Error("کاربر یافت نشد و ساخت آن هم با خطا مواجه شد.")
+          } else {
+            throw createError
+          }
+        } else {
+          user = newUser.user
+          isNewUser = true
+        }
+      } catch (e) {
+        throw e
+      }
+    }
+
+    if (!user) throw new Error("User failed to create/load")
+
+    // اگر کاربر قدیمی است، پسوردش را آپدیت می‌کنیم تا بتواند لاگین کند
+    if (!isNewUser) {
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         email: fakeEmail,
         email_confirm: true,
@@ -89,9 +139,7 @@ export async function POST(request: Request) {
       })
     }
 
-    if (!user) throw new Error("User failed to create/load")
-
-    // ۳. ثبت اجباری شماره موبایل (فقط برای کاربران جدید) 👈 تغییر اینجاست
+    // ۳. ثبت اجباری شماره موبایل (فقط برای کاربران جدید)
     if (isNewUser) {
       const { error: rpcError } = await supabaseAdmin.rpc(
         "force_update_phone",
@@ -100,14 +148,10 @@ export async function POST(request: Request) {
           new_phone: phoneE164
         }
       )
-
-      if (rpcError) {
-        console.error("[RPC ERROR] Failed to force update phone:", rpcError)
-      }
+      if (rpcError) console.error("[RPC ERROR]", rpcError)
     }
 
-    // ۴. تنظیم پروفایل و کیف پول
-    // آپدیت پروفایل عمومی (برای همه انجام شود بهتر است تا دیتابیس به‌روز بماند)
+    // ۴. آپدیت پروفایل و کیف پول (باقی کد مثل قبل)
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update({ phone: phoneE164 })
@@ -127,7 +171,6 @@ export async function POST(request: Request) {
     }
 
     if (isNewUser) {
-      // ایجاد کیف پول با ۱ دلار شارژ اولیه (فقط کاربران جدید)
       const { error: walletError } = await supabaseAdmin.from("wallets").upsert(
         {
           user_id: user.id,
@@ -135,7 +178,6 @@ export async function POST(request: Request) {
         },
         { onConflict: "user_id" }
       )
-
       if (walletError) {
         await supabaseAdmin
           .from("wallets")
