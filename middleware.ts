@@ -1,43 +1,42 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // 1. ایجاد Response اولیه
+  // 1. ساختن یک Response اولیه (که در تمام طول میدلور معتبر باشد)
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // 2. تنظیم کلاینت Supabase
+  // 2. تنظیم کلاینت Supabase با متدهای صحیح (getAll / setAll)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
+        setAll(cookiesToSet) {
+          // این بخش حیاتی است: هم روی ریکوئست ست می‌کنیم (برای استفاده آنی) هم روی ریسپانس
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+
           response = NextResponse.next({
-            request: { headers: request.headers },
+            request,
           })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-          response.cookies.set({ name, value: '', ...options })
+
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
-  // 3. دریافت وضعیت کاربر
+  // 3. دریافت وضعیت کاربر (نکته: از getUser استفاده کنید چون امن‌تر است)
   const { data: { user } } = await supabase.auth.getUser()
+
   const url = request.nextUrl
   const pathname = url.pathname
 
@@ -46,7 +45,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // --- منطق مسیرهای عمومی (Public) ---
+  // --- مسیرهای عمومی ---
   const publicRoutes = ["/", '/login', '/signup', '/landing', '/about', '/contact', '/blog', '/services', '/company', '/checkout', '/bi', '/enterprise']
   const isPublicRoute = publicRoutes.some(route =>
     pathname === route || (route !== '/' && pathname.startsWith(route))
@@ -63,31 +62,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // --- اگر کاربر لاگین کرده است (بخش اصلی مشکل شما) ---
+  // --- اگر کاربر لاگین کرده است ---
   if (user) {
     // A. بررسی حالت Enterprise
     const appMode = request.cookies.get('rhyno_app_mode')?.value
-    const isEnterprisePath = pathname.startsWith('/enterprise')
 
     if (appMode === 'enterprise') {
       if (['/', '/login', '/setup'].includes(pathname)) {
         return NextResponse.redirect(new URL('/enterprise/portal', request.url))
       }
-      // اگر کاربر سازمانی است و در مسیر درست است یا مسیر دیگری (مثل ادمین) را می‌خواهد، اجازه بده
       return response
     }
 
-    // B. اصلاح مهم: فقط در صورتی ریدایرکت کن که کاربر در صفحات "ورود" یا "خانه" باشد.
-    // اگر کاربر در /admin یا /uuid/chat است، این شرط False می‌شود و کد رد می‌شود.
+    // B. فقط اگر کاربر در صفحات لاگین/خانه است ریدارکت کن (جلوگیری از لوپ)
     const isAuthOrLandingPage = ['/login', '/signup', '/'].includes(pathname)
 
     if (!isAuthOrLandingPage) {
-      // اگر کاربر در صفحه ادمین یا چت خاص است، هیچ کاری نکن و اجازه بده برود
       return response
     }
 
-    // C. منطق ریدایرکت به داشبورد (فقط برای صفحات لاگین/خانه اجرا می‌شود)
-    // چک کردن پارامتر next (مثلاً اگر از ایمیل آمده باشد)
+    // C. منطق ریدایرکت به داشبورد
     const nextParam = url.searchParams.get('next')
     if (nextParam && nextParam.startsWith('/')) {
       return NextResponse.redirect(new URL(nextParam, request.url))
@@ -99,11 +93,13 @@ export async function middleware(request: NextRequest) {
       .select("id")
       .eq("user_id", user.id)
       .eq("is_home", true)
-      .single()
+      .limit(1) // همیشه لیمیت بگذارید
+      .maybeSingle() // بجای single که ارور ندهد
 
     if (homeWorkspace) {
       return NextResponse.redirect(new URL(`/${homeWorkspace.id}/chat`, request.url))
     } else {
+      // اگر ورک‌اسپیس نداشت برود به setup (یا create-workspace)
       return NextResponse.redirect(new URL('/setup', request.url))
     }
   }

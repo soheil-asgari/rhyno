@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs"
 import { createClient } from "@/lib/supabase/server"
 import jwt from "jsonwebtoken"
 import { randomUUID } from "crypto"
+import { revalidatePath } from "next/cache"
 
 export async function getSession() {
   const cookieStore = cookies()
@@ -62,6 +63,9 @@ export async function sendCustomOtpAction(formData: FormData) {
   const phoneE164 = toE164(phone)
   const successMessage = "کد تایید با موفقیت ارسال شد."
 
+  // متغیر برای نگهداری مسیر ریدارکت موفقیت‌آمیز
+  let successRedirectUrl: string | null = null
+
   try {
     // ۱. تولید کد OTP
     console.log(`[OTP] Generating OTP for phone: ${phoneE164}`)
@@ -96,6 +100,7 @@ export async function sendCustomOtpAction(formData: FormData) {
         status: result.status,
         message: result.message
       })
+      // در صورت خطا در ارسال پیامک همینجا ریدارکت می‌کنیم (چون داخل catch نیستیم مشکلی نیست)
       return redirect(`${refererPath}?method=phone&error=sms_send_failed`)
     }
 
@@ -110,11 +115,7 @@ export async function sendCustomOtpAction(formData: FormData) {
       .delete()
       .eq("phone", phoneE164)
     if (deleteError) {
-      console.error("[DB] Failed to delete existing OTPs:", {
-        phone: phoneE164,
-        error: deleteError.message,
-        code: deleteError.code
-      })
+      console.error("[DB] Failed to delete existing OTPs:", deleteError)
       throw new Error(`Failed to delete existing OTPs: ${deleteError.message}`)
     }
 
@@ -128,41 +129,40 @@ export async function sendCustomOtpAction(formData: FormData) {
         expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString()
       })
     if (insertError) {
-      console.error("[DB] Failed to insert OTP:", {
-        phone: phoneE164,
-        error: insertError.message,
-        code: insertError.code
-      })
+      console.error("[DB] Failed to insert OTP:", insertError)
       throw new Error(`Failed to insert OTP: ${insertError.message}`)
     }
 
-    // ۶. ریدایرکت به صفحه تأیید
-    console.log(
-      `[REDIRECT] OTP sent successfully, redirecting for phone: ${phoneE164}`
-    )
-    const redirectUrl =
+    console.log(`[REDIRECT] OTP sent successfully for phone: ${phoneE164}`)
+
+    // ✅ به جای ریدارکت مستقیم، مسیر را ذخیره می‌کنیم
+    successRedirectUrl =
       refererPath === "/verify-phone"
         ? `/verify-phone?step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
         : `/login?method=phone&step=otp&phone=${encodeURIComponent(phone)}&message=${encodeURIComponent(successMessage)}`
-
-    return redirect(redirectUrl)
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
-
-    console.error("[ERROR] Send OTP Error:", {
-      phone: phoneE164,
-      message: errorMessage,
-      stack: errorStack,
-      timestamp: new Date().toISOString()
-    })
-
-    // بررسی خطای ریدایرکت
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+    // اگر ارور NEXT_REDIRECT بود، آن را دوباره پرتاب کن تا نکست‌جی‌اس کارش را بکند
+    if (
+      error instanceof Error &&
+      (error.message === "NEXT_REDIRECT" ||
+        (error as any).digest?.startsWith("NEXT_REDIRECT"))
+    ) {
       throw error
     }
 
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("[ERROR] Send OTP Error:", {
+      phone: phoneE164,
+      message: errorMessage,
+      timestamp: new Date().toISOString()
+    })
+
     return redirect(`${refererPath}?method=phone&error=send_otp_failed`)
+  }
+
+  // ✅ اجرای ریدارکت موفقیت‌آمیز بیرون از بلوک try/catch
+  if (successRedirectUrl) {
+    redirect(successRedirectUrl)
   }
 }
 
@@ -207,8 +207,11 @@ export async function verifyCustomOtpAction(formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // آدرس پیش‌فرض
+  let finalRedirectUrl = "/create-workspace"
+
   try {
-    // مراحل ۱ تا ۳: اعتبارسنجی OTP شما
+    // مراحل ۱ تا ۳: اعتبارسنجی OTP
     const { data: latestOtp, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -252,39 +255,63 @@ export async function verifyCustomOtpAction(formData: FormData) {
     }
     if (!user.email) throw new Error("User has no email address")
 
-    // مرحله ۵: ایجاد نشست با استفاده از رمز عبور موقت و قوی
-    const temporaryPassword = generateStrongPassword() // ✅ استفاده از تابع جدید
+    // ✅✅✅ مرحله ۵ (اصلاح شده): آپدیت همزمان پسورد و متادیتا قبل از لاگین
+    // این کار جلوی هنگ کردن بعد از لاگین را می‌گیرد
+    const temporaryPassword = generateStrongPassword()
 
     const { error: updateError } =
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
-        password: temporaryPassword
+        password: temporaryPassword,
+        user_metadata: {
+          ...user.user_metadata,
+          last_otp_login_at: new Date().toISOString()
+        }
       })
-    if (updateError)
-      throw new Error(
-        `Security Fail: Could not set temporary password. ${updateError.message}`
-      )
 
+    if (updateError) {
+      throw new Error(
+        `Security Fail: Could not update user. ${updateError.message}`
+      )
+    }
+
+    // مرحله ۶: لاگین (ایجاد سشن)
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: temporaryPassword
     })
 
-    // پاکسازی رمز عبور موقت برای امنیت
-    await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: {
-        ...user.user_metadata,
-        last_otp_login_at: new Date().toISOString()
-      }
-    })
-
-    if (signInError)
-      throw new Error(
-        `Sign-in failed after setting temp password: ${signInError.message}`
-      )
+    if (signInError) {
+      throw new Error(`Sign-in failed: ${signInError.message}`)
+    }
 
     console.log(`[SESSION] Session created successfully for user: ${user.id}`)
-    return redirect("/chat")
-  } catch (error: unknown) {
+
+    // مرحله ۷: پیدا کردن ورک‌اسپیس
+    const { data: userWorkspace } = await supabaseAdmin
+      .from("workspaces")
+      .select("id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (userWorkspace) {
+      finalRedirectUrl = `/${userWorkspace.id}/chat`
+    } else {
+      const defaultWs = user.user_metadata?.default_workspace_id
+      if (defaultWs) finalRedirectUrl = `/${defaultWs}/chat`
+    }
+
+    // ✅✅✅ پاک کردن کش کلاینت برای اطمینان از لود شدن صحیح
+    revalidatePath("/", "layout")
+  } catch (error: any) {
+    // مدیریت خطای ریدارکت
+    if (
+      error.message === "NEXT_REDIRECT" ||
+      (error.digest && error.digest.startsWith("NEXT_REDIRECT"))
+    ) {
+      throw error
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("[ERROR] Verify OTP Error:", {
       phone: phoneE164,
@@ -294,6 +321,9 @@ export async function verifyCustomOtpAction(formData: FormData) {
       `${refererPath}?step=otp&phone=${phone}&error=verify_failed`
     )
   }
+
+  // ✅ ریدارکت نهایی خارج از try/catch
+  return redirect(finalRedirectUrl)
 }
 
 // 📌 تایید OTP و به‌روزرسانی شماره تلفن
