@@ -84,6 +84,40 @@ export const createFileBasedOnExtension = async (
   }
 }
 
+// تابع کمکی برای لاگ و اصلاح داده‌ها
+const prepareFileForInsert = (
+  record: TablesInsert<"files">,
+  fileName: string
+) => {
+  console.log("--- [DEBUG] Raw Input Record:", record)
+
+  const safeRecord = { ...record }
+
+  // بررسی دقیق description
+  let description = safeRecord.description
+
+  // اگر نال، آندیفایند یا رشته خالی بود
+  if (
+    !description ||
+    typeof description !== "string" ||
+    description.trim().length === 0
+  ) {
+    console.log("--- [DEBUG] Description was empty/invalid. Fixing...")
+    // استفاده از نام فایل یا یک متن ثابت اگر نام فایل هم مشکل داشت
+    description = fileName || "Attachment"
+  }
+
+  // اطمینان نهایی از اینکه رشته خالی نیست
+  if (description.trim().length === 0) {
+    description = "File Attachment"
+  }
+
+  safeRecord.description = description
+
+  console.log("--- [DEBUG] Final Record to Insert:", safeRecord)
+  return safeRecord
+}
+
 // For non-docx files
 export const createFile = async (
   file: File,
@@ -105,13 +139,20 @@ export const createFile = async (
     fileRecord.name = baseName + "." + extension
   }
 
+  // ✅ استفاده از تابع کمکی با لاگ
+  const fileToInsert = prepareFileForInsert(fileRecord, fileRecord.name)
+
   const { data: createdFile, error } = await supabase
     .from("files")
-    .insert([fileRecord])
+    .insert([fileToInsert])
     .select("*")
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error("❌ [DEBUG] Supabase Insert Error:", error)
+    console.error("❌ [DEBUG] Failed Payload:", fileToInsert)
+    throw new Error(error.message)
+  }
 
   await createFileWorkspace({
     user_id: createdFile.user_id,
@@ -127,7 +168,6 @@ export const createFile = async (
 
   await updateFile(createdFile.id, { file_path: filePath })
 
-  // گرفتن توکن کاربر از Supabase
   const {
     data: { session },
     error: sessionError
@@ -179,13 +219,19 @@ export const createDocXFile = async (
   workspace_id: string,
   embeddingsProvider: "openai" | "local"
 ) => {
+  // ✅ استفاده از تابع کمکی با لاگ
+  const fileToInsert = prepareFileForInsert(fileRecord, fileRecord.name)
+
   const { data: createdFile, error } = await supabase
     .from("files")
-    .insert([fileRecord])
+    .insert([fileToInsert])
     .select("*")
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error("❌ [DEBUG] Supabase Insert DocX Error:", error)
+    throw new Error(error.message)
+  }
 
   await createFileWorkspace({
     user_id: createdFile.user_id,
@@ -201,7 +247,6 @@ export const createDocXFile = async (
 
   await updateFile(createdFile.id, { file_path: filePath })
 
-  // گرفتن توکن کاربر
   const {
     data: { session },
     error: sessionError
@@ -250,12 +295,18 @@ export const createFiles = async (
   files: TablesInsert<"files">[],
   workspace_id: string
 ) => {
+  // ✅ لاگ و اصلاح گروهی
+  console.log("--- [DEBUG] Bulk Create Files Input:", files)
+
+  const safeFiles = files.map(f => prepareFileForInsert(f, f.name))
+
   const { data: createdFiles, error } = await supabase
     .from("files")
-    .insert(files)
+    .insert(safeFiles)
     .select("*")
 
   if (error) {
+    console.error("❌ [DEBUG] Supabase Bulk Insert Error:", error)
     throw new Error(error.message)
   }
 

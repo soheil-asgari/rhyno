@@ -110,7 +110,6 @@ export const useSelectFileHandler = () => {
     }
 
     // --- منطق جدید برای عکس‌ها (فشرده‌سازی + Base64) ---
-    // --- منطق جدید برای عکس‌ها (فشرده‌سازی + Base64) ---
     if (isImage) {
       const model = LLM_LIST.find(llm => llm.modelId === chatSettings.model)
       if (!model?.imageInput) {
@@ -125,7 +124,6 @@ export const useSelectFileHandler = () => {
       const localPreviewUrl = URL.createObjectURL(file) // از فایل *اصلی* برای پیش‌نمایش فوری استفاده کن
 
       // ۲. بلافاصله UI را با پیش‌نمایش محلی آپدیت کن
-      // این باعث می‌شود عکس فوراً نمایش داده شود
       setNewMessageImages(prev => [
         ...prev,
         {
@@ -215,7 +213,8 @@ export const useSelectFileHandler = () => {
           file,
           {
             user_id: profile.user_id,
-            description: "",
+            // ✅ اصلاح ۱: اگر توضیحات خالی بود، نام فایل را بگذار
+            description: file.name,
             file_path: "",
             name: file.name,
             size: file.size,
@@ -241,12 +240,17 @@ export const useSelectFileHandler = () => {
       try {
         const arrayBuffer = await file.arrayBuffer()
         const result = await mammoth.extractRawText({ arrayBuffer })
+
+        // ✅ اصلاح ۲: محاسبه توضیحات برای Docx
+        const description =
+          result.value.trim() !== "" ? result.value : file.name
+
         const createdFile = await createDocXFile(
           result.value,
           file,
           {
             user_id: profile.user_id,
-            description: "",
+            description: description, // ✅ استفاده از توضیحات محاسبه شده
             file_path: "",
             name: file.name,
             size: file.size,
@@ -271,13 +275,16 @@ export const useSelectFileHandler = () => {
         // ۱. تابع خودتان را برای استخراج متن PDF فراخوانی کنید
         const pdfText = await extractPdfText(file)
 
+        // ✅ اصلاح ۳: محاسبه توضیحات برای PDF
+        // اگر PDF اسکن شده باشد و متنی نداشته باشد، از نام فایل استفاده می‌کنیم
+        const description = pdfText.trim() !== "" ? pdfText : file.name
+
         // ۲. حالا فایل را با متن استخراج شده ایجاد کنید
-        // (این کد از reader.onloadend شما کپی شده و باید اینجا باشد)
         const createdFile = await createFile(
           file,
           {
             user_id: profile.user_id,
-            description: pdfText, // <-- ✨ متن PDF اینجا پاس داده می‌شود
+            description: description, // ✅ استفاده از توضیحات محاسبه شده
             file_path: "",
             name: file.name,
             size: file.size,
@@ -298,14 +305,14 @@ export const useSelectFileHandler = () => {
         setNewMessageFiles(prev => prev.filter(f => f.id !== "loading"))
       }
 
-      // ✅✅✅ بلوک else قبلی حالا فقط برای فایل‌های متنی است ✅✅✅
+      // ✅ بلوک else برای فایل‌های متنی
     } else {
       // این بخش برای TEXT/CSV/JSON است که باید خوانده شود
       reader.readAsText(file)
     }
   }
   return {
-    handleSelectFile: handleSelectDeviceFile, // نام را برای وضوح بیشتر تغییر دادم
+    handleSelectFile: handleSelectDeviceFile,
     filesToAccept
   }
 }

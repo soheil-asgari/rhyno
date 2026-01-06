@@ -302,7 +302,7 @@ export async function verifyCustomOtpAction(formData: FormData) {
     }
 
     // ✅✅✅ پاک کردن کش کلاینت برای اطمینان از لود شدن صحیح
-    revalidatePath("/", "layout")
+    // revalidatePath("/", "layout")
   } catch (error: any) {
     // مدیریت خطای ریدارکت
     if (
