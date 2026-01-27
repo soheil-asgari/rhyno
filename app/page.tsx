@@ -7,7 +7,7 @@ export const revalidate = 3600
 // ✅✅✅ تنظیمات حیاتی SEO برای صفحه اصلی شرکتی ✅✅✅
 export const metadata: Metadata = {
   title: {
-    default: "رای‌نو | شرکت توسعه هوش مصنوعی و تحلیل داده سازمانی",
+    default: "راینو | شرکت توسعه هوش مصنوعی و تحلیل داده سازمانی",
     template: "%s | Rhyno AI"
   },
   description:

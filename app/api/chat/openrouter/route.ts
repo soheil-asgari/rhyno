@@ -33,8 +33,7 @@ const MODELS_WITH_WEB_SEARCH = new Set([
   "gpt-5",
   "gpt-5-mini",
   "gpt-5-codex",
-  "google/gemini-1.5-flash",
-  "google/gemini-2.5-flash-image", // ✅ مدل خود را اینجا اضافه کنید
+  "google/gemini-1.5-flash", // ✅ مدل خود را اینجا اضافه کنید
   "perplexity/llama-3-sonar-large-32k-online" // مثال: مدل‌های آنلاین پرپلکسیتی
 ])
 
@@ -42,8 +41,7 @@ const MODELS_WITH_AUTO_SEARCH = new Set([
   "gpt-5",
   "gpt-5-mini",
   "gpt-5-codex",
-  "google/gemini-1.5-flash",
-  "google/gemini-2.5-flash-image", // ✅ مدل خود را اینجا اضافه کنید
+  "google/gemini-1.5-flash", // ✅ مدل خود را اینجا اضافه کنید
   "perplexity/llama-3-sonar-large-32k-online" // مثال: مدل‌های آنلاین پرپلکسیتی
 ])
 
@@ -162,7 +160,7 @@ export async function POST(request: Request) {
     })
 
     const modelsWithImageOutput = [
-      "google/gemini-2.5-flash-image"
+      "google/gemini-3-pro-image-preview"
       // ... هر مدل دیگری که خروجی تصویر می‌دهد
     ]
 

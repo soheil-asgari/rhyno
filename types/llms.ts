@@ -37,7 +37,7 @@ export type GoogleLLMID =
   | "gemini-pro-vision" // Gemini Pro Vision
   | "gemini-1.5-pro-latest" // Gemini 1.5 Pro
   | "gemini-1.5-flash" // Gemini 1.5 Flash
-  | "google/gemini-2.5-flash-image"
+  | "google/gemini-3-pro-image-preview"
 
 // Anthropic Models
 export type AnthropicLLMID =

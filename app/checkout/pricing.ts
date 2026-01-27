@@ -338,7 +338,7 @@ export const models: ModelPricing[] = [
 
   // --- Image ---
   {
-    id: "google/gemini-2.5-flash-image",
+    id: "google/gemini-3-pro-image-preview",
     name: "🖼️ Rhyno Image V2",
     توضیحات: "مدل جدید برای تولید تصویر",
     inputPricePer1MTokenUSD: 20.0,

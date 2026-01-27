@@ -51,7 +51,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "gpt-realtime": "🎙️ Rhyno Live V1",
   "gpt-realtime-mini": "🎧 Rhyno Live Mini",
   "dall-e-3": "🎨 Rhyno Image V1",
-  "google/gemini-2.5-flash-image": "🎨 Rhyno Image V2",
+  "google/gemini-3-pro-image-preview": "🎨 Rhyno Image V2",
   "gpt-5-codex": "💻 Rhyno Code V1"
 }
 const formatToken = (num: number) => {

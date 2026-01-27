@@ -240,7 +240,7 @@ export const useChatHandler = () => {
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-5-codex",
-        "google/gemini-2.5-flash-image"
+        "google/gemini-3-pro-image-preview"
       ]
 
       if (modelData && DIRECT_OPENROUTER_MODELS.includes(modelData.modelId)) {
@@ -304,7 +304,7 @@ export const useChatHandler = () => {
       // ✨ [تغییر] چک کردن مدل‌های ساخت عکس قبل از ارسال
       if (
         payload.chatSettings.model === "dall-e-3" ||
-        payload.chatSettings.model === "google/gemini-2.5-flash-image"
+        payload.chatSettings.model === "google/gemini-3-pro-image-preview"
       ) {
         setToolInUse("image_generation")
       }
