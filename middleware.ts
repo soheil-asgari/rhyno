@@ -8,7 +8,7 @@ export async function middleware(request: NextRequest) {
       headers: request.headers,
     },
   })
-
+  //test
   // 2. تنظیم کلاینت Supabase با متدهای صحیح (getAll / setAll)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -112,3 +112,4 @@ export const config = {
     '/((?!_next/static|_next/image|auth|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)',
   ],
 }
+
