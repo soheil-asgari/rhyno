@@ -2,7 +2,7 @@ import { Providers } from "@/components/utility/providers"
 import TranslationsProvider from "@/components/utility/translations-provider"
 import initTranslations from "@/lib/i18n"
 import { Metadata, Viewport } from "next"
-import { Inter, Vazirmatn } from "next/font/google"
+import localFont from "next/font/local" // تغییر از google به local
 import { ReactNode } from "react"
 import dynamic from "next/dynamic"
 import "./globals.css"
@@ -14,15 +14,17 @@ const ClientToaster = dynamic(
   { ssr: false }
 )
 
-const vazirmatn = Vazirmatn({
-  subsets: ["arabic"],
-  weight: ["400", "500", "700", "800", "900"],
+// تعریف فونت وزیر متن به صورت محلی
+const vazirmatn = localFont({
+  src: "../../public/fonts/Vazirmatn-VariableFont_wght.ttf", // مسیر فایل را چک کن
   display: "swap",
   variable: "--font-vazirmatn"
 })
 
-const inter = Inter({
-  subsets: ["latin"],
+// تعریف فونت اینتر به صورت محلی
+const inter = localFont({
+  src: "../../public/fonts/Inter-VariableFont_opsz,wght.ttf", // مسیر فایل را چک کن
+  display: "swap",
   variable: "--font-inter"
 })
 
@@ -58,7 +60,11 @@ export default async function RootLayout({
   const { resources } = await initTranslations(locale, i18nNamespaces)
 
   return (
-    <html lang={locale || "fa"} dir="rtl" suppressHydrationWarning>
+    <html
+      lang={locale || "fa"}
+      dir={locale === "en" ? "ltr" : "rtl"}
+      suppressHydrationWarning
+    >
       <body
         className={`${vazirmatn.variable} ${inter.variable} font-vazir bg-black`}
       >
@@ -70,7 +76,6 @@ export default async function RootLayout({
           >
             <ClientToaster />
 
-            {/* ✅ نکته حیاتی: اینجا هیچ کدی مربوط به ChatbotUIProvider یا GlobalState نباید باشد */}
             <div className="bg-background text-foreground flex h-dvh flex-col overflow-x-auto">
               <div className="flex min-h-0 w-full flex-1 flex-col">
                 {children}

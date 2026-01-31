@@ -11,7 +11,7 @@ module.exports = {
     container: {
       center: true,
       padding: {
-        DEFAULT: '1rem', // موبایل
+        DEFAULT: '1rem',
         sm: '1rem',
         md: '2rem',
         lg: '2rem',
@@ -24,12 +24,17 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: ['Vazirmatn', 'ui-sans-serif', 'system-ui'],
+        // این همان کلاسی است که در layout.tsx استفاده کردی (font-vazir)
+        vazir: ["var(--font-vazirmatn)", "ui-sans-serif", "system-ui"],
+        // برای استفاده از فونت اینتر (font-inter)
+        inter: ["var(--font-inter)", "sans-serif"],
+        // اصلاح فونت پیش‌فرض سیستم برای هماهنگی بیشتر
+        sans: ["var(--font-vazirmatn)", "var(--font-inter)", "ui-sans-serif", "system-ui"],
         mono: ['ui-monospace', 'SFMono-Regular']
       },
       fontSize: {
-        base: ['14px', '1.6'],  // موبایل
-        lg: ['16px', '1.6'],    // تبلت و دسکتاپ
+        base: ['14px', '1.6'],
+        lg: ['16px', '1.6'],
         xl: ['18px', '1.6']
       },
       colors: {
