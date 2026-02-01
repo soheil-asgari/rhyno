@@ -19,6 +19,25 @@ import { findAccountCode } from "@/lib/services/rahkaran"
 
 // const WINDOWS_SERVER_URL = "http://185.226.119.248:8005/ocr";
 
+async function fetchWithTimeout(resource: string, options: any = {}) {
+  const { timeout = 25000 } = options // تایم اوت ۲۵ ثانیه‌ای
+
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(id)
+    return response
+  } catch (error) {
+    clearTimeout(id)
+    throw error
+  }
+}
+
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
 
@@ -468,8 +487,8 @@ export async function submitDayComplete(
 
   // ✅ تابع کمکی داخلی برای مدیریت تلاش مجدد (Retry Loop)
   const processWithRetry = async (type: "deposit" | "withdrawal") => {
-    const maxAttempts = 5 // ۵ بار تلاش
-    const delayMs = 10000 // ۱۰ ثانیه وقفه
+    const maxAttempts = 3 // کاهش از 5 به 3
+    const delayMs = 2000
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {

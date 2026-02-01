@@ -1335,8 +1335,6 @@ export async function syncToRahkaranSystem(
         JSON.stringify(debugDecisions, null, 2)
       )
 
-      // ... اینجا کد finalSql و اجرای آن (که قبلا داشتید) ...
-      // برای اطمینان کد کامل finalSql را از پیام قبلی کپی کنید
       const finalSql = `
       SET NOCOUNT ON;
       SET XACT_ABORT ON;
@@ -1458,21 +1456,81 @@ export async function syncToRahkaranSystem(
       END CATCH
       `
 
-      const sqlRes = await executeSql(finalSql)
-      if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
-        return {
-          success: true,
-          docId: sqlRes[0].VoucherNum.toString(),
-          message: "OK",
-          processedTrackingCodes: successfulTrackingCodes
+      console.log(
+        `📡 [SQL_PREPARE] Query Size: ${(finalSql.length / 1024).toFixed(2)} KB`
+      )
+      console.log(`🔗 [PROXY_ATTEMPT] Connecting to Rahkaran Proxy...`)
+
+      const startTime = Date.now()
+
+      try {
+        // ایجاد AbortController برای جلوگیری از انتظار نامحدود
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 45000) // ۴۵ ثانیه تایم‌اوت
+
+        const response = await fetch(process.env.RAHKARAN_PROXY_URL!, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-proxy-key": process.env.RAHKARAN_PROXY_KEY!
+          },
+          body: JSON.stringify({ query: finalSql }),
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+        const duration = Date.now() - startTime
+
+        if (!response.ok) {
+          console.error(
+            `❌ [PROXY_ERROR] Status: ${response.status} | Time: ${duration}ms`
+          )
+          const errorText = await response.text()
+          console.error(`📄 [ERROR_DETAIL]: ${errorText.substring(0, 500)}`) // نمایش بخشی از خطا
+          throw new Error(`Proxy returned ${response.status}`)
         }
-      } else {
-        throw new Error(sqlRes?.[0]?.ErrMsg || "Unknown SQL Error")
+
+        const sqlRes = await response.json()
+        console.log(`✅ [PROXY_SUCCESS] Response received in ${duration}ms`)
+
+        if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
+          return {
+            success: true,
+            docId: sqlRes[0].VoucherNum.toString(),
+            message: "OK",
+            processedTrackingCodes: successfulTrackingCodes
+          }
+        } else {
+          console.error("📋 [SQL_EXECUTION_ERROR]:", sqlRes?.[0])
+          throw new Error(sqlRes?.[0]?.ErrMsg || "Unknown SQL Error")
+        }
+      } catch (err: any) {
+        const duration = Date.now() - startTime
+        if (err.name === "AbortError") {
+          console.error(
+            `🔥 [TIMEOUT] Rahkaran Proxy did not respond within 45s.`
+          )
+          return {
+            success: false,
+            error: "زمان پاسخگویی پروکسی به پایان رسید (Timeout)"
+          }
+        }
+        console.error(
+          `🔥 [CONNECTION_FAILED] After ${duration}ms:`,
+          err.message
+        )
+        throw err
       }
     }
-    return { success: true, message: "No items", results: [] }
+
+    console.log("ℹ️ No valid items to process.")
+    return {
+      success: true,
+      message: "No items were valid for sync",
+      processedTrackingCodes: []
+    }
   } catch (error: any) {
-    console.error("🔥 FATAL:", error)
+    console.error("🔥 FATAL SYSTEM ERROR:", error)
     return { success: false, error: error.message }
   }
 }

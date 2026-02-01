@@ -16,14 +16,14 @@ const ClientToaster = dynamic(
 
 // تعریف فونت وزیر متن به صورت محلی
 const vazirmatn = localFont({
-  src: "../../public/fonts/Vazirmatn-VariableFont_wght.ttf", // مسیر فایل را چک کن
+  src: "../public/fonts/Vazirmatn-VariableFont_wght.ttf", // مسیر فایل را چک کن
   display: "swap",
   variable: "--font-vazirmatn"
 })
 
 // تعریف فونت اینتر به صورت محلی
 const inter = localFont({
-  src: "../../public/fonts/Inter-VariableFont_opsz,wght.ttf", // مسیر فایل را چک کن
+  src: "../public/fonts/Inter-VariableFont_opsz,wght.ttf", // مسیر فایل را چک کن
   display: "swap",
   variable: "--font-inter"
 })
