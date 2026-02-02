@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
 import { createClient } from "@supabase/supabase-js"
 
-export const maxDuration = 300
+export const maxDuration = 3000
 export const dynamic = "force-dynamic"
 
 const supabase = createClient(
