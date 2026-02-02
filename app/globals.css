@@ -1,0 +1,237 @@
+/* ==========================================================================
+   ۱. وارد کردن فونت‌ها (Font Imports)
+   ========================================================================== */
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/fira-code/400.css";
+
+/* ==========================================================================
+   ۲. دستورات اصلی Tailwind (Tailwind Directives)
+   ========================================================================== */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   ۳. لایه پایه و متغیرهای پوسته (Base Layer & Theming)
+   ========================================================================== */
+@layer base {
+  /* متغیرهای پوسته روشن (Light Theme) */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 63.9%;
+    --radius: 0.75rem;
+  }
+
+  /* متغیرهای پوسته تاریک (Dark Theme) */
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 14.9%;
+  }
+
+  /* استایل‌های پایه */
+  * {
+    @apply box-border border-border;
+  }
+
+  body {
+    @apply font-vazir text-foreground bg-background;
+
+    
+    /* background-color: #111827; 
+    background-image: radial-gradient(
+      ellipse at top,
+      #111827 0%,
+      rgba(17, 24, 39, 0) 80%
+    );
+    background-attachment: fixed; */
+  }
+
+  /* استایل‌های ریسپانسیو پایه */
+  @media (max-width: 768px) {
+    body {
+      @apply text-sm;
+    }
+
+    button,
+    a {
+      @apply min-h-[44px] min-w-[44px];
+    }
+  }
+}
+
+/* ==========================================================================
+   ۴. کامپوننت‌ها و کلاس‌های سفارشی (Custom Components & Classes)
+   ========================================================================== */
+@layer components {
+  .font-vazir {
+    font-family: "Vazirmatn", sans-serif;
+  }
+
+  .rounded-image {
+    @apply rounded-full;
+  }
+
+  .message-line-height {
+    @apply leading-relaxed;
+  }
+
+  .markdown-content-rtl ol {
+    @apply list-none pr-0;
+    counter-reset: list-counter;
+  }
+
+  .markdown-content-rtl ol li {
+    counter-increment: list-counter;
+    @apply mb-2;
+  }
+
+  .markdown-content-rtl ol li::before {
+    content: counter(list-counter) ".";
+    @apply ml-3 min-w-[1.5rem] font-bold;
+  }
+}
+/* --- Starry Background Styles (Updated for Light/Dark) --- */
+@keyframes move-stars {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-2000px); /* ارتفاع انیمیشن */
+  }
+}
+
+.stars {
+  /* [تغییر] ✅ position, top, left, right, z-index حذف شد */
+  /* (چون پوشش در کامپوننت TSX آن‌ها را مدیریت می‌کند) */
+  
+  width: 100%;
+  
+  /* [تغییر اصلی] ✅ ارتفاع باید 100% والد + ارتفاع انیمیشن باشد */
+  height: calc(100% + 2000px); 
+
+  --star-color: #E5E7EB; /* حالت لایت */
+
+  /* ... بقیه background-image ... */
+  background-image: 
+    radial-gradient(1px 1px at 20px 30px, var(--star-color), transparent),
+    radial-gradient(1px 1px at 40px 70px, var(--star-color), transparent),
+    radial-gradient(1px 1px at 90px 40px, var(--star-color), transparent),
+    radial-gradient(1px 1px at 130px 80px, var(--star-color), transparent),
+    radial-gradient(1px 1px at 160px 120px, var(--star-color), transparent),
+    radial-gradient(1.5px 1.5px at 60px 170px, var(--star-color), transparent),
+    radial-gradient(1.5px 1.5px at 100px 200px, var(--star-color), transparent),
+    radial-gradient(1.5px 1.5px at 180px 150px, var(--star-color), transparent);
+
+  background-size: 200px 200px;
+  
+  animation: move-stars 150s linear infinite;
+  
+  opacity: 1; 
+  transition: background-image 0.5s ease-in-out;
+}
+
+.dark .stars {
+  --star-color: #FFFFFF; /* حالت دارک */
+}
+/* ==========================================================================
+   ۵. انیمیشن‌ها و کلاس‌های کاربردی (Animations & Utilities)
+   ========================================================================== */
+@layer utilities {
+  .hero-gradient {
+    background-size: 200% 200%;
+    animation: gradient-hero 12s ease infinite;
+    @apply bg-gradient-to-br from-[#0a0a23] via-[#1e0033] to-[#004e92];
+  }
+
+  .animate-scroll {
+    @apply animate-[scroll_30s_linear_infinite];
+  }
+
+  .text-slide-in {
+    animation: slide-in 0.8s ease-out forwards;
+    @apply translate-y-6 opacity-0;
+  }
+
+  .glow-text {
+    text-shadow:
+      0 0 7px rgba(255, 255, 255, 0.8),
+      0 0 10px rgba(255, 255, 255, 0.6),
+      0 0 21px rgba(255, 255, 255, 0.4),
+      0 0 42px rgba(0, 150, 255, 0.6),
+      0 0 82px rgba(0, 150, 255, 0.4),
+      0 0 92px rgba(0, 150, 255, 0.3),
+      0 0 102px rgba(0, 150, 255, 0.2),
+      0 0 151px rgba(0, 150, 255, 0.1);
+    animation: flicker 4s ease-in-out infinite alternate;
+    @apply text-center text-white;
+  }
+
+  @keyframes gradient-hero {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  @keyframes scroll {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+
+  @keyframes slide-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes flicker {
+    to {
+      text-shadow:
+        0 0 5px rgba(255, 255, 255, 0.9),
+        0 0 8px rgba(255, 255, 255, 0.7),
+        0 0 18px rgba(255, 255, 255, 0.5),
+        0 0 38px rgba(0, 180, 255, 0.7),
+        0 0 70px rgba(0, 180, 255, 0.5),
+        0 0 80px rgba(0, 180, 255, 0.4),
+        0 0 90px rgba(0, 180, 255, 0.3),
+        0 0 140px rgba(0, 180, 255, 0.2);
+    }
+  }
+}
