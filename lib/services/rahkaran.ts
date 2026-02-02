@@ -1503,28 +1503,33 @@ export async function syncToRahkaranSystem(
         const sqlRes = await response.json()
         console.log(`✅ [PROXY_SUCCESS] Response received in ${duration}ms`)
 
-        // استخراج رکورد اول چه در آرایه چه در آبجکت
-        const firstResult = Array.isArray(sqlRes)
+        // --- بخش جدید برای دیباگ ---
+        console.log("💎 FULL RESPONSE FROM IRAN:", JSON.stringify(sqlRes))
+
+        // بررسی انعطاف‌پذیر خروجی
+        const result = Array.isArray(sqlRes)
           ? sqlRes[0]
           : sqlRes.recordset
             ? sqlRes.recordset[0]
-            : sqlRes
+            : null
 
         if (
-          firstResult &&
-          (firstResult.Status === "Success" || firstResult.success === true)
+          result &&
+          (result.Status === "Success" || result.success === true)
         ) {
           return {
             success: true,
-            docId: (firstResult.VoucherNum || "OK").toString(),
+            docId: (result.VoucherNum || "OK").toString(),
             message: "OK",
             processedTrackingCodes: successfulTrackingCodes
           }
         } else {
-          // اینجا دقیقاً لاگ بگیر که بفهمیم چی برگشته
-          console.error("📋 [DEBUG_SQL_DATA]:", JSON.stringify(sqlRes))
+          // اگر به اینجا برسیم، یعنی یا Status موفق نبوده یا کلاً دیتا خالیه
+          console.error("📋 [SQL_DETAIL_ERROR]:", result)
           const errorMsg =
-            firstResult?.ErrMsg || firstResult?.error || "Unknown SQL Error"
+            result?.ErrMsg ||
+            result?.error ||
+            "ساختار پاسخ سرور ایران نامعتبر است یا دیتابیس پاسخی نداد"
           throw new Error(errorMsg)
         }
 

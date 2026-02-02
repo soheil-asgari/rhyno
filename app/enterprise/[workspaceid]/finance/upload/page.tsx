@@ -59,14 +59,16 @@ type VoucherReceiptData = {
 }
 
 type Message = {
-  id: string // ✅ اضافه کردن نقش جدید voucher-receipt
+  id: string
+  // ✅ اضافه کردن نقش جدید voucher-receipt
   role: "user" | "system" | "ai-result" | "voucher-receipt"
   content?: string
   fileUrl?: string | string[]
   fileType?: string
   progress?: number
   status?: "converting" | "uploading" | "done"
-  data?: AIResult // ✅ فیلد جدید برای دیتای رسید
+  data?: AIResult
+  // ✅ فیلد جدید برای دیتای رسید
   voucherData?: VoucherReceiptData
   isSubmitted?: boolean
 }
@@ -98,8 +100,9 @@ export default function ChatUploadPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages]) // --- توابع پردازش PDF و آپلود (بدون تغییر) ---
+  }, [messages])
 
+  // --- توابع پردازش PDF و آپلود (بدون تغییر) ---
   const extractTextFromPdf = async (file: File) => {
     if (!window.pdfjsLib) return ""
     try {
@@ -206,75 +209,59 @@ export default function ChatUploadPage() {
       )
     )
 
-    try {
-      // ✅ استفاده از API داخلی به جای آپلود مستقیم به Supabase
-      const fileName = `${Date.now()}_img_${Math.random().toString(36).substring(7)}.${file.name.split(".").pop()}`
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("fileName", fileName)
-      formData.append("workspaceId", workspaceId) // حتما آیدی ورک‌اسپیس را بفرستید
+    const fileExt = file.name.split(".").pop()
+    const safeName = `${Date.now()}_img_${Math.random().toString(36).substring(7)}.${fileExt}`
+    await supabase.storage.from("finance_docs").upload(safeName, file)
+    const url = supabase.storage.from("finance_docs").getPublicUrl(safeName)
+      .data.publicUrl
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData
-      })
+    await autoSaveToDatabase(url, file.name)
 
-      const result = await response.json()
-      if (!result.success) throw new Error(result.error)
-
-      const url = result.url
-
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === msgId
-            ? { ...m, fileUrl: [url], progress: 100, status: "done" }
-            : m
-        )
+    setMessages(prev =>
+      prev.map(m =>
+        m.id === msgId
+          ? { ...m, fileUrl: [url], progress: 100, status: "done" }
+          : m
       )
-      setIsUploading(false)
-      startPageByPageAnalysis([url], [])
-    } catch (err: any) {
-      throw new Error("خطا در آپلود تصویر: " + err.message)
-    }
+    )
+    setIsUploading(false)
+    startPageByPageAnalysis([url], [])
   }
 
   const processPdf = async (file: File, msgId: string) => {
+    // ۱. ساخت نام فایل رندوم و انگلیسی (برای حل ارور Invalid Key)
+    const fileExt = file.name.split(".").pop()
+    const safeName = `${Date.now()}_doc_${Math.random().toString(36).substring(7)}.${fileExt}`
+
+    // ۲. آپلود مستقیم خود فایل PDF در Supabase
+    // شبیه‌سازی پروگرس بار
     setMessages(prev =>
-      prev.map(m =>
-        m.id === msgId ? { ...m, status: "uploading", progress: 30 } : m
-      )
+      prev.map(m => (m.id === msgId ? { ...m, progress: 50 } : m))
     )
 
-    try {
-      // ✅ آپلود از طریق Vercel API برای دور زدن پروتکل HTTP2 ایران
-      const fileName = `${Date.now()}_doc_${Math.random().toString(36).substring(7)}.pdf`
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("fileName", fileName)
-      formData.append("workspaceId", workspaceId) // حتما آیدی ورک‌اسپیس را بفرستید
+    const { error } = await supabase.storage
+      .from("finance_docs")
+      .upload(safeName, file)
+    if (error) throw new Error("آپلود ناموفق بود: " + error.message)
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData
-      })
+    const url = supabase.storage.from("finance_docs").getPublicUrl(safeName)
+      .data.publicUrl
 
-      const result = await response.json()
-      if (!result.success) throw new Error(result.error)
+    // ۳. ذخیره رکورد در دیتابیس
+    await autoSaveToDatabase(url, file.name)
 
-      const url = result.url
-
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === msgId
-            ? { ...m, fileUrl: [url], progress: 100, status: "done" }
-            : m
-        )
+    setMessages(prev =>
+      prev.map(m =>
+        m.id === msgId
+          ? { ...m, fileUrl: [url], progress: 100, status: "done" }
+          : m
       )
-      setIsUploading(false)
-      startPageByPageAnalysis([url], [""])
-    } catch (err: any) {
-      throw new Error("خطا در آپلود PDF: " + err.message)
-    }
+    )
+    setIsUploading(false)
+
+    // ۴. ارسال لینک PDF به سرور اکشن
+    // آرایه تک‌عضوی می‌فرستیم چون کل فایل یک‌جاست و جمینای آن را می‌خواند
+    startPageByPageAnalysis([url], [""])
   }
 
   const startPageByPageAnalysis = async (urls: string[], texts: string[]) => {
@@ -311,8 +298,9 @@ export default function ChatUploadPage() {
         if (!finalResult.account_number)
           finalResult.account_number = res.data.account_number
         if (res.data.transactions)
-          finalResult.transactions.push(...res.data.transactions) // ✅ تغییر: این خط را آوردیم داخل بلوک if
+          finalResult.transactions.push(...res.data.transactions)
 
+        // ✅ تغییر: این خط را آوردیم داخل بلوک if
         if (res.data.bank_details?.dlCode) {
           finalResult.dl_code = res.data.bank_details.dlCode
         }
@@ -340,8 +328,9 @@ export default function ChatUploadPage() {
           fileUrl: urls,
           isSubmitted: false // هنوز ثبت نشده
         }
-      ]) // 2. 🔥 شروع عملیات ثبت خودکار
+      ])
 
+      // 2. 🔥 شروع عملیات ثبت خودکار
       console.log("🤖 Auto-submitting to Rahkaran...")
       await handleConfirm(finalResult, urls)
     }
@@ -355,37 +344,46 @@ export default function ChatUploadPage() {
       groups[date].push(tx)
     })
     return groups
-  } // --- 🔥 نسخه نهایی: ثبت سند تجمیعی (روزانه) 🔥 ---
+  }
+
+  // --- 🔥 نسخه نهایی: ثبت سند تجمیعی (روزانه) 🔥 ---
   // --- 🔥 نسخه اصلاح شده و نهایی handleConfirm 🔥 ---
   // --- 🔥 نسخه نهایی و اصلاح شده handleConfirm 🔥 ---
   // --- 🔥 نسخه نهایی و اصلاح شده handleConfirm 🔥 ---
-
   const handleConfirm = async (data: AIResult, fileUrls: string | string[]) => {
     const toastId = toast.loading("در حال ثبت اسناد در سیستم مالی...")
     const mainUrl = Array.isArray(fileUrls) ? fileUrls[0] : fileUrls
-    const hostBankDL = data.dl_code // 1. گروه‌بندی تراکنش‌ها
-    const groups = groupTransactionsByDate(data.transactions) // 2. آماده‌سازی پیلود
+    const hostBankDL = data.dl_code
+    // 1. گروه‌بندی تراکنش‌ها
+    const groups = groupTransactionsByDate(data.transactions)
 
+    // 2. آماده‌سازی پیلود
     const groupedPayload = Object.keys(groups).map(date => ({
       date,
       transactions: groups[date],
       fileUrl: mainUrl
-    })) // 3. ذخیره اولیه (اینجا چک تکراری بودن فایل انجام می‌شود)
-    // نتیجه این تابع می‌تواند تعداد رکوردهای جدید را برگرداند
+    }))
 
+    // 3. ذخیره اولیه (اینجا چک تکراری بودن فایل انجام می‌شود)
+    // نتیجه این تابع می‌تواند تعداد رکوردهای جدید را برگرداند
     const dbResult = await submitGroupedTransactions(
       workspaceId,
       groupedPayload
-    ) // اگر هیچ رکوردی اینزرت نشد (count صفر بود)، یعنی احتمالاً همه تکراری بوده‌اند
+    )
+
+    // اگر هیچ رکوردی اینزرت نشد (count صفر بود)، یعنی احتمالاً همه تکراری بوده‌اند
     // اما ما فعلاً فرآیند را ادامه می‌دهیم تا submitDayComplete وضعیت دقیق را مشخص کند
 
-    let totalSuccessDocs = 0 // 4. پردازش روز به روز
+    let totalSuccessDocs = 0
 
+    // 4. پردازش روز به روز
     for (const date of Object.keys(groups)) {
-      const res = await submitDayComplete(date, workspaceId, hostBankDL || null) // --- بررسی نتیجه واریز (Deposit) ---
+      const res = await submitDayComplete(date, workspaceId, hostBankDL || null)
 
+      // --- بررسی نتیجه واریز (Deposit) ---
       if (res.deposit) {
-        const isSuccess = res.deposit.success // تشخیص تکراری بودن: اگر ارور شامل کلمات خاصی بود (بسته به خروجی سرور شما)
+        const isSuccess = res.deposit.success
+        // تشخیص تکراری بودن: اگر ارور شامل کلمات خاصی بود (بسته به خروجی سرور شما)
         // فعلاً فرض می‌کنیم اگر موفق نبود و ارور داشت، ممکن است تکراری یا خطا باشد
         // یک منطق ساده: اگر ارور "یافت نشد" باشد یعنی قبلا ثبت شده یا وجود ندارد
         const isDuplicate =
@@ -417,10 +415,12 @@ export default function ChatUploadPage() {
             }
           }
         ])
-      } // --- بررسی نتیجه برداشت (Withdrawal) ---
+      }
 
+      // --- بررسی نتیجه برداشت (Withdrawal) ---
       if (res.withdrawal) {
-        const isSuccess = res.withdrawal.success // منطق تشخیص خطا یا تکراری
+        const isSuccess = res.withdrawal.success
+        // منطق تشخیص خطا یا تکراری
         const isDuplicate =
           res.withdrawal.error && res.withdrawal.error.includes("یافت نشد")
 
@@ -468,7 +468,6 @@ export default function ChatUploadPage() {
   }
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-gray-50 font-sans">
-           {" "}
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
         onLoad={() => {
@@ -477,29 +476,20 @@ export default function ChatUploadPage() {
           setPdfLibLoaded(true)
         }}
       />
-           {" "}
+
       <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between border-b border-gray-200 bg-white/80 p-4 shadow-sm backdrop-blur-xl md:px-6">
-               {" "}
         <div className="flex items-center gap-4">
-                   {" "}
           <div className="flex flex-col">
-                       {" "}
             <h1 className="flex items-center gap-2 text-sm font-bold text-gray-800 md:text-base">
-                            دستیار هوشمند مالی            {" "}
+              دستیار هوشمند مالی
             </h1>
-                       {" "}
             <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 md:text-[11px]">
-                           {" "}
               <span className="size-1.5 animate-pulse rounded-full bg-green-50" />
-                            متصل به راهکاران            {" "}
+              متصل به راهکاران
             </span>
-                     {" "}
           </div>
-                 {" "}
         </div>
-               {" "}
         <div className="flex gap-2">
-                   {" "}
           <Button
             variant="outline"
             size="sm"
@@ -508,229 +498,160 @@ export default function ChatUploadPage() {
               router.push(`/enterprise/${workspaceId}/finance/documents`)
             }
           >
-                        <FiPieChart className="mr-2 text-gray-500" /> مشاهده
-            گزارشات          {" "}
+            <FiPieChart className="mr-2 text-gray-500" /> مشاهده گزارشات
           </Button>
-                 {" "}
         </div>
-             {" "}
       </header>
-            <div className="h-20 shrink-0" />     {" "}
+
+      <div className="h-20 shrink-0" />
+
       <div className="scrollbar-hide mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-32 sm:px-0">
-               {" "}
         {messages.length === 1 && (
           <div className="pointer-events-none flex h-[50vh] select-none flex-col items-center justify-center text-center opacity-60">
-                       {" "}
             <div className="mb-6 flex size-24 animate-pulse items-center justify-center rounded-full bg-gray-100">
-                           {" "}
-              <FiUploadCloud size={40} className="text-gray-400" />         
-               {" "}
+              <FiUploadCloud size={40} className="text-gray-400" />
             </div>
-                       {" "}
             <h2 className="text-lg font-bold text-gray-700">
-                            سند خود را آپلود کنید            {" "}
+              سند خود را آپلود کنید
             </h2>
-                       {" "}
             <p className="mt-2 max-w-xs text-sm text-gray-500">
-                            فایل PDF یا تصویر صورتحساب بانکی را بکشید و رها
-              کنید.            {" "}
+              فایل PDF یا تصویر صورتحساب بانکی را بکشید و رها کنید.
             </p>
-                     {" "}
           </div>
         )}
-               {" "}
+
         <div className="space-y-6 pt-4">
-                   {" "}
           {messages.map(msg => (
             <div
               key={msg.id}
               className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
-                            {/* --- پیام سیستم --- */}             {" "}
+              {/* --- پیام سیستم --- */}
               {msg.role === "system" && (
                 <div className="flex max-w-[90%] items-start gap-3 sm:max-w-[80%]">
-                                   {" "}
                   <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-600">
-                                        <FiCpu size={16} />               
-                     {" "}
+                    <FiCpu size={16} />
                   </div>
-                                   {" "}
                   <div className="whitespace-pre-wrap rounded-2xl rounded-tr-none border border-gray-100 bg-white p-4 text-sm leading-7 text-gray-700 shadow-sm">
-                                        {msg.content}                 {" "}
+                    {msg.content}
                   </div>
-                                 {" "}
                 </div>
               )}
-                            {/* --- پیام کاربر (فایل آپلودی) --- */}           
-               {" "}
+
+              {/* --- پیام کاربر (فایل آپلودی) --- */}
               {msg.role === "user" && (
                 <div className="flex max-w-[85%] items-end gap-2">
-                                   {" "}
                   <div className="rounded-2xl rounded-br-none bg-[#3b82f6] p-3 text-white shadow-lg shadow-blue-500/20">
-                                       {" "}
                     <div className="flex items-center gap-3">
-                                           {" "}
                       <div className="rounded-lg bg-white/20 p-2">
-                                                <FiFile className="size-5" />   
-                                         {" "}
+                        <FiFile className="size-5" />
                       </div>
-                                           {" "}
                       <div className="min-w-0">
-                                               {" "}
                         <p className="max-w-[150px] truncate text-xs font-bold">
-                                                    {msg.content}               
-                                 {" "}
+                          {msg.content}
                         </p>
-                                               {" "}
                         <p className="font-mono text-[10px] uppercase opacity-80">
-                                                   {" "}
-                          {msg.fileType?.split("/")[1] || "FILE"}               
-                                 {" "}
+                          {msg.fileType?.split("/")[1] || "FILE"}
                         </p>
-                                             {" "}
                       </div>
-                                         {" "}
                     </div>
-                                       {" "}
-                    {/* ... (بخش نمایش تصاویر بندانگشتی) ... */}               
-                       {" "}
-                    {/* کد قبلی شما برای progress bar و ... اینجا محفوظ است */} 
-                                   {" "}
+                    {/* ... (بخش نمایش تصاویر بندانگشتی) ... */}
+                    {/* کد قبلی شما برای progress bar و ... اینجا محفوظ است */}
                   </div>
-                                   {" "}
                   <div className="flex size-6 items-center justify-center rounded-full bg-gray-200 text-[10px] text-gray-500">
-                                        <FiUser />                 {" "}
+                    <FiUser />
                   </div>
-                                 {" "}
                 </div>
               )}
-                            {/* --- نتیجه هوش مصنوعی (لیست تراکنش‌ها) --- */}   
-                       {" "}
+
+              {/* --- نتیجه هوش مصنوعی (لیست تراکنش‌ها) --- */}
               {msg.role === "ai-result" && msg.data && (
                 <div className="mr-11 w-full max-w-lg">
-                                   {" "}
                   <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl shadow-gray-200/50">
-                                       {" "}
-                    {/* ... (همان کد قبلی برای نمایش لیست تراکنش‌ها) ... */}   
-                                   {" "}
+                    {/* ... (همان کد قبلی برای نمایش لیست تراکنش‌ها) ... */}
                     <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 p-4">
-                                           {" "}
                       <div>
-                                               {" "}
                         <h3 className="text-sm font-bold text-gray-800">
-                                                   {" "}
-                          {msg.data.bank_name || "صورتحساب شناسایی شده"}       
-                                         {" "}
+                          {msg.data.bank_name || "صورتحساب شناسایی شده"}
                         </h3>
-                                               {" "}
                         <p className="mt-0.5 font-mono text-[11px] tracking-wide text-gray-500">
-                                                    {msg.data.account_number}   
-                                             {" "}
+                          {msg.data.account_number}
                         </p>
-                                             {" "}
                       </div>
-                                         {" "}
                     </div>
-                                       {" "}
+
                     <div className="scrollbar-thin scrollbar-thumb-gray-200 max-h-[350px] overflow-y-auto">
-                                           {" "}
                       {Object.entries(
                         groupTransactionsByDate(msg.data.transactions)
                       ).map(([date, txs]) => (
                         <div key={date}>
-                                                   {" "}
                           <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-gray-50 bg-white/95 px-4 py-2 text-[11px] font-bold text-gray-500 backdrop-blur-sm">
-                                                        <FiCalendar size={12} />{" "}
-                            {date}                         {" "}
+                            <FiCalendar size={12} /> {date}
                           </div>
-                                                   {" "}
                           {txs.map((tx, idx) => (
                             <div
                               key={idx}
                               className="flex justify-between border-b border-gray-50 p-3 text-xs"
                             >
-                                                           {" "}
-                              <span>{tx.description}</span>                     
-                                     {" "}
+                              <span>{tx.description}</span>
                               <span className="font-mono font-bold">
-                                                               {" "}
-                                {Number(tx.amount).toLocaleString()}           
-                                                 {" "}
+                                {Number(tx.amount).toLocaleString()}
                               </span>
-                                                         {" "}
                             </div>
                           ))}
-                                                 {" "}
                         </div>
                       ))}
-                                         {" "}
                     </div>
-                                       {" "}
+
                     <div
                       className={`flex items-center justify-center border-t border-gray-100 p-3 transition-colors ${msg.isSubmitted ? "bg-green-50" : "bg-gray-50"}`}
                     >
-                                           {" "}
                       {msg.isSubmitted ? (
                         <span className="flex items-center gap-2 text-xs font-bold text-green-600">
-                                                   {" "}
-                          <FiCheckCircle className="size-4" />                 
-                                  ثبت نهایی انجام شد                      
-                           {" "}
+                          <FiCheckCircle className="size-4" />
+                          ثبت نهایی انجام شد
                         </span>
                       ) : (
                         <span className="flex animate-pulse items-center gap-2 text-xs font-medium text-blue-600">
-                                                   {" "}
-                          <Loader2 className="size-4 animate-spin" />           
-                                        در حال ثبت اتوماتیک در راهکاران...      
-                                           {" "}
+                          <Loader2 className="size-4 animate-spin" />
+                          در حال ثبت اتوماتیک در راهکاران...
                         </span>
                       )}
-                                         {" "}
                     </div>
-                                     {" "}
                   </div>
-                                 {" "}
                 </div>
               )}
-                            {/* --- ✅ رسید دیجیتال (بخش جدید) --- */}         
-                 {" "}
+
+              {/* --- ✅ رسید دیجیتال (بخش جدید) --- */}
               {msg.role === "voucher-receipt" && msg.voucherData && (
                 <div className="animate-in zoom-in-95 mr-11 w-full max-w-md duration-500">
-                                   {" "}
                   <VoucherSuccessReceipt
                     {...msg.voucherData}
                     onClose={() => {
                       /* اختیاری: حذف رسید */
                     }}
                   />
-                                 {" "}
                 </div>
               )}
-                         {" "}
             </div>
           ))}
-                   {" "}
+
           {isAnalyzing && (
             <div className="flex animate-pulse justify-start pl-12">
-                           {" "}
               <div className="flex items-center gap-2 rounded-full border border-gray-100 bg-white px-4 py-2 text-xs text-gray-500 shadow-sm">
-                               {" "}
-                <Loader2 className="size-3.5 animate-spin text-blue-600" />     
-                          هوش مصنوعی در حال استخراج اطلاعات...            
-                 {" "}
+                <Loader2 className="size-3.5 animate-spin text-blue-600" />
+                هوش مصنوعی در حال استخراج اطلاعات...
               </div>
-                         {" "}
             </div>
           )}
-                    <div ref={messagesEndRef} />       {" "}
+          <div ref={messagesEndRef} />
         </div>
-             {" "}
       </div>
-            {/* --- Footer Input --- */}     {" "}
+
+      {/* --- Footer Input --- */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-4 sm:p-6">
-                {/* کد اینپوت فایل شما بدون تغییر */}       {" "}
+        {/* کد اینپوت فایل شما بدون تغییر */}
         <div className="pointer-events-auto mx-auto flex max-w-3xl items-center gap-2 rounded-[2rem] border border-gray-100 bg-white p-2 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl">
-                   {" "}
           <input
             type="file"
             ref={fileInputRef}
@@ -740,7 +661,6 @@ export default function ChatUploadPage() {
             aria-label="File Upload"
             title="File Upload"
           />
-                   {" "}
           <Button
             variant="ghost"
             size="icon"
@@ -748,40 +668,29 @@ export default function ChatUploadPage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isAnalyzing}
           >
-                        <FiPaperclip size={20} className="text-gray-400" />     
-               {" "}
+            <FiPaperclip size={20} className="text-gray-400" />
           </Button>
-                   {" "}
           <div
             className="flex h-10 flex-1 cursor-pointer items-center px-2"
             onClick={() => fileInputRef.current?.click()}
           >
-                       {" "}
             <span className="text-sm text-gray-400">
-                            تصویر یا PDF خود را اینجا آپلود کنید...          
-               {" "}
+              تصویر یا PDF خود را اینجا آپلود کنید...
             </span>
-                     {" "}
           </div>
-                   {" "}
           <Button
             size="icon"
             className="size-10 rounded-full bg-blue-600 text-white"
             onClick={() => fileInputRef.current?.click()}
           >
-                       {" "}
             {isUploading ? (
               <Loader2 className="size-5 animate-spin" />
             ) : (
               <FiSend className="size-5" />
             )}
-                     {" "}
           </Button>
-                 {" "}
         </div>
-             {" "}
       </div>
-         {" "}
     </div>
   )
 }
