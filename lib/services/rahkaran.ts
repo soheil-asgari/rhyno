@@ -262,18 +262,23 @@ async function executeSql(sql: string) {
     headers: { "Content-Type": "application/json", "x-proxy-key": PROXY_KEY! },
     body: JSON.stringify({ query: sql })
   })
+
   const responseText = await proxyRes.text()
-  let proxyData
+  console.log("🔍 SERVER IRAN SAYS:", responseText) // این لاگ حیاتی است
+
+  let data
   try {
-    proxyData = JSON.parse(responseText)
+    data = JSON.parse(responseText)
   } catch (e) {
-    throw new Error(`Proxy JSON Error: ${responseText.substring(0, 100)}`)
+    throw new Error(`Invalid JSON from Proxy: ${responseText}`)
   }
 
-  if (!proxyRes.ok || !proxyData.success) {
-    throw new Error(`SQL Error: ${proxyData.error || proxyData.message}`)
+  if (!proxyRes.ok || data.error) {
+    throw new Error(data.error || "Database Error")
   }
-  return proxyData.recordset || []
+
+  // اگر کوئری اینسرت بود و رکوردی برنگشت، آرایه خالی بده نه ارور
+  return data.recordset || data.data || []
 }
 
 export interface SyncPayload {
@@ -472,6 +477,7 @@ export async function findAccountCode(partyName: string): Promise<{
   `
 
   const res = await executeSql(sqlSearch)
+  console.log("✅ STEP 6: PROXY RESPONDED")
 
   if (res && res.length > 0) {
     for (const row of res) {
@@ -1048,8 +1054,9 @@ export async function syncToRahkaranSystem(
     let sqlItemsBuffer = ""
     let validItemsCount = 0
     let currentRowIndex = 1
-
+    console.log("🚩 STEP 1: Payload Received")
     for (const item of items) {
+      console.log(`🚩 STEP 2: Processing Item: ${item.partyName}`)
       if (!item.amount || item.amount === 0) {
         console.warn(`⚠️ Skipped item with zero amount: ${item.desc}`)
         continue
@@ -1062,6 +1069,7 @@ export async function syncToRahkaranSystem(
         partyName,
         mode as any
       )
+      console.log("🚩 STEP 3: AI Description Done")
       const safeDesc = escapeSql(humanDesc)
 
       // متغیرهای تصمیم‌گیری
@@ -1158,6 +1166,7 @@ export async function syncToRahkaranSystem(
           mode as any,
           bankDLCode
         )
+        console.log("🚩 STEP 4: Account Finder Done")
 
         if (decision.dlCode || decision.isFee) {
           finalDLCode = decision.dlCode
@@ -1466,13 +1475,14 @@ export async function syncToRahkaranSystem(
       try {
         // ایجاد AbortController برای جلوگیری از انتظار نامحدود
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 45000) // ۴۵ ثانیه تایم‌اوت
+        const timeoutId = setTimeout(() => controller.abort(), 450000) // ۴۵ ثانیه تایم‌اوت
 
         const response = await fetch(process.env.RAHKARAN_PROXY_URL!, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-proxy-key": process.env.RAHKARAN_PROXY_KEY!
+            "x-proxy-key": process.env.RAHKARAN_PROXY_KEY!,
+            Connection: "keep-alive"
           },
           body: JSON.stringify({ query: finalSql }),
           signal: controller.signal
@@ -1492,6 +1502,31 @@ export async function syncToRahkaranSystem(
 
         const sqlRes = await response.json()
         console.log(`✅ [PROXY_SUCCESS] Response received in ${duration}ms`)
+
+        // استخراج رکورد اول چه در آرایه چه در آبجکت
+        const firstResult = Array.isArray(sqlRes)
+          ? sqlRes[0]
+          : sqlRes.recordset
+            ? sqlRes.recordset[0]
+            : sqlRes
+
+        if (
+          firstResult &&
+          (firstResult.Status === "Success" || firstResult.success === true)
+        ) {
+          return {
+            success: true,
+            docId: (firstResult.VoucherNum || "OK").toString(),
+            message: "OK",
+            processedTrackingCodes: successfulTrackingCodes
+          }
+        } else {
+          // اینجا دقیقاً لاگ بگیر که بفهمیم چی برگشته
+          console.error("📋 [DEBUG_SQL_DATA]:", JSON.stringify(sqlRes))
+          const errorMsg =
+            firstResult?.ErrMsg || firstResult?.error || "Unknown SQL Error"
+          throw new Error(errorMsg)
+        }
 
         if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
           return {
