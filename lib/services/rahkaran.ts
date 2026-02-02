@@ -1501,35 +1501,62 @@ export async function syncToRahkaranSystem(
         }
 
         const sqlRes = await response.json()
+
         console.log(`✅ [PROXY_SUCCESS] Response received in ${duration}ms`)
 
-        // --- بخش جدید برای دیباگ ---
+        // لاگ کامل برای اطمینان از صحت دیتا در کنسول
         console.log("💎 FULL RESPONSE FROM IRAN:", JSON.stringify(sqlRes))
 
-        // بررسی انعطاف‌پذیر خروجی
-        const result = Array.isArray(sqlRes)
-          ? sqlRes[0]
-          : sqlRes.recordset
-            ? sqlRes.recordset[0]
-            : null
+        // استخراج نتیجه با اولویت‌بندی ساختار جدید (recordset)
+        let result = null
 
-        if (
-          result &&
-          (result.Status === "Success" || result.success === true)
+        if (Array.isArray(sqlRes)) {
+          // اگر خروجی مستقیماً آرایه بود
+          result = sqlRes[0]
+        } else if (
+          sqlRes &&
+          sqlRes.recordset &&
+          Array.isArray(sqlRes.recordset)
         ) {
+          // اگر خروجی شیء بود و شامل recordset (ساختار فعلی شما)
+          result = sqlRes.recordset[0]
+        } else if (sqlRes && typeof sqlRes === "object") {
+          // اگر خروجی یک شیء ساده بود
+          result = sqlRes
+        }
+
+        // بررسی شرط موفقیت (Status راهکاران یا success پروکسی)
+        const isSuccess =
+          result &&
+          (result.Status === "Success" ||
+            result.success === true ||
+            sqlRes.success === true)
+
+        if (isSuccess) {
+          // استخراج شماره سند (اگر نبود، مقدار پیش‌فرض OK)
+          const voucherId = result?.VoucherNum || result?.RefNum || "OK"
+
+          console.log(`🚀 SUCCESS: Document ${voucherId} synchronized.`)
+
           return {
             success: true,
-            docId: (result.VoucherNum || "OK").toString(),
+            docId: voucherId.toString(),
             message: "OK",
             processedTrackingCodes: successfulTrackingCodes
           }
         } else {
-          // اگر به اینجا برسیم، یعنی یا Status موفق نبوده یا کلاً دیتا خالیه
-          console.error("📋 [SQL_DETAIL_ERROR]:", result)
+          // مدیریت خطاهای احتمالی دیتابیس
+          console.error(
+            "📋 [SQL_EXECUTION_FAILED]:",
+            JSON.stringify(result || sqlRes)
+          )
+
           const errorMsg =
             result?.ErrMsg ||
             result?.error ||
+            sqlRes?.error ||
             "ساختار پاسخ سرور ایران نامعتبر است یا دیتابیس پاسخی نداد"
+
           throw new Error(errorMsg)
         }
 
