@@ -1412,7 +1412,7 @@ export async function analyzeInvoice(fileUrl: string) {
     const mimeType = fileUrl.toLowerCase().endsWith(".pdf")
       ? "application/pdf"
       : "image/jpeg"
-
+    //net error
     const response = await openRouter.chat.send({
       model: "openai/gpt-5-mini", // مدل مناسب و سریع
       messages: [
