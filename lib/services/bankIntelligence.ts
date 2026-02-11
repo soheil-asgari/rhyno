@@ -1,18 +1,16 @@
-import { OpenRouter } from "@openrouter/sdk"
 import { createClient } from "@supabase/supabase-js"
 
+import {
+  geminiClient,
+  AI_MODELS,
+  gpt5Client,
+  embeddingClient,
+  gpt5
+} from "@/lib/arvanapi"
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
-const SITE_URL = "https://rhynoai.ir"
-const SITE_NAME = "Rhyno Automation"
-
-const openRouter = new OpenRouter({
-  apiKey: OPENROUTER_API_KEY!
-})
 
 export interface SmartRuleResult {
   type: "SL" | "DL"
@@ -322,31 +320,23 @@ export async function findBestEntitiesByEmbedding(
   matchCount: number = 5
 ) {
   try {
-    // ✅ جایگزینی با Fetch مستقیم به OpenRouter
-    const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": SITE_URL,
-        "X-Title": SITE_NAME
-      },
-      body: JSON.stringify({
-        model: "qwen/qwen3-embedding-8b", // مدل امبدینگ شما
-        input: searchText.replace(/\n/g, " ")
-      })
+    // ۱. دریافت Embedding متن جستجو
+    // خروجی این متد مستقیم آبجکت پاسخ است، نه Response خام
+    const response = await embeddingClient.embeddings.create({
+      model: AI_MODELS.Embeddings,
+      input: searchText.replace(/\n/g, " ")
     })
 
-    if (!response.ok) throw new Error("Embedding API Error")
+    // در اینجا response همان داده نهایی است
+    // دسترسی مستقیم به آرایه data و اولین embedding
+    const embedding = response.data[0].embedding
 
-    const data = await response.json()
-    const embedding = data.data[0].embedding
     // ۲. فراخوانی RPC در سوپابیس
     const { data: documents, error } = await supabase.rpc(
       "match_rahkaran_entities",
       {
         query_embedding: embedding,
-        match_threshold: 0.3, // میزان شباهت (بین ۰ تا ۱)
+        match_threshold: 0.3,
         match_count: matchCount
       }
     )
@@ -357,8 +347,8 @@ export async function findBestEntitiesByEmbedding(
     }
 
     return documents.map((doc: any) => ({
-      code: doc.code, // فرض بر این است که ستون کد دارید
-      title: doc.title, // فرض بر این است که ستون تایتل دارید
+      code: doc.code,
+      title: doc.title,
       similarity: doc.similarity
     }))
   } catch (e) {
@@ -458,8 +448,8 @@ export async function extractCounterpartyBankWithAI(
   }
 
   try {
-    const completion = await openRouter.chat.send({
-      model: "openai/gpt-5-mini", // مدل سریع
+    const completion = await gpt5Client.chat.completions.create({
+      model: AI_MODELS.GPT5_MINI, // مدل سریع
       messages: [
         {
           role: "system",
@@ -479,7 +469,7 @@ export async function extractCounterpartyBankWithAI(
           content: `Text: "${description}"`
         }
       ],
-      responseFormat: { type: "json_object" },
+      response_format: { type: "json_object" },
       temperature: 0
     })
 
@@ -633,7 +623,7 @@ export async function detectFeeWithAI(
 
   if (amount < 500000) {
     try {
-      const aiRes = await openRouter.chat.send({
+      const aiRes = await gpt5Client.chat.completions.create({
         model: "openai/gpt-5-mini",
         messages: [
           {
@@ -646,7 +636,7 @@ export async function detectFeeWithAI(
             content: `Is this a bank fee/service charge? Description: "${desc}", Amount: ${amount}`
           }
         ],
-        responseFormat: { type: "json_object" }
+        response_format: { type: "json_object" }
       })
       const content = aiRes.choices[0].message.content as string
       const result = JSON.parse(content || "{}")
@@ -681,8 +671,8 @@ export async function verifyWithAI(
   if (inputName.replace(/\s/g, "") === dbName.replace(/\s/g, "")) return true
 
   try {
-    const completion = await openRouter.chat.send({
-      model: "openai/gpt-5-mini",
+    const completion = await gpt5Client.chat.completions.create({
+      model: AI_MODELS.GPT5_MINI,
       messages: [
         {
           role: "system",
@@ -700,7 +690,7 @@ Input 2: "${dbName}"
 Reply JSON: { "match": boolean }`
         }
       ],
-      responseFormat: { type: "json_object" },
+      response_format: { type: "json_object" },
       temperature: 0.1
     })
 
@@ -734,8 +724,8 @@ export async function matchAccountByDescriptionAI(
       .join("\n")
 
     // 2. درخواست از هوش مصنوعی برای انتخاب بهترین گزینه
-    const response = await openRouter.chat.send({
-      model: "openai/gpt-4o-mini", // مدل سریع و ارزان
+    const response = await gpt5Client.chat.completions.create({
+      model: AI_MODELS.GPT5_MINI, // مدل سریع و ارزان
       messages: [
         {
           role: "system",
@@ -743,6 +733,10 @@ export async function matchAccountByDescriptionAI(
 Your task is to match a transaction description to the MOST ACCURATE accounting code from the provided list.
 
 RULES:
+1. IGNORE payment methods like 'Satna', 'Paya', 'Havale' when choosing the account.
+2. Focus on the PERSON or COMPANY name in the description.
+3. NEVER return '111005' (Bank) if a specific person or company is mentioned in the text.
+4. '111005' is ONLY for internal transfers between our own bank accounts.
 1. Return JSON ONLY: { "found": boolean, "code": "string", "reason": "string" }
 2. If the transaction matches an account clearly (semantically or by keyword), set "found": true.
 3. If uncertain, set "found": false.
@@ -758,7 +752,7 @@ Available Accounts List:
 ${accountsList}`
         }
       ],
-      responseFormat: { type: "json_object" },
+      response_format: { type: "json_object" },
       temperature: 0
     })
 
@@ -909,10 +903,10 @@ export async function auditVoucherWithAI(data: {
     Output JSON ONLY: { "approved": boolean, "reason": "Short explanation" }
     `
 
-    const completion = await openRouter.chat.send({
-      model: "google/gemini-2.5-flash",
+    const completion = await gpt5Client.chat.completions.create({
+      model: AI_MODELS.GPT5_MINI,
       messages: [{ role: "user", content: prompt }],
-      responseFormat: { type: "json_object" },
+      response_format: { type: "json_object" },
       temperature: 0
     })
 

@@ -10,7 +10,22 @@ import {
   findSmartRule,
   extractCounterpartyBankWithAI
 } from "./bankIntelligence"
-import { OpenRouter } from "@openrouter/sdk"
+
+import { Agent } from "https"
+
+const keepAliveAgent = new Agent({
+  keepAlive: true,
+  maxSockets: 10, // حداکثر ۱۰ اتصال همزمان باز نگه دار
+  keepAliveMsecs: 1000 // هر ۱ ثانیه پالس بفرست که اتصال خشک نشود
+})
+
+import {
+  geminiClient,
+  AI_MODELS,
+  gpt5Client,
+  embeddingClient,
+  gpt5
+} from "@/lib/arvanapi"
 
 export interface RahkaranSyncResult {
   success: boolean
@@ -54,7 +69,8 @@ const PETTY_CASH_HOLDERS = [
   "امین امین نیا",
   "امین امین‌نیا", // با نیم‌فاصله
   "ایرج امین نیا",
-  "ایرج امین‌نیا"
+  "ایرج امین‌نیا",
+  " امین نیا"
 ]
 
 const TRANSFER_TRIGGERS = [
@@ -228,12 +244,6 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 const PROXY_URL = process.env.RAHKARAN_PROXY_URL
 const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
 
-const openai = new OpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY
-})
-
-const AI_MODEL = "google/gemini-2.5-flash"
-
 function escapeSql(str: string | undefined | null): string {
   if (!str) return ""
   return str.toString().replace(/'/g, "''")
@@ -305,8 +315,6 @@ const supabaseService = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
-
 export async function findAccountCode(partyName: string): Promise<{
   dlCode?: string
   dlType?: number
@@ -360,24 +368,19 @@ export async function findAccountCode(partyName: string): Promise<{
   // 1. جستجوی وکتور (بدون تغییر)
   // ---------------------------------------------------------
   try {
-    const fetchRes = await fetch("https://openrouter.ai/api/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "<YOUR_SITE_URL>",
-        "X-Title": "<YOUR_SITE_NAME>"
+    // ۱. استفاده از کلاینت به جای fetch دستی
+    const response = await embeddingClient.embeddings.create(
+      {
+        model: AI_MODELS.Embeddings,
+        input: cleanName.replace(/\s+/g, " ") // اصلاح Regex (حذف اسلش اضافی)
       },
-      body: JSON.stringify({
-        model: EMBEDDING_MODEL,
-        input: cleanName.replace(/\s+/g, " ")
-      })
-    })
+      {}
+    )
 
-    if (!fetchRes.ok) throw new Error("Embedding API Error")
+    // ۲. استخراج مستقیم داده‌ها (بدون نیاز به json یا ok)
+    const embedding = response.data[0].embedding
 
-    const data = await fetchRes.json()
-    const embedding = data.data[0].embedding
+    // ۳. جستجو در دیتابیس
     const { data: matches } = await supabaseService.rpc(
       "match_rahkaran_entities",
       {
@@ -389,6 +392,7 @@ export async function findAccountCode(partyName: string): Promise<{
 
     if (matches && matches.length > 0) {
       for (const best of matches) {
+        // بررسی تطابق نام (تطابق متنی)
         if (verifyNameMatch(cleanName, best.title)) {
           console.log(
             `✅ Algo Verified Vector: "${cleanName}" => "${best.title}"`
@@ -399,7 +403,11 @@ export async function findAccountCode(partyName: string): Promise<{
             foundName: best.title
           }
         }
+
+        // اگر شباهت کمتر از ۰.۵۵ است، رد کن
         if (best.similarity < 0.55) continue
+
+        // بررسی نهایی با هوش مصنوعی
         const isVerified = await verifyWithAI(cleanName, best.title)
         if (isVerified) {
           console.log(
@@ -438,7 +446,7 @@ export async function findAccountCode(partyName: string): Promise<{
     DECLARE @W1 nvarchar(100) = N'${escapeSql(searchW1)}';
     DECLARE @W2 nvarchar(100) = N'${escapeSql(w2)}';
     
-    -- نرمال سازی حروف فارسی (ی و ک)
+    -- نرمال سازی حروف فارسی
     SET @RawName = REPLACE(REPLACE(@RawName, N'ي', N'ی'), N'ك', N'ک');
     SET @W1 = REPLACE(REPLACE(@W1, N'ي', N'ی'), N'ك', N'ک');
     SET @W2 = REPLACE(REPLACE(@W2, N'ي', N'ی'), N'ك', N'ک');
@@ -447,34 +455,38 @@ export async function findAccountCode(partyName: string): Promise<{
 
     SELECT TOP 3 Code, DLTypeRef, Title, Score
     FROM (
-        SELECT TOP 10 Code, DLTypeRef, Title,
+        SELECT TOP 20 Code, DLTypeRef, Title,
             (
-                (CASE WHEN CleanTitle = @RawName THEN 1000 ELSE 0 END) + -- تطابق دقیق کامل
-                (CASE WHEN CleanTitle LIKE N'%'+ @LikeName +'%' THEN 500 ELSE 0 END) + -- تطابق با فاصله
-                -- اگر دو کلمه داریم، هر دو باید باشند (امتیاز بسیار بالا برای چسب + پارس)
+                -- ۱. تطابق دقیق (بالاترین امتیاز)
+                (CASE WHEN CleanTitle = @RawName THEN 1000 ELSE 0 END) + 
+                
+                -- ۲. تطابق هر دو کلمه (حتی اگر OCR یکی را اشتباه زده باشد، این بخش امتیاز نمی‌گیرد ولی بخش بعدی می‌گیرد)
                 (CASE WHEN @W1 <> '' AND @W2 <> '' AND CleanTitle LIKE N'%'+ @W1 +'%' AND CleanTitle LIKE N'%'+ @W2 +'%' THEN 800 ELSE 0 END) +
-                -- امتیاز تکی
-                (CASE WHEN @W1 <> '' AND CleanTitle LIKE N'%'+ @W1 +'%' THEN 50 ELSE 0 END)
+                
+                -- ۳. تطابق کلمه اول (مثلاً "بهرام")
+                (CASE WHEN @W1 <> '' AND CleanTitle LIKE N'%'+ @W1 +'%' THEN 200 ELSE 0 END) +
+                
+                -- ۴. تطابق کلمه دوم (مثلاً "مرجانی")
+                (CASE WHEN @W2 <> '' AND CleanTitle LIKE N'%'+ @W2 +'%' THEN 200 ELSE 0 END) +
+                
+                -- ۵. تطابق کلی با لایک
+                (CASE WHEN CleanTitle LIKE N'%'+ @LikeName +'%' THEN 100 ELSE 0 END)
             ) as Score
         FROM (
             SELECT Code, DLTypeRef, Title, 
                 REPLACE(REPLACE(Title, N'ي', N'ی'), N'ك', N'ک') as CleanTitle
             FROM [FIN3].[DL]
-            WHERE 
-            (
-                -- شرط جستجو: اگر دو کلمه مهم داریم، سعی کن هر دو را پیدا کنی، وگرنه اولی را پیدا کن
-                (@W2 <> '' AND REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @W1 +'%' AND REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @W2 +'%')
-                OR
-                (@W2 = '' AND REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @W1 +'%')
-                OR
-                -- فال‌بک نهایی: جستجوی کلی
-                (REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @LikeName +'%')
+            -- کلمه AND برداشته شد و WHERE جایگزین شد
+            WHERE (
+                -- شرط منعطف: حداقل یکی از کلمات مچ شود تا رکورد کاندیدا شود
+                (@W1 <> '' AND REPLACE(Title, N'ي', N'ی') LIKE N'%'+ @W1 +'%')
+                OR 
+                (@W2 <> '' AND REPLACE(Title, N'ي', N'y') LIKE N'%'+ @W2 +'%')
             )
-        ) as T 
+        ) as T
     ) as BestMatch
-    WHERE Score >= 50
-    ORDER BY Score DESC, LEN(Title) ASC; -- کوتاه‌ترین عنوان معمولاً دقیق‌ترین است
-  `
+    WHERE Score >= 200 -- حداقل یک کلمه باید مچ شده باشد
+    ORDER BY Score DESC, LEN(Title) ASC;`
 
   const res = await executeSql(sqlSearch)
   console.log("✅ STEP 6: PROXY RESPONDED")
@@ -524,11 +536,11 @@ async function humanizenormalizedDesc(
     Type: ${type === "deposit" ? "واریز" : "برداشت"}
     Rules: Remove "robot", "automated". Use terms like "بابت", "طی فیش", "حواله". Keep tracking codes. Output ONLY Farsi.
     `
-    const response = await openai.chat.send({
-      model: "gpt-4o-mini",
+    const response = await gpt5.chat.completions.create({
+      model: AI_MODELS.GPT5,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.4,
-      maxTokens: 100
+      max_tokens: 100
     })
     const content = response.choices[0].message.content as string
     return content?.trim() || rawDesc
@@ -551,11 +563,11 @@ async function generateHumanHeader(date: string): Promise<string> {
     - Use varied styles like: "ثبت گردش عملیات بانکی مورخ ...", "سند روزانه بانک ...", "گردش وجوه نقد ...".
     - Output ONLY the Farsi string.
     `
-    const response = await openai.chat.send({
-      model: "gpt-4o-mini",
+    const response = await gpt5.chat.completions.create({
+      model: AI_MODELS.GPT5,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
-      maxTokens: 60
+      max_tokens: 60
     })
     const content = response.choices[0].message.content as string
     return content?.trim() || `${date}`
@@ -699,10 +711,10 @@ async function predictSLWithAI(
     Output JSON ONLY: { "selected_code": "..." | null }
     `
 
-    const aiRes = await openai.chat.send({
-      model: "google/gemini-2.5-flash",
+    const aiRes = await gpt5.chat.completions.create({
+      model: AI_MODELS.GPT5,
       messages: [{ role: "user", content: prompt }],
-      responseFormat: { type: "json_object" }, // camelCase اصلاح شد
+      response_format: { type: "json_object" }, // camelCase اصلاح شد
       temperature: 0
     })
 
@@ -864,21 +876,26 @@ async function smartAccountFinder(
   }
 
   const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
-    h => cleanName.includes(h) || normalizedDesc.includes(h)
+    h =>
+      (cleanName !== "نامشخص" && cleanName.includes(h)) || // نام طرف حساب واقعا امین باشد
+      (normalizedDesc.includes(h) && normalizedDesc.includes("برداشت")) // یا در شرح برداشت توسط امین باشد
   )
-  if (isPettyCashHolder) {
-    let targetName =
-      PETTY_CASH_HOLDERS.find(
-        h => cleanName.includes(h) || normalizedDesc.includes(h)
-      ) || cleanName
-    const personAcc = await findAccountCode(targetName)
-    if (personAcc.dlCode) {
+  const isPettyCash = PETTY_CASH_HOLDERS.some(
+    h =>
+      (cleanName.length > 2 && cleanName.includes(h)) ||
+      normalizedDesc.includes(h)
+  )
+  if (isPettyCash) {
+    const target =
+      PETTY_CASH_HOLDERS.find(h => normalizedDesc.includes(h)) || cleanName
+    const acc = await findAccountCode(target)
+    if (acc.dlCode) {
       return {
-        dlCode: personAcc.dlCode,
-        dlType: personAcc.dlType,
-        foundName: personAcc.foundName,
+        dlCode: acc.dlCode,
+        dlType: acc.dlType,
+        foundName: acc.foundName,
         isFee: false,
-        reason: "SPECIAL_SL:111003"
+        reason: "SPECIAL_SL:111003" // اجبار به معین تنخواه
       }
     }
   }
@@ -886,6 +903,33 @@ async function smartAccountFinder(
   const hasTransferKeyword = TRANSFER_TRIGGERS.some(k =>
     normalizedDesc.includes(k)
   )
+  const transferMatch = normalizedDesc.match(
+    /(?:به|توسط)\s+(?:آقای|خانم|شرکت|فروشگاه)?\s*([\u0600-\u06FF\s]+)/
+  )
+  if (transferMatch && transferMatch[1]) {
+    const potentialName = transferMatch[1]
+      .trim()
+      .split(" ")
+      .slice(0, 4)
+      .join(" ")
+    // اگر نام استخراج شده شامل کلمات بانکی نیست، آن را جستجو کن
+    if (
+      potentialName.length > 3 &&
+      !potentialName.includes("بانک") &&
+      !potentialName.includes("حساب")
+    ) {
+      const acc = await findAccountCode(potentialName)
+      if (acc.dlCode) {
+        return {
+          dlCode: acc.dlCode,
+          dlType: acc.dlType,
+          foundName: acc.foundName,
+          isFee: false,
+          reason: "Extracted Target Name from Description"
+        }
+      }
+    }
+  }
   if (hasTransferKeyword) {
     const aiBank = await extractCounterpartyBankWithAI(
       normalizedDesc,
@@ -995,14 +1039,14 @@ async function smartAccountFinder(
   Output JSON: { "decision": "SELECTED_CODE" | "IS_FEE" | "UNKNOWN", "code": "...", "name": "...", "reason": "..." }
   `
   try {
-    const aiResponse = await openai.chat.send({
-      model: AI_MODEL,
+    const aiResponse = await gpt5.chat.completions.create({
+      model: AI_MODELS.GPT5,
       messages: [
         { role: "system", content: "Output JSON only." },
         { role: "user", content: prompt }
       ],
       temperature: 0.0,
-      responseFormat: { type: "json_object" } // camelCase اصلاح شد
+      response_format: { type: "json_object" } // camelCase اصلاح شد
     })
     const content = aiResponse.choices[0].message.content as string
     const result = JSON.parse(content || "{}")
@@ -1158,15 +1202,29 @@ export async function syncToRahkaranSystem(
       }
 
       // 🔍 2. جستجوی عمیق (Smart Finder)
-      if (!decisionMade || !finalDLCode) {
-        const decision = await smartAccountFinder(
-          partyName,
-          rawDesc,
-          item.amount,
-          mode as any,
-          bankDLCode
-        )
-        console.log("🚩 STEP 4: Account Finder Done")
+      const decision = await smartAccountFinder(
+        partyName,
+        rawDesc,
+        item.amount,
+        mode,
+        bankDLCode
+      )
+
+      // 2. حالا ناظر را صدا بزن تا تایید کند
+      const audit = await auditVoucherWithAI({
+        inputName: partyName,
+        inputDesc: rawDesc,
+        amount: item.amount,
+        selectedAccountName: decision.foundName,
+        selectedAccountCode: decision.dlCode || null,
+        isFee: decision.isFee
+      })
+
+      if (!audit.approved) {
+        console.warn(`🚨 ناظر تراکنش را رد کرد: ${audit.reason}`)
+        // در اینجا می‌توانید تصمیم بگیرید که تراکنش به "نامشخص" برود یا کلاً ثبت نشود
+        finalDLCode = undefined
+        finalFoundName = "نامشخص (رد شده توسط ناظر)"
 
         if (decision.dlCode || decision.isFee) {
           finalDLCode = decision.dlCode
@@ -1473,10 +1531,11 @@ export async function syncToRahkaranSystem(
       const startTime = Date.now()
 
       try {
-        // ایجاد AbortController برای جلوگیری از انتظار نامحدود
+        // ایجاد AbortController
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 450000) // ۴۵ ثانیه تایم‌اوت
+        const timeoutId = setTimeout(() => controller.abort(), 45000) // اصلاح: ۴۵۰۰۰ میلی‌ثانیه = ۴۵ ثانیه (نه ۴۵۰۰۰۰)
 
+        // شروع درخواست
         const response = await fetch(process.env.RAHKARAN_PROXY_URL!, {
           method: "POST",
           headers: {
@@ -1491,53 +1550,55 @@ export async function syncToRahkaranSystem(
         clearTimeout(timeoutId)
         const duration = Date.now() - startTime
 
+        // ۱. خواندن پاسخ فقط یک بار (حیاتی!)
+        // اگر پاسخ جیسون نباشد، اینجا به catch می‌رود که مطلوب است
+        const sqlRes = await response.json()
+
+        // ۲. استفاده از متغیر خوانده شده برای لاگ
+        console.log("🔍 FULL DATA FROM IRAN:", JSON.stringify(sqlRes))
+
+        // ۳. بررسی وضعیت HTTP
         if (!response.ok) {
           console.error(
             `❌ [PROXY_ERROR] Status: ${response.status} | Time: ${duration}ms`
           )
-          const errorText = await response.text()
-          console.error(`📄 [ERROR_DETAIL]: ${errorText.substring(0, 500)}`) // نمایش بخشی از خطا
+          // چون قبلاً json را خواندیم (sqlRes)، دیگر نباید response.text() بزنیم
+          // خطا را از داخل همان آبجکت جیسون می‌خوانیم یا کل آبجکت را لاگ می‌کنیم
+          console.error(`📄 [ERROR_DETAIL]:`, JSON.stringify(sqlRes))
           throw new Error(`Proxy returned ${response.status}`)
         }
 
-        const sqlRes = await response.json()
-
         console.log(`✅ [PROXY_SUCCESS] Response received in ${duration}ms`)
-
-        // لاگ کامل برای اطمینان از صحت دیتا در کنسول
         console.log("💎 FULL RESPONSE FROM IRAN:", JSON.stringify(sqlRes))
 
-        // استخراج نتیجه با اولویت‌بندی ساختار جدید (recordset)
+        // ۴. منطق استخراج نتیجه (از همان متغیر sqlRes استفاده می‌کنیم)
         let result = null
 
         if (Array.isArray(sqlRes)) {
-          // اگر خروجی مستقیماً آرایه بود
           result = sqlRes[0]
         } else if (
           sqlRes &&
           sqlRes.recordset &&
           Array.isArray(sqlRes.recordset)
         ) {
-          // اگر خروجی شیء بود و شامل recordset (ساختار فعلی شما)
-          result = sqlRes.recordset[0]
+          // اصلاح: بررسی خالی نبودن آرایه برای جلوگیری از undefined
+          result = sqlRes.recordset.length > 0 ? sqlRes.recordset[0] : sqlRes
         } else if (sqlRes && typeof sqlRes === "object") {
-          // اگر خروجی یک شیء ساده بود
           result = sqlRes
         }
 
-        // بررسی شرط موفقیت (Status راهکاران یا success پروکسی)
+        // ۵. بررسی شرط موفقیت
         const isSuccess =
           result &&
           (result.Status === "Success" ||
             result.success === true ||
-            sqlRes.success === true)
+            sqlRes.success === true ||
+            sqlRes.Status === "Success") // اضافه کردن بررسی روی روت
 
         if (isSuccess) {
-          // استخراج شماره سند (اگر نبود، مقدار پیش‌فرض OK)
-          const voucherId = result?.VoucherNum || result?.RefNum || "OK"
-
+          const voucherId =
+            result?.VoucherNum || result?.RefNum || sqlRes?.VoucherNum || "OK"
           console.log(`🚀 SUCCESS: Document ${voucherId} synchronized.`)
-
           return {
             success: true,
             docId: voucherId.toString(),
@@ -1545,31 +1606,17 @@ export async function syncToRahkaranSystem(
             processedTrackingCodes: successfulTrackingCodes
           }
         } else {
-          // مدیریت خطاهای احتمالی دیتابیس
+          // مدیریت خطا
           console.error(
             "📋 [SQL_EXECUTION_FAILED]:",
             JSON.stringify(result || sqlRes)
           )
-
           const errorMsg =
             result?.ErrMsg ||
             result?.error ||
             sqlRes?.error ||
             "ساختار پاسخ سرور ایران نامعتبر است یا دیتابیس پاسخی نداد"
-
           throw new Error(errorMsg)
-        }
-
-        if (sqlRes && sqlRes[0] && sqlRes[0].Status === "Success") {
-          return {
-            success: true,
-            docId: sqlRes[0].VoucherNum.toString(),
-            message: "OK",
-            processedTrackingCodes: successfulTrackingCodes
-          }
-        } else {
-          console.error("📋 [SQL_EXECUTION_ERROR]:", sqlRes?.[0])
-          throw new Error(sqlRes?.[0]?.ErrMsg || "Unknown SQL Error")
         }
       } catch (err: any) {
         const duration = Date.now() - startTime

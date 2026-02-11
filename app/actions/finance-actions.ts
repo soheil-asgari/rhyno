@@ -1,4 +1,18 @@
 "use server"
+import { env } from "@xenova/transformers"
+
+// اصلاح تنظیمات برای جلوگیری از کرش در ویندوز
+if (typeof window === "undefined") {
+  env.allowLocalModels = true
+  env.useBrowserCache = false
+
+  // این خط بسیار حیاتی است:
+  env.backends.onnx.wasm.proxy = false
+  env.backends.onnx.wasm.numThreads = 1
+
+  // اضافه کردن این خط برای جلوگیری از ساخت ورکر جدید
+  ;(env as any).allowRemoteModels = true
+}
 
 import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
@@ -17,7 +31,12 @@ import {
 } from "@/lib/services/bankIntelligence"
 import { findAccountCode } from "@/lib/services/rahkaran"
 
-// const WINDOWS_SERVER_URL = "http://185.226.119.248:8005/ocr";
+import {
+  geminiClient,
+  AI_MODELS,
+  gpt5Client,
+  embeddingClient
+} from "@/lib/arvanapi"
 
 async function fetchWithTimeout(resource: string, options: any = {}) {
   const { timeout = 25000 } = options // تایم اوت ۲۵ ثانیه‌ای
@@ -44,7 +63,6 @@ const PROXY_KEY = process.env.RAHKARAN_PROXY_KEY
 const openRouter = new OpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!
 })
-const AI_MODEL = "google/gemini-2.5-pro"
 
 export interface SinglePageResult {
   success: boolean
@@ -110,8 +128,8 @@ export async function analyzeSinglePage(
 
     const aiResponse = await withRetry(
       async () => {
-        return await openRouter.chat.send({
-          model: AI_MODEL,
+        return await geminiClient.chat.completions.create({
+          model: AI_MODELS.GEMINI_PRO,
 
           messages: [
             {
@@ -143,15 +161,17 @@ export async function analyzeSinglePage(
 
            
 
-            2. **VETO RULE (مانده):** You MUST ignore the "مانده" (Balance) column. Do NOT extract its value as a transaction amount under any circumstance.
+            2. **VETO RULE (Balance):** Ignore the "Balance" column.
+            3. **PARTY EXTRACTION:** Look for names after keywords like "به آقای", "به خانم", "به حساب شرکت", "واریزی توسط". 
+            - CRITICAL: Do NOT return accounting titles like "موجودی بانک" as a party name. 
+            - If a person/company name is mentioned, return THAT as 'partyName'.
+           
+
+            4. **HANDWRITING & METADATA:** Look closely for handwritten notes (متن‌های دست‌نویس) and faint text (e.g., payer/payee names or transfer reasons). You MUST append any such found text to the 'description' field.
 
            
 
-            3. **HANDWRITING & METADATA:** Look closely for handwritten notes (متن‌های دست‌نویس) and faint text (e.g., payer/payee names or transfer reasons). You MUST append any such found text to the 'description' field.
-
-           
-
-            4. **Data Quality:** Extract "شماره سند/پیگیری" as tracking_code. Remove all separators (commas, dots, etc.) from numbers. Ensure no transaction amount is 0 unless the row is truly empty.
+            5. **Data Quality:** Extract "شماره سند/پیگیری" as tracking_code. Remove all separators (commas, dots, etc.) from numbers. Ensure no transaction amount is 0 unless the row is truly empty.
 
           CRITICAL NEW RULE (HANDWRITING):
 - Look specifically for HANDWRITTEN notes on the statement row (usually describing the nature of transaction).
@@ -200,13 +220,16 @@ export async function analyzeSinglePage(
 
                 {
                   type: "image_url",
-                  imageUrl: { url: `data:${mimeType};base64,${base64Data}` }
+                  // اصلاح شده: به جای imageUrl باید از image_url (با underscore) استفاده کنید
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Data}`
+                  }
                 }
               ]
             }
           ],
 
-          responseFormat: { type: "json_object" },
+          response_format: { type: "json_object" },
 
           temperature: 0
         })
@@ -378,22 +401,30 @@ export async function analyzeSinglePage(
 // تابع کمکی برای استخراج نام (همان که قبلا دادم)
 function extractNameFromDesc(desc: string): string | null {
   if (!desc) return null
+
+  // پاکسازی کلمات نویز قبل از استخراج
+  const cleanDesc = desc.replace(/موجودی بانکهای ریالی|شبا|ساتنا|پایا/g, " ")
+
   const keywords = [
     "فرستنده:",
     "گیرنده:",
     "به نام",
-    "شرکت",
-    "فروشگاه",
-    "آقای",
-    "خانم",
+    "به آقای",
+    "به خانم",
+    "توسط",
+    "واریز از",
+    "واریز به",
     "در وجه"
   ]
+
   for (const key of keywords) {
-    if (desc.includes(key)) {
-      const parts = desc.split(key)
+    if (cleanDesc.includes(key)) {
+      const parts = cleanDesc.split(key)
       if (parts.length > 1) {
-        let nameCandidate = parts[1].trim().split(" ").slice(0, 5).join(" ")
-        nameCandidate = nameCandidate.split(/[\-\/]/)[0].trim()
+        // استخراج حداکثر ۳ کلمه بعد از کلمه کلیدی
+        let nameCandidate = parts[1].trim().split(" ").slice(0, 3).join(" ")
+        // حذف کاراکترهای اضافی
+        nameCandidate = nameCandidate.replace(/[()\-]/g, "").trim()
         if (nameCandidate.length > 2) return nameCandidate
       }
     }
@@ -1431,7 +1462,7 @@ export async function analyzeInvoice(fileUrl: string) {
     const mimeType = fileUrl.toLowerCase().endsWith(".pdf")
       ? "application/pdf"
       : "image/jpeg"
-
+    //net error
     const response = await openRouter.chat.send({
       model: "openai/gpt-5-mini", // مدل مناسب و سریع
       messages: [

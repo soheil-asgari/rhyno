@@ -4,7 +4,7 @@ import { createClient as createSSRClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

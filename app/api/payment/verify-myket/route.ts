@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 // لیست محصولات و قیمت‌ها (باید با پنل مایکت یکی باشد)
 const PRODUCTS: Record<string, number> = {

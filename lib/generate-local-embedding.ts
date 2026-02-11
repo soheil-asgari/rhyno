@@ -1,5 +1,9 @@
 import { pipeline } from "@xenova/transformers"
+import { env } from "@xenova/transformers"
 
+env.allowLocalModels = true
+env.useBrowserCache = false
+env.allowRemoteModels = true
 export async function generateLocalEmbedding(content: string) {
   const generateEmbedding = await pipeline(
     "feature-extraction",
