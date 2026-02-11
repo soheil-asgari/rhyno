@@ -74,8 +74,6 @@ const PETTY_CASH_HOLDERS = [
 ]
 
 const TRANSFER_TRIGGERS = [
-  "انتقال",
-  "انتقالی",
   "جبران رسوب",
   "جبران",
   "آذریورد",
@@ -88,7 +86,6 @@ const TRANSFER_TRIGGERS = [
   "اذر یورد",
   "آذر",
   "اذر",
-  "ساتنا به حساب شرکت",
   "به نام اراه و ساختمانی آذر"
 ]
 
@@ -314,14 +311,35 @@ const supabaseService = createClient(
   supabaseUrl,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+// 🛠 لیست اصلاح اشتباهات رایج OCR
+const OCR_CORRECTIONS: Record<string, string> = {
+  مرحانی: "مرجانی",
+  مرحان: "مرجانی",
+  "امین امین": "امین امین نیا",
+  "معروف صنعت": "شرکت معروف صنعت آذربایجان شرقی",
+  // هر مورد دیگری که اشتباه تشخیص داده می‌شود را اینجا اضافه کنید
+  "به حساب شرکت": "به شرکت"
+}
 
+// تابع کمکی برای اعمال اصلاحات
+function applyOCRCorrections(text: string): string {
+  let fixedText = text
+  for (const [wrong, correct] of Object.entries(OCR_CORRECTIONS)) {
+    if (fixedText.includes(wrong)) {
+      fixedText = fixedText.replace(new RegExp(wrong, "g"), correct)
+    }
+  }
+  return fixedText
+}
 export async function findAccountCode(partyName: string): Promise<{
   dlCode?: string
   dlType?: number
   slId?: number
   foundName: string
 }> {
-  let cleanName = partyName.replace(/Unknown/gi, "").trim()
+  let cleanName = applyOCRCorrections(partyName)
+    .replace(/Unknown/gi, "")
+    .trim()
   if (!cleanName || cleanName.length < 2) return { foundName: "نامشخص" }
 
   // 1. لیست کامل کلمات عمومی که باید حذف شوند تا به "نام اصلی" برسیم
@@ -1101,12 +1119,16 @@ export async function syncToRahkaranSystem(
     console.log("🚩 STEP 1: Payload Received")
     for (const item of items) {
       console.log(`🚩 STEP 2: Processing Item: ${item.partyName}`)
+
+      // ✅ 1. اصلاح نام طرف حساب (OCR Corrections)
+      let partyName = item.partyName || "نامشخص"
+      partyName = applyOCRCorrections(partyName)
+
       if (!item.amount || item.amount === 0) {
         console.warn(`⚠️ Skipped item with zero amount: ${item.desc}`)
         continue
       }
 
-      const partyName = item.partyName || "نامشخص"
       const rawDesc = item.desc || ""
       const humanDesc = await humanizenormalizedDesc(
         rawDesc,
@@ -1121,18 +1143,17 @@ export async function syncToRahkaranSystem(
       let finalFoundName = "نامشخص"
       let finalIsFee = false
       let finalReason = ""
+      // پیش‌فرض معین
       let finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
       let decisionMade = false
 
-      // ---------------------------------------------------------
-      // 💎 گام 0: بررسی تنخواه‌داران (اولویت مطلق برای امین امین‌نیا و ...)
-      // ---------------------------------------------------------
       const cleanName = partyName.replace(/Unknown|نامشخص/gi, "").trim()
 
       // ---------------------------------------------------------
-      // 🚨 گام منفی ۱: بررسی کارمزد (اولویت مطلق) - رفع باگ عدم تشخیص کارمزد
+      // 🚨 گام منفی ۱: بررسی کارمزد (اولویت مطلق)
       // ---------------------------------------------------------
       const isStrictFee = STRICT_FEE_KEYWORDS.some(k => rawDesc.includes(k))
+
       if (isStrictFee && !rawDesc.includes("جبران رسوب")) {
         console.log(
           `💸 Strict Fee Detected at Start: ${rawDesc.substring(0, 30)}...`
@@ -1145,42 +1166,51 @@ export async function syncToRahkaranSystem(
         decisionMade = true
       }
 
-      // 💎 0. بررسی تنخواه‌داران
+      // ---------------------------------------------------------
+      // 💎 گام 0: بررسی تنخواه‌داران (اولویت مطلق)
+      // ---------------------------------------------------------
       if (!decisionMade) {
-        const isPettyCashHolder = PETTY_CASH_HOLDERS.some(
-          h => cleanName.includes(h) || rawDesc.includes(h)
-        )
+        // نام‌های خاص تنخواه گردان
+        const isPettyCashHolder =
+          PETTY_CASH_HOLDERS.some(
+            h => cleanName.includes(h) || rawDesc.includes(h)
+          ) ||
+          cleanName.includes("امین نیا") ||
+          cleanName.includes("امین امین") // اضافه کردن شرط صریح برای امین نیا
+
         if (isPettyCashHolder) {
           console.log(`👤 Petty Cash Holder Detected: ${cleanName}`)
           let targetName =
             PETTY_CASH_HOLDERS.find(
               h => cleanName.includes(h) || rawDesc.includes(h)
             ) || cleanName
+
+          // اصلاح نام برای جستجو دقیق‌تر
+          if (targetName.includes("امین") || targetName.includes("نیا"))
+            targetName = "امین امین نیا"
+
           const personAcc = await findAccountCode(targetName)
           if (personAcc.dlCode) {
-            finalDLCode = personAcc.dlCode
+            finalDLCode = personAcc.dlCode // معمولا 000002
             finalFoundName = personAcc.foundName
-            finalSL = "111003"
+            finalSL = "111003" // 🔒 اجبار به معین تنخواه گردان
             finalReason = "Priority: Petty Cash Holder"
             decisionMade = true
           }
         }
       }
 
-      // 🌟 1. بررسی Smart Rule (حقوق/بیمه/مالیات/بانک)
+      // 🌟 1. بررسی Smart Rule
       if (!decisionMade) {
         const smartMatch = await findSmartRule(rawDesc, partyName)
         if (smartMatch) {
-          // اگر کد پیدا شده عمومی (بانک 111005) بود، فقط سرنخ است، متوقف نشو!
           if (["111005", "111003"].includes(smartMatch.code)) {
             console.log(
               `⚠️ Generic Hint Found (${smartMatch.code}). Continuing search for Vendor...`
             )
             finalSL = smartMatch.code
             finalReason = `Hint: ${smartMatch.code}`
-            // decisionMade = false باقی می‌ماند تا جستجوی دقیق انجام شود
           } else {
-            // کد دقیق پیدا شد (مثل بیمه یا حقوق)
             console.log(
               `🔒 Smart Rule Applied: ${smartMatch.title} (${smartMatch.code})`
             )
@@ -1202,117 +1232,146 @@ export async function syncToRahkaranSystem(
       }
 
       // 🔍 2. جستجوی عمیق (Smart Finder)
-      const decision = await smartAccountFinder(
-        partyName,
-        rawDesc,
-        item.amount,
-        mode,
-        bankDLCode
-      )
+      if (!decisionMade) {
+        // فقط اگر هنوز تصمیم قطعی گرفته نشده
+        const decision = await smartAccountFinder(
+          partyName,
+          rawDesc,
+          item.amount,
+          mode,
+          bankDLCode
+        )
 
-      // 2. حالا ناظر را صدا بزن تا تایید کند
-      const audit = await auditVoucherWithAI({
-        inputName: partyName,
-        inputDesc: rawDesc,
-        amount: item.amount,
-        selectedAccountName: decision.foundName,
-        selectedAccountCode: decision.dlCode || null,
-        isFee: decision.isFee
-      })
-
-      if (!audit.approved) {
-        console.warn(`🚨 ناظر تراکنش را رد کرد: ${audit.reason}`)
-        // در اینجا می‌توانید تصمیم بگیرید که تراکنش به "نامشخص" برود یا کلاً ثبت نشود
-        finalDLCode = undefined
-        finalFoundName = "نامشخص (رد شده توسط ناظر)"
-
-        if (decision.dlCode || decision.isFee) {
+        // اگر Smart Finder چیزی پیدا کرد، موقتاً قبول می‌کنیم تا ناظر چک کند
+        if (
+          decision.dlCode ||
+          decision.isFee ||
+          decision.foundName !== "نامشخص"
+        ) {
           finalDLCode = decision.dlCode
           finalFoundName = decision.foundName
           finalIsFee = decision.isFee || false
           finalReason = decision.reason || "Smart Finder"
-
           if (decision.reason?.startsWith("SPECIAL_SL:")) {
             finalSL = decision.reason.split(":")[1]
           }
         }
       }
 
-      // =========================================================
-      // 🔧 3. اصلاحات نهایی
-      // =========================================================
+      // ---------------------------------------------------------
+      // ⚖️ ناظر هوشمند (Audit)
+      // ---------------------------------------------------------
+      const audit = await auditVoucherWithAI({
+        inputName: partyName,
+        inputDesc: rawDesc,
+        amount: item.amount,
+        selectedAccountName: finalFoundName,
+        selectedAccountCode: finalDLCode || null,
+        isFee: finalIsFee
+      })
 
-      // اصلاح معین اشتباه برای شرکت‌ها
-      // اگر اسمارت رول به ما 111005 (بانک) داد، اما ما یک کد تفصیلی غیر بانکی (شرکت) پیدا کردیم
-      if (finalSL === "111005" && finalDLCode) {
-        // اگر کد با 200 شروع نمی‌شود (یعنی بانک نیست)، پس یک شرکت است
-        if (!finalDLCode.startsWith("200") || finalDLCode === "200000") {
+      if (!audit.approved) {
+        // اگر ناظر رد کرد، اما مورد ما "تنخواه" یا "بانک داخلی" بود، نظر ناظر را نادیده می‌گیریم
+        const isInternalTransfer =
+          finalDLCode?.startsWith("200") || finalSL === "111005"
+        const isPettyCash = finalSL === "111003"
+
+        if (isInternalTransfer || isPettyCash) {
           console.log(
-            `🔄 Correcting SL from 111005 to Default (Vendor detected: ${finalDLCode})`
+            `🛡️ Audit rejected but Override active for Internal/PettyCash. Keeping: ${finalFoundName}`
           )
-          finalSL = isDeposit ? DEPOSIT_SL_CODE : WITHDRAWAL_SL_CODE
+        } else {
+          console.warn(`🚨 ناظر تراکنش را رد کرد: ${audit.reason}`)
+          finalDLCode = undefined
+          finalFoundName = "نامشخص (رد شده توسط ناظر)"
+          // می‌توان اینجا SL را به "نامشخص" تغییر داد یا روی پیش‌فرض گذاشت
         }
       }
 
+      // =========================================================
+      // 🔧 3. اصلاحات نهایی و قوانین اجباری (Business Logic Overrides)
+      // =========================================================
+
+      // 🛠️ قانون ۱: امین امین‌نیا همیشه تنخواه است
       if (
-        finalDLCode === "FEE" ||
-        finalIsFee ||
-        finalDLCode === "111106" ||
-        finalDLCode === "621105"
+        cleanName.includes("امین امین") ||
+        cleanName.includes("امین نیا") ||
+        rawDesc.includes("امین نیا") || // <--- این خط اضافه شد برای نجات تراکنش‌هایی که نامشان اشتباه است
+        rawDesc.includes("امین امین") ||
+        finalDLCode === "000002"
       ) {
+        console.log("🔒 Force-fixing Amin Nia to Tenkhah (111003)")
+        finalDLCode = "000002"
+        finalSL = "111003"
+      }
+
+      // 🛠️ قانون ۲: انتقال بین بانکی (برداشت به حساب دیگر شرکت)
+      else if (
+        mode === "withdrawal" &&
+        finalDLCode &&
+        finalDLCode.startsWith("200")
+      ) {
+        console.log(
+          `🔒 Internal Bank Transfer Detected (${finalDLCode}) -> Setting SL to 111005`
+        )
+        finalSL = "111005" // موجودی بانک
+      }
+
+      // 🛠️ قانون ۳: واریزی به سایر اشخاص/شرکت‌ها = پیش‌پرداخت
+      else if (
+        mode === "withdrawal" &&
+        finalDLCode &&
+        finalDLCode !== "000002" && // امین‌نیا نباشد
+        !finalDLCode.startsWith("200") && // بانک نباشد
+        !finalIsFee && // کارمزد نباشد
+        finalSL !== "111005" // قبلاً بانک تشخیص داده نشده باشد
+      ) {
+        console.log(
+          `🔒 Converting Payable (${finalDLCode}) to Prepayment for: ${partyName}`
+        )
+        finalSL = "112001" // ⚠️ کد پیش‌پرداخت خود را چک کنید (مثلا 112001 یا 111010)
+      }
+
+      // اصلاح معین اشتباه برای شرکت‌ها (اگر هنوز 111005 مانده ولی شرکت است)
+      if (
+        finalSL === "111005" &&
+        finalDLCode &&
+        !finalDLCode.startsWith("200")
+      ) {
+        // این حالت توسط قانون ۳ پوشش داده می‌شود اما برای اطمینان:
+        if (mode === "withdrawal")
+          finalSL = "112001" // پیش‌پرداخت
+        else finalSL = DEPOSIT_SL_CODE // دریافتنی
+      }
+
+      // اگر کارمزد است، معین حتما 621105 باشد
+      if (finalIsFee || finalDLCode === "621105") {
         finalSL = "621105"
         finalDLCode = undefined
         finalFoundName = "هزینه کارمزد بانکی"
       }
 
-      // نجات‌بخش (انتقال بانکی)
+      // نجات‌بخش (انتقال بانکی تشخیص داده نشده)
       if (
         !finalDLCode &&
         !finalIsFee &&
-        (finalFoundName === "نامشخص" || finalFoundName.includes("موجودی بانک"))
-      ) {
-        if (
-          rawDesc.includes("جبران") ||
+        (finalFoundName === "نامشخص" ||
+          finalFoundName.includes("موجودی بانک")) &&
+        (rawDesc.includes("جبران") ||
           rawDesc.includes("انتقال") ||
-          rawDesc.includes("ساتنا") ||
-          rawDesc.includes("پایا") ||
-          rawDesc.includes("واریز از")
-        ) {
-          const recovered = recoverBankFromDescription(rawDesc, bankDLCode)
-          if (recovered) {
-            console.log(
-              `✅ FIXED: Bank Transfer Detected -> ${recovered.title}`
-            )
-            finalDLCode = recovered.code
-            finalFoundName = recovered.title
-            finalSL = "111005"
-          }
+          rawDesc.includes("واریز از"))
+      ) {
+        const recovered = recoverBankFromDescription(rawDesc, bankDLCode)
+        if (recovered) {
+          console.log(`✅ FIXED: Bank Transfer Detected -> ${recovered.title}`)
+          finalDLCode = recovered.code
+          finalFoundName = recovered.title
+          finalSL = "111005"
         }
       }
 
-      // بررسی نهایی بانک
-      if (
-        finalDLCode &&
-        finalDLCode.startsWith("200") &&
-        finalDLCode !== "200000"
-      ) {
-        finalSL = "111005"
-      }
-
-      // رفع باگ کدهای معین در تفصیلی
-      if (
-        finalDLCode &&
-        ["211003", "211004", "211202", "111003", "621105", "111005"].includes(
-          finalDLCode
-        )
-      ) {
-        console.log(`⚠️ Moving misplaced code ${finalDLCode} to SL`)
-        finalSL = finalDLCode
-        finalDLCode = undefined
-      }
-
       // ---------------------------------------------------------
-      // ساخت کوئری
+      // ساخت کوئری (بدون تغییر)
       // ---------------------------------------------------------
       debugDecisions.push({
         Name: partyName,
@@ -1322,9 +1381,9 @@ export async function syncToRahkaranSystem(
       })
       successfulTrackingCodes.push(item.tracking || "")
 
-      const dlValue =
-        finalDLCode && finalDLCode !== "111106" ? `N'${finalDLCode}'` : "NULL"
+      const dlValue = finalDLCode ? `N'${finalDLCode}'` : "NULL"
 
+      // ... (بقیه کد تولید SQL بدون تغییر) ...
       sqlItemsBuffer += `
         -- Item: ${escapeSql(partyName)} -> ${finalFoundName}
         SET @Amount = ${item.amount};
@@ -1352,8 +1411,6 @@ export async function syncToRahkaranSystem(
         IF @Str_PartyDLCode IS NOT NULL
         BEGIN
              SELECT TOP 1 @Ref_DL = DLID, @Ref_DLType = DLTypeRef FROM [FIN3].[DL] WHERE Code = @Str_PartyDLCode;
-             
-             -- اگر تفصیلی پیدا نشد، مقدارش را NULL کن تا ارور FK ندهد
              IF @Ref_DL IS NULL SET @Str_PartyDLCode = NULL; 
              ELSE
              BEGIN

@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
 import { createClient } from "@supabase/supabase-js"
+import {
+  geminiClient,
+  AI_MODELS,
+  gpt5Client,
+  embeddingClient
+} from "@/lib/arvanapi"
 
-export const maxDuration = 3000
+export const maxDuration = 300
+
 export const dynamic = "force-dynamic"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://rhyno.ir",
-    "X-Title": "Rhyno Automation"
-  }
-})
-
-const EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
 
 async function executeRahkaranSql(sql: string) {
   // استفاده از متغیر محیطی برای آدرس پل (Bridge) جدید
@@ -80,8 +76,8 @@ export async function GET(req: NextRequest) {
 
       try {
         // تولید امبدینگ به صورت Batch (بسیار سریعتر)
-        const embeddingRes = await openai.embeddings.create({
-          model: EMBEDDING_MODEL,
+        const embeddingRes = await embeddingClient.embeddings.create({
+          model: AI_MODELS.Embeddings,
           input: batchTitles
         })
 

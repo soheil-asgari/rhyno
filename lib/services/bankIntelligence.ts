@@ -900,6 +900,7 @@ export async function auditVoucherWithAI(data: {
        - **ACTION: APPROVE IMMEDIATELY.**
        - **CRITICAL:** Do NOT reject if the Code is NULL or Account is "Unknown" or "Namoshakhas". 
        - REASON: Bank fees are general ledger expenses and often do not have a specific counterparty (DL) code. This is expected behavior.
+       "If the selected account is a known Petty Cash Holder (e.g., Amin Amin Nia امین امین نیا , امین نیا), verify strictly against Petty Cash logic, permitting 'Person' accounts if they act as the treasurer."
     Output JSON ONLY: { "approved": boolean, "reason": "Short explanation" }
     `
 
